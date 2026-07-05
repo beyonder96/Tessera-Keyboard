@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="?attr/stitchGlowColor">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="?attr/stitchKeyBgColor" /> <!-- 5% translucent white -->
+            <corners android:radius="10dp" /> <!-- Elegant slightly rounded shape -->
+            <stroke
+                android:width="0.8dp"
+                android:color="?attr/stitchKeyBorderColor" /> <!-- Very thin reflective glass border -->
+        </shape>
+    </item>
+</ripple>

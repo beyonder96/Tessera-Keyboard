@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Stitch Glass Theme Colors -->
+    <color name="stitch_background">#99001717</color> <!-- Glassmorphic 60% opacity deep dark teal -->
+    <color name="stitch_glow">#06fbfb</color>
+    <color name="stitch_glow_pressed">#4D06fbfb</color> <!-- 30% translucent glow for pressed state -->
+    <color name="stitch_glow_subtle">#1A06fbfb</color>
+    
+    <color name="glass_bg_translucent">#1AFFFFFF</color> <!-- 10% translucent white -->
+    <color name="glass_bg_translucent_pressed">#40FFFFFF</color> <!-- 25% translucent white on press -->
+    <color name="glass_border">#40FFFFFF</color> <!-- reflective border -->
+    
+    <color name="glass_ai_bg">#3306fbfb</color> <!-- AI recommendation pill background -->
+    <color name="glass_ai_text">#FFFFFF</color>
+    
+    <color name="text_high_contrast">#FFFFFF</color>
+    <color name="text_glowing">#06fbfb</color>
+    <color name="text_inactive">#80FFFFFF</color> <!-- 50% opacity white -->
+</resources>

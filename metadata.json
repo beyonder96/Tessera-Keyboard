@@ -1,0 +1,6 @@
+{
+  "name": "Tessera Keyboard",
+  "description": "Convert Stitch's interface design into a native Android custom keyboard with a glassmorphic look, floating letters, and pill buttons.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

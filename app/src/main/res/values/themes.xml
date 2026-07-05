@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.MyApplication" parent="android:Theme.Material.Light.NoActionBar" />
+    
+    <style name="Theme.Tessera.Dark" parent="Theme.MyApplication">
+        <item name="stitchBgColor">#80001717</item> <!-- 50% translucent dark teal -->
+        <item name="stitchGlowColor">#06FBFB</item>
+        <item name="stitchKeyBgColor">#1AFFFFFF</item> <!-- 10% white -->
+        <item name="stitchKeyBorderColor">#1FFFFFFF</item>
+        <item name="stitchTextColor">#FFFFFF</item>
+        <item name="stitchTextInactiveColor">#80FFFFFF</item>
+        <item name="stitchGlassBgTranslucent">#1AFFFFFF</item>
+        <item name="stitchAiBg">#3306FBFB</item>
+        <item name="stitchAiText">#FFFFFF</item>
+    </style>
+
+    <style name="Theme.Tessera.Light" parent="Theme.MyApplication">
+        <item name="stitchBgColor">#80FFFFFF</item> <!-- 50% translucent frosted glass white -->
+        <item name="stitchGlowColor">#007777</item> <!-- Darker teal for light mode glow -->
+        <item name="stitchKeyBgColor">#33000000</item> <!-- 20% black -->
+        <item name="stitchKeyBorderColor">#1A000000</item>
+        <item name="stitchTextColor">#001717</item>
+        <item name="stitchTextInactiveColor">#80001717</item>
+        <item name="stitchGlassBgTranslucent">#1A000000</item>
+        <item name="stitchAiBg">#33007777</item>
+        <item name="stitchAiText">#FFFFFF</item>
+    </style>
+</resources>
