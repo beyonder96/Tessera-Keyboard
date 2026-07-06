@@ -91,7 +91,7 @@ override fun onCreateInputView(): View {
             voiceText = keyboardView.findViewById(R.id.voice_text)
             previewPopupText = keyboardView.findViewById(R.id.key_preview_text)
 
-                        keyboardView.findViewById<View>(R.id.btn_close_voice)?.setOnClickListener {
+            keyboardView.findViewById<View>(R.id.btn_close_voice)?.setOnClickListener {
                 stopListening()
                 waveJob?.cancel()
                 voiceRoot.visibility = View.GONE
