@@ -1,21 +1,28 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
 
-# Run and deploy your AI Studio app
+## Tessera Keyboard
 
-This contains everything you need to run your app locally.
+Um teclado Android customizado com interface minimalista e foco em usabilidade avançada e performance.
 
-View your app in AI Studio: https://ai.studio/apps/828b25d0-f862-4a96-8d37-e2e33a61b470
+## Como instalar
 
-## Run Locally
+1. Vá até a pasta `apks/`.
+2. Baixe o `app-debug.apk` ou `app-release.apk` para o seu dispositivo Android.
+3. Instale o APK no seu aparelho (pode ser necessário habilitar a instalação de fontes desconhecidas).
+4. Abra o aplicativo "Tessera" e siga as instruções na tela para habilitar e selecioná-lo.
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+## Para desenvolvedores
 
+### Dependências
+- Android Studio
+- Gradle
+- Jetpack Compose
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+### Compilando o Projeto
+
+```bash
+# Debug
+./gradlew assembleDebug
+
+# Release
+./gradlew assembleRelease
+```

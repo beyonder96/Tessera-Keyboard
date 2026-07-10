@@ -57,45 +57,14 @@ class MainActivity : ComponentActivity() {
                             .background(
                                 Brush.verticalGradient(
                                     colors = listOf(
-                                        Color(0xFF0A0F14), // Deep space
-                                        Color(0xFF001F22), // Deep teal
-                                        Color(0xFF003838)  // Lighter teal at bottom
+                                        Color(0xFF121212), // Dark grey
+                                        Color(0xFF000000)  // Pitch black
                                     )
                                 )
                             )
                             .padding(innerPadding)
                     ) {
-                        // Decorative glowing orb in the background
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 100.dp, y = (-50).dp)
-                                .size(250.dp)
-                                .background(
-                                    Brush.radialGradient(
-                                        colors = listOf(
-                                            Color(0xFF06FBFB).copy(alpha = 0.15f),
-                                            Color.Transparent
-                                        )
-                                    ),
-                                    shape = androidx.compose.foundation.shape.CircleShape
-                                )
-                        )
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomStart)
-                                .offset(x = (-80).dp, y = 100.dp)
-                                .size(300.dp)
-                                .background(
-                                    Brush.radialGradient(
-                                        colors = listOf(
-                                            Color(0xFF008B8B).copy(alpha = 0.15f),
-                                            Color.Transparent
-                                        )
-                                    ),
-                                    shape = androidx.compose.foundation.shape.CircleShape
-                                )
-                        )
+                        // No extra elements for a minimalist design
                         StitchDashboardScreen(
                             modifier = Modifier.fillMaxSize()
                         )
@@ -155,38 +124,34 @@ fun StitchDashboardScreen(modifier: Modifier = Modifier) {
         // Hero Header
         Spacer(modifier = Modifier.height(8.dp))
         
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Star,
-                contentDescription = "AI Sparkles",
-                tint = Color(0xFF06FBFB),
-                modifier = Modifier.size(32.dp)
-            )
-            Text(
-                text = "TESSERA KEYBOARD",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 2.sp
-                ),
-                color = Color.White
-            )
-        }
-
-        Text(
-            text = "Interface Glassmorphic de Alta Performance",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF06FBFB),
-            textAlign = TextAlign.Center
+        Icon(
+            imageVector = Icons.Default.Keyboard,
+            contentDescription = "Keyboard Icon",
+            tint = Color.White,
+            modifier = Modifier.size(32.dp)
         )
+        Text(
+            text = "TESSERA",
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontWeight = FontWeight.Light,
+                letterSpacing = 4.sp
+            ),
+            color = Color.White
+        )
+    
+
+    Text(
+        text = "Minimalist Keyboard",
+        style = MaterialTheme.typography.bodyMedium,
+        color = Color(0xFFAAAAAA),
+        textAlign = TextAlign.Center
+    )
 
         // Dynamic Keyboard Status Card
         val (statusText, statusColor) = when {
-            !isEnabled -> "🔴 Teclado Desativado (Ative na Etapa 1)" to Color(0xFFFF5252)
-            !isSelected -> "🟡 Ativado, mas não Selecionado (Selecione na Etapa 2)" to Color(0xFFFFD740)
-            else -> "🟢 Teclado Tessera Ativo e Pronto para Uso!" to Color(0xFF00E676)
+            !isEnabled -> "Teclado desativado (Siga a etapa 1)" to Color(0xFFE57373)
+            !isSelected -> "Teclado não selecionado (Siga a etapa 2)" to Color(0xFFFFB74D)
+            else -> "Teclado ativo e pronto" to Color(0xFF81C784)
         }
 
         Box(
@@ -236,36 +201,29 @@ fun StitchDashboardScreen(modifier: Modifier = Modifier) {
             }
         }
 
-        // Actions (Pill buttons conforming to the requested design approach)
+        // Actions
         Button(
             onClick = {
                 try {
                     val intent = Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     context.startActivity(intent)
-                    Toast.makeText(context, "Ative o 'Tessera Keyboard' na lista", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Ative o 'Tessera' na lista", Toast.LENGTH_LONG).show()
                 } catch (e: Exception) {
-                    Toast.makeText(context, "Erro ao abrir configurações: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Erro: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF003C3C),
-                contentColor = Color(0xFF06FBFB)
+                containerColor = Color.Transparent,
+                contentColor = Color.White
             ),
-            shape = RoundedCornerShape(100.dp),
-            border = BorderStroke(1.2.dp, Color(0xFF06FBFB))
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, Color(0x80FFFFFF))
         ) {
-            Icon(imageVector = Icons.Default.Build, contentDescription = "Configurações", modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "1. ATIVAR NAS CONFIGURAÇÕES",
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                letterSpacing = 0.5.sp
-            )
+            Text("1. Habilitar nas Configurações", fontWeight = FontWeight.Normal)
         }
 
         Button(
@@ -273,28 +231,18 @@ fun StitchDashboardScreen(modifier: Modifier = Modifier) {
                 val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
                 if (imm != null) {
                     imm.showInputMethodPicker()
-                } else {
-                    Toast.makeText(context, "Não foi possível exibir o seletor de teclado", Toast.LENGTH_SHORT).show()
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF06FBFB),
-                contentColor = Color(0xFF001717)
+                containerColor = Color.White,
+                contentColor = Color.Black
             ),
-            shape = RoundedCornerShape(100.dp),
-            border = BorderStroke(1.2.dp, Color.White)
+            shape = RoundedCornerShape(8.dp)
         ) {
-            Icon(imageVector = Icons.Default.Keyboard, contentDescription = "Mudar teclado", modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "2. SELECIONAR TESSERA KEYBOARD",
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                letterSpacing = 0.5.sp
-            )
+            Text("2. Selecionar Teclado", fontWeight = FontWeight.Medium)
         }
 
 
@@ -352,21 +300,21 @@ fun StitchDashboardScreen(modifier: Modifier = Modifier) {
         }
         
         // Test Input Field
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(32.dp))
         var testText by remember { mutableStateOf("") }
         androidx.compose.material3.OutlinedTextField(
             value = testText,
             onValueChange = { testText = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Teste o teclado aqui...", color = Color(0x80FFFFFF)) },
+            placeholder = { Text("Teste aqui...", color = Color(0x60FFFFFF)) },
             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF06FBFB),
-                unfocusedBorderColor = Color(0x2BFFFFFF),
+                focusedBorderColor = Color.White,
+                unfocusedBorderColor = Color(0x40FFFFFF),
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White,
-                cursorColor = Color(0xFF06FBFB)
+                cursorColor = Color.White
             ),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(8.dp)
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -391,14 +339,14 @@ fun InstructionRow(number: String, text: String) {
         Box(
             modifier = Modifier
                 .size(24.dp)
-                .background(Color(0xFF06FBFB), RoundedCornerShape(100.dp)),
+                .background(Color.White, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = number,
-                color = Color(0xFF001717),
+                color = Color.Black,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Medium
             )
         }
         Text(
@@ -413,18 +361,18 @@ fun InstructionRow(number: String, text: String) {
 
 @Composable
 fun ThemeOption(title: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val bgColor = if (isSelected) Color(0xFF06FBFB).copy(alpha = 0.15f) else Color(0x0DFFFFFF)
-    val borderColor = if (isSelected) Color(0xFF06FBFB) else Color(0x2BFFFFFF)
-    val textColor = if (isSelected) Color(0xFF06FBFB) else Color.White
+    val bgColor = if (isSelected) Color(0x20FFFFFF) else Color.Transparent
+    val borderColor = if (isSelected) Color.White else Color(0x40FFFFFF)
+    val textColor = if (isSelected) Color.White else Color(0xFFAAAAAA)
     
     Box(
         modifier = modifier
-            .background(bgColor, RoundedCornerShape(16.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
+            .background(bgColor, RoundedCornerShape(8.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 16.dp),
+            .padding(vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = title, color = textColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text(text = title, color = textColor, fontWeight = FontWeight.Medium, fontSize = 14.sp)
     }
 }
