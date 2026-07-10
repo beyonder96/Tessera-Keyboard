@@ -15,7 +15,7 @@
     </style>
 
     <style name="Theme.Tessera.Light" parent="Theme.MyApplication">
-        <item name="stitchBgColor">#80FFFFFF</item> <!-- 50% translucent frosted glass white -->
+        <item name="stitchBgColor">#D9FFFFFF</item> <!-- 85% translucent frosted glass white -->
         <item name="stitchGlowColor">#007777</item> <!-- Darker teal for light mode glow -->
         <item name="stitchKeyBgColor">#33000000</item> <!-- 20% black -->
         <item name="stitchKeyBorderColor">#1A000000</item>

@@ -18,11 +18,11 @@ class SwipeGestureOverlay @JvmOverloads constructor(
     private val paint = Paint().apply {
         color = Color.parseColor("#06FBFB")
         style = Paint.Style.STROKE
-        strokeWidth = 12f
+        strokeWidth = 24f
         strokeJoin = Paint.Join.ROUND
         strokeCap = Paint.Cap.ROUND
         isAntiAlias = true
-        alpha = 180
+        alpha = 255
     }
 
 

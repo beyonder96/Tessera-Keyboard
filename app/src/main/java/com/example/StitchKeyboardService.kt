@@ -130,8 +130,29 @@ override fun onCreateInputView(): View {
     }
 
     private var currentTheme = "Dark"
+    private var isSymbolMode = false
 
+    private val idMapLetters = mapOf(
+        R.id.key_q to "q", R.id.key_w to "w", R.id.key_e to "e", R.id.key_r to "r",
+        R.id.key_t to "t", R.id.key_y to "y", R.id.key_u to "u", R.id.key_i to "i",
+        R.id.key_o to "o", R.id.key_p to "p",
+        R.id.key_a to "a", R.id.key_s to "s", R.id.key_d to "d", R.id.key_f to "f",
+        R.id.key_g to "g", R.id.key_h to "h", R.id.key_j to "j", R.id.key_k to "k",
+        R.id.key_l to "l", R.id.key_cedilla to "ç",
+        R.id.key_z to "z", R.id.key_x to "x", R.id.key_c to "c", R.id.key_v to "v",
+        R.id.key_b to "b", R.id.key_n to "n", R.id.key_m to "m"
+    )
 
+    private val idMapSymbols = mapOf(
+        R.id.key_q to "1", R.id.key_w to "2", R.id.key_e to "3", R.id.key_r to "4",
+        R.id.key_t to "5", R.id.key_y to "6", R.id.key_u to "7", R.id.key_i to "8",
+        R.id.key_o to "9", R.id.key_p to "0",
+        R.id.key_a to "@", R.id.key_s to "#", R.id.key_d to "$", R.id.key_f to "_",
+        R.id.key_g to "&", R.id.key_h to "-", R.id.key_j to "+", R.id.key_k to "(",
+        R.id.key_l to ")", R.id.key_cedilla to "/",
+        R.id.key_z to "*", R.id.key_x to "\"", R.id.key_c to "'", R.id.key_v to ":",
+        R.id.key_b to ";", R.id.key_n to "!", R.id.key_m to "?"
+    )
     override fun onUpdateSelection(
         oldSelStart: Int, oldSelEnd: Int,
         newSelStart: Int, newSelEnd: Int,
@@ -199,7 +220,7 @@ override fun onCreateInputView(): View {
         }
 
         isShifted = false
-        updateShiftUI()
+        updateKeyLabels()
         updatePredictions()
 
         val scale = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
@@ -323,30 +344,21 @@ override fun onCreateInputView(): View {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-        private fun setupKeys(view: View) {
-        val idMap = mapOf(
-            R.id.key_q to "q", R.id.key_w to "w", R.id.key_e to "e", R.id.key_r to "r",
-            R.id.key_t to "t", R.id.key_y to "y", R.id.key_u to "u", R.id.key_i to "i",
-            R.id.key_o to "o", R.id.key_p to "p",
-            R.id.key_a to "a", R.id.key_s to "s", R.id.key_d to "d", R.id.key_f to "f",
-            R.id.key_g to "g", R.id.key_h to "h", R.id.key_j to "j", R.id.key_k to "k",
-            R.id.key_l to "l", R.id.key_cedilla to "ç",
-            R.id.key_z to "z", R.id.key_x to "x", R.id.key_c to "c", R.id.key_v to "v",
-            R.id.key_b to "b", R.id.key_n to "n", R.id.key_m to "m"
-        )
+    private fun setupKeys(view: View) {
         alphabetKeys.clear()
         keyViews.clear()
 
-        for ((id, char) in idMap) {
+        for ((id, _) in idMapLetters) {
             val keyView = view.findViewById<android.widget.TextView>(id) ?: continue
-            alphabetKeys[id] = char
             keyViews.add(keyView)
-
+            
             keyView.setOnTouchListener { v, event ->
                 when (event.action) {
                     android.view.MotionEvent.ACTION_DOWN -> {
-                        val uppercaseChar = if (isShifted) char.uppercase() else char.lowercase()
-                        handleCharacterClick(char)
+                        val currentMap = if (isSymbolMode) idMapSymbols else idMapLetters
+                        val currentChar = currentMap[id] ?: return@setOnTouchListener false
+                        val uppercaseChar = if (isShifted && !isSymbolMode) currentChar.uppercase() else currentChar
+                        handleCharacterClick(currentChar)
                         triggerVibration()
                         showKeyPopup(keyView, uppercaseChar)
                         v.isPressed = true
@@ -362,24 +374,18 @@ override fun onCreateInputView(): View {
             }
         }
 
+        updateKeyLabels()
+
         val swipeOverlay = view.findViewById<com.example.ui.SwipeGestureOverlay>(R.id.swipe_overlay)
         if (swipeOverlay != null) {
-            val keyList = mutableListOf<Pair<android.widget.TextView, String>>()
-            for ((id, char) in idMap) {
-                val keyView = view.findViewById<android.widget.TextView>(id) ?: continue
-                keyList.add(Pair(keyView, char))
-            }
-            swipeOverlay.setKeys(keyList)
-            
             val typedValue = android.util.TypedValue()
             theme.resolveAttribute(R.attr.stitchGlowColor, typedValue, true)
             swipeOverlay.setThemeColor(typedValue.data)
 
-
-            swipeOverlay.onKeyDown = { view, char ->
-                val uppercaseChar = if (isShifted) char.uppercase() else char.lowercase()
-                showKeyPopup(view, uppercaseChar)
-                view.isPressed = true
+            swipeOverlay.onKeyDown = { v, char ->
+                val uppercaseChar = if (isShifted && !isSymbolMode) char.uppercase() else char
+                showKeyPopup(v, uppercaseChar)
+                v.isPressed = true
                 triggerVibration()
             }
             
@@ -389,7 +395,6 @@ override fun onCreateInputView(): View {
             }
             
             swipeOverlay.onSwipeComplete = { wordPattern ->
-
                 val prediction = predictionEngine.getSwipePrediction(wordPattern)
                 if (prediction != null) {
                     val ic = currentInputConnection
@@ -398,7 +403,6 @@ override fun onCreateInputView(): View {
                 } else {
                     android.widget.Toast.makeText(this, "Palavra não encontrada", android.widget.Toast.LENGTH_SHORT).show()
                 }
-                updatePredictions()
             }
             
             swipeOverlay.onSwipeChar = { char ->
@@ -413,22 +417,19 @@ override fun onCreateInputView(): View {
     
     private fun setupEmojiKeyboard(view: View) {
         val emojiGridLayout = view.findViewById<android.widget.GridLayout>(R.id.emoji_grid_layout) ?: return
-        val emojis = listOf(
-            "😀", "😂", "🤣", "😊", "🥰", "😍", "😘", "😜",
-            "😎", "🤩", "🥳", "😏", "😒", "😞", "😔", "😢",
-            "😭", "😤", "😡", "🤬", "🤯", "😳", "🥵", "🥶",
-            "😱", "😨", "😰", "😥", "😓", "🤗", "🤔", "🤭",
-            "🤫", "🤥", "😶", "😐", "😑", "😬", "🙄", "😯",
-            "😦", "😧", "😮", "😲", "🥱", "😴", "🤤", "😪",
-            "😵", "🤐", "🥴", "🤢", "🤮", "🤧", "😷", "🤒",
-            "🤕", "🤑", "🤠", "😈", "👿", "👹", "👺", "🤡",
-            "💩", "👻", "💀", "☠️", "👽", "👾", "🤖", "🎃",
-            "😺", "😸", "😹", "😻", "😼", "😽", "🙀", "😿",
-            "😾", "🙈", "🙉", "🙊", "💋", "💌", "💘", "💝",
-            "💖", "💗", "💓", "💞", "💕", "💟", "❣️", "💔",
-            "❤️", "🧡", "💛", "💚", "💙", "💜", "🤎", "🖤",
-            "🤍", "💯", "💢", "💥", "💫", "💦", "💨", "🕳️"
+        val baseEmojis = listOf(
+            "😀", "😂", "😊", "🥰", "😎", "🤩", "😭", "🤯",
+            "🤔", "😬", "🙄", "😴", "🤧", "🤠", "😈", "💩", 
+            "👍", "👎", "✌", "🤞", "🤟", "🤘", "🤙", "👋", 
+            "👦", "👧", "👨", "👩", "👴", "👵", "👮", "👷", 
+            "❤️", "🔥", "💯", "💥", "💫", "💦", "💨", "🕳"
         )
+        
+        val prefs = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
+        val tone = prefs.getString("EMOJI_TONE", "") ?: ""
+        val skinnable = listOf("👍", "👎", "✌", "🤞", "🤟", "🤘", "🤙", "👋", "👦", "👧", "👨", "👩", "👴", "👵", "👮", "👷")
+        
+        val emojis = baseEmojis.map { if (skinnable.contains(it)) it + tone else it }
         
         emojiGridLayout.removeAllViews()
         val density = resources.displayMetrics.density
@@ -648,7 +649,8 @@ private fun setupCommandKeys(view: View) {
             if (event.action == android.view.MotionEvent.ACTION_DOWN) {
                 playClickFeedback()
                 triggerVibration()
-                android.widget.Toast.makeText(this, "Teclado Numérico/Símbolos em breve", android.widget.Toast.LENGTH_SHORT).show()
+                isSymbolMode = !isSymbolMode
+                updateKeyLabels()
                 v.isPressed = true
                 true
             } else if (event.action == android.view.MotionEvent.ACTION_UP || event.action == android.view.MotionEvent.ACTION_CANCEL) {
@@ -750,7 +752,23 @@ private fun setupCommandKeys(view: View) {
         }
         
         view.findViewById<View>(R.id.btn_settings_emoji)?.setOnClickListener {
-            Toast.makeText(this, "Tons de emoji em breve", Toast.LENGTH_SHORT).show()
+            val prefs = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
+            val currentTone = prefs.getString("EMOJI_TONE", "") ?: ""
+            val tones = listOf("", "🏻", "🏼", "🏽", "🏾", "🏿")
+            val nextToneIndex = (tones.indexOf(currentTone) + 1) % tones.size
+            val nextTone = tones[nextToneIndex]
+            prefs.edit().putString("EMOJI_TONE", nextTone).apply()
+            
+            val toneName = when(nextToneIndex) {
+                0 -> "Amarelo (Padrão)"
+                1 -> "Claro"
+                2 -> "Médio-Claro"
+                3 -> "Médio"
+                4 -> "Médio-Escuro"
+                else -> "Escuro"
+            }
+            android.widget.Toast.makeText(this, "Tom de pele: $toneName", android.widget.Toast.LENGTH_SHORT).show()
+            setupEmojiKeyboard(keyboardRoot.rootView)
         }
 
 
@@ -775,7 +793,7 @@ private fun setupCommandKeys(view: View) {
 
         if (isShifted) {
             isShifted = false
-            updateShiftUI()
+            updateKeyLabels()
         }
         playClickFeedback()
         updatePredictions()
@@ -783,15 +801,30 @@ private fun setupCommandKeys(view: View) {
 
     private fun toggleShift() {
         isShifted = !isShifted
-        updateShiftUI()
+        updateKeyLabels()
         playClickFeedback()
     }
 
-    private fun updateShiftUI() {
-        for (textView in keyViews) {
-            val baseChar = alphabetKeys[textView.id] ?: continue
-            textView.text = if (isShifted) baseChar.uppercase() else baseChar.lowercase()
+    private fun updateKeyLabels() {
+        val currentMap = if (isSymbolMode) idMapSymbols else idMapLetters
+        alphabetKeys.clear()
+        
+        val keyList = mutableListOf<Pair<android.widget.TextView, String>>()
+        
+        for ((id, char) in currentMap) {
+            val keyView = keyViews.find { it.id == id } ?: continue
+            val displayChar = if (isShifted && !isSymbolMode) char.uppercase() else char
+            keyView.text = displayChar
+            alphabetKeys[id] = char
+            keyList.add(Pair(keyView, char))
         }
+        
+        val swipeOverlay = keyboardRoot.findViewById<com.example.ui.SwipeGestureOverlay>(R.id.swipe_overlay)
+        swipeOverlay?.setKeys(keyList)
+        
+        val symbolKeyText = keyboardRoot.findViewById<TextView>(R.id.text_key_symbol)
+        symbolKeyText?.text = if (isSymbolMode) "ABC" else "?123"
+
         if (::shiftIcon.isInitialized) {
             if (isShifted) {
                 val typedValue = android.util.TypedValue()
