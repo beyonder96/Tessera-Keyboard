@@ -700,8 +700,8 @@ private fun setupCommandKeys(view: View) {
         val suggestion1 = this.suggestion1
         val suggestion2 = this.suggestion2
         val suggestion3 = this.suggestion3
-        val plusBtn = view.findViewById<View>(R.id.key_plus)
-        val sparkleBtn = view.findViewById<View>(R.id.key_sparkle)
+        val plusBtn = view.findViewById<View>(R.id.key_shift_top)
+        val sparkleBtn = view.findViewById<View>(R.id.key_mic_top)
         val iaBtn = view.findViewById<TextView>(R.id.key_ia)
 
         val suggestionClickListener = View.OnClickListener { v ->

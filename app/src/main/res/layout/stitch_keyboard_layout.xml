@@ -2,15 +2,33 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content"><LinearLayout android:id="@+id/keyboard_root" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_floating_keyboard" android:paddingLeft="8dp" android:paddingRight="8dp" android:paddingTop="12dp" android:paddingBottom="56dp" android:clickable="true" android:focusable="true">
 
     
-    <FrameLayout android:id="@+id/drag_handle_container" android:layout_width="match_parent" android:layout_height="24dp" android:layout_marginTop="-8dp"><View android:layout_width="40dp" android:layout_height="4dp" android:layout_gravity="center" android:background="@drawable/bg_command_pill" android:alpha="0.5" /></FrameLayout><LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="12dp">
-        <TextView android:id="@+id/key_plus" android:layout_width="wrap_content" android:layout_height="38dp" android:text="Aa" android:textColor="#FFFFFF" android:textSize="16sp" android:gravity="center" android:paddingHorizontal="16dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="8dp" />
-        <View android:id="@+id/key_sparkle" android:layout_width="24dp" android:layout_height="24dp" android:background="@drawable/bg_key_circle" android:layout_marginRight="8dp" />
-        <TextView android:id="@+id/suggestion_2" android:layout_width="wrap_content" android:layout_height="38dp" android:text="≡" android:textColor="#FFFFFF" android:textSize="20sp" android:gravity="center" android:paddingHorizontal="16dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="16dp" />
+    <FrameLayout android:id="@+id/drag_handle_container" android:layout_width="match_parent" android:layout_height="24dp" android:layout_marginTop="-8dp"><View android:layout_width="40dp" android:layout_height="4dp" android:layout_gravity="center" android:background="@drawable/bg_command_pill" android:alpha="0.5" />
+    <!-- Missing Views for Kotlin bindings -->
+    <TextView android:id="@+id/suggestion_1" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+    <TextView android:id="@+id/suggestion_2" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+    <TextView android:id="@+id/suggestion_3" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+    <FrameLayout android:id="@+id/key_ia" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+
+</FrameLayout><LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="12dp">
+        <!-- 1: Shift Toggle -->
+        <FrameLayout android:id="@+id/key_shift_top" android:layout_width="0dp" android:layout_weight="1.2" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
+            <TextView android:layout_width="match_parent" android:layout_height="match_parent" android:text="Aa" android:textColor="#FFFFFF" android:textSize="16sp" android:gravity="center" />
+        </FrameLayout>
         
-        <LinearLayout android:layout_width="wrap_content" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center" android:background="@drawable/bg_command_pill" android:paddingHorizontal="12dp">
-            <TextView android:id="@+id/suggestion_1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="15" android:textColor="#888888" android:textSize="14sp" android:layout_marginRight="12dp" />
-            <TextView android:id="@+id/suggestion_3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="16" android:textColor="#FFFFFF" android:textSize="16sp" android:layout_marginRight="12dp" />
-            <TextView android:id="@+id/key_ia" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="17" android:textColor="#888888" android:textSize="18sp" />
+        <!-- 2: Microphone (Optical Trackball look) -->
+        <FrameLayout android:id="@+id/key_mic_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
+            <View android:layout_width="16dp" android:layout_height="16dp" android:background="@drawable/bg_key_circle" android:layout_gravity="center" />
+            <View android:layout_width="6dp" android:layout_height="6dp" android:background="@drawable/bg_circle_active" android:layout_gravity="center" />
+        </FrameLayout>
+        
+        <!-- 3: Disabled (Multi-position selector switch) -->
+        <TextView android:id="@+id/key_disabled_1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:text="≡" android:textColor="#555555" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="false" />
+        
+        <!-- 4: Disabled (OLED ribbon with 15 16 17) -->
+        <LinearLayout android:id="@+id/key_disabled_2" android:layout_width="0dp" android:layout_weight="2" android:layout_height="38dp" android:orientation="horizontal" android:gravity="center" android:background="@drawable/bg_command_pill" android:clickable="false">
+            <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="15" android:textColor="#444444" android:textSize="14sp" android:gravity="center" />
+            <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="16" android:textColor="#888888" android:textSize="16sp" android:gravity="center" />
+            <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="17" android:textColor="#444444" android:textSize="16sp" android:gravity="center" />
         </LinearLayout>
     </LinearLayout>
     <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content">
