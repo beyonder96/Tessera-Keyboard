@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PointF
 import android.graphics.Path
 import android.util.AttributeSet
 import android.view.MotionEvent
@@ -39,6 +40,7 @@ class SwipeGestureOverlay @JvmOverloads constructor(
     private var isSwiping = false
     private var startX = 0f
     private var startY = 0f
+    private val swipePoints = mutableListOf<PointF>()
 
     fun setKeys(keyViews: List<Pair<TextView, String>>) {
         keys.clear()
@@ -64,6 +66,8 @@ class SwipeGestureOverlay @JvmOverloads constructor(
                 
                 startX = x
                 startY = y
+                swipePoints.clear()
+                swipePoints.add(PointF(x, y))
                 path.reset()
                 path.moveTo(x, y)
                 swipeWord.clear()
@@ -82,9 +86,9 @@ class SwipeGestureOverlay @JvmOverloads constructor(
                         onSwipeStart?.invoke()
                     }
                 }
-                path.lineTo(x, y)
+                swipePoints.add(PointF(x, y))
+                drawSmoothSwipe()
                 checkKeyHit(x, y)
-                invalidate()
                 return true
             }
 
@@ -95,6 +99,7 @@ class SwipeGestureOverlay @JvmOverloads constructor(
                 } else if (swipeWord.length > 0) {
                     onSwipeChar?.invoke(swipeWord.toString())
                 }
+                swipePoints.clear()
                 path.reset()
                 invalidate()
                 isSwiping = false
@@ -131,6 +136,30 @@ class SwipeGestureOverlay @JvmOverloads constructor(
     fun setThemeColor(color: Int) {
         paint.color = color
         paint.alpha = 180
+        invalidate()
+    }
+    
+    private fun drawSmoothSwipe() {
+        path.reset()
+        if (swipePoints.size < 2) return
+
+        path.moveTo(swipePoints[0].x, swipePoints[0].y)
+        
+        for (i in 1 until swipePoints.size - 1) {
+            val p1 = swipePoints[i]
+            val p2 = swipePoints[i + 1]
+            
+            // Calcula o ponto médio para suavizar a curva
+            val midX = (p1.x + p2.x) / 2
+            val midY = (p1.y + p2.y) / 2
+            
+            path.quadTo(p1.x, p1.y, midX, midY)
+        }
+        
+        // Linha final até o último ponto
+        val lastPoint = swipePoints.last()
+        path.lineTo(lastPoint.x, lastPoint.y)
+        
         invalidate()
     }
 }

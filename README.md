@@ -9,9 +9,11 @@
 
 ## ✨ Funcionalidades Principais
 
-* 🎨 **Temas Dinâmicos:** Suporte nativo para os temas **Claro (Light)** e **Escuro (Dark)**, adaptando-se às suas preferências.
+* 🎨 **Temas Dinâmicos e Layout Flutuante:** Suporte nativo para os temas **Claro (Light)** e **Escuro (Dark)**. Design premium com fundo em cápsula flutuante e teclas circulares inspiradas no iOS/VisionOS.
+* 👻 **Ghost Text (Autocompletar Inline):** Sugestão avançada no próprio campo de texto onde a palavra em previsão aparece em tom cinza antes de ser confirmada. Funciona offline sem IA!
+* 〰️ **Swipe Suave e Otimizado:** Desenho de rastro ultra-fluido usando Curvas de Bézier (`quadTo`) decodificado de forma assíncrona por Coroutines para performance livre de engasgos a 60FPS.
 * 🎙️ **Digitação por Voz:** Integração com reconhecimento de fala avançado, incluindo interface de gravação (`voice_ui_root`).
-* 🤖 **Previsão Inteligente e IA:** Motor de sugestão de palavras nativo (`PredictionEngine`) com sugestões rápidas para facilitar a digitação.
+* 🤖 **Previsão Inteligente e IA:** Motor de sugestão de palavras nativo (`PredictionEngine`) com sugestões rápidas integradas à topbar de ferramentas.
 * 😄 **Suporte a Emojis:** Painel integrado de Emojis para uso rápido em qualquer aplicativo.
 * ⚙️ **Configurações Customizáveis:** Acesse facilmente opções adicionais direto da interface do teclado (`settings_ui_root`).
 * 👆 **Feedback Tátil e Visual:** Animações, popups visuais instantâneos ao pressionar as teclas, acompanhados de vibração e sons ajustados ao sistema.

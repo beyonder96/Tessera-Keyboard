@@ -43,6 +43,7 @@ class StitchKeyboardService : InputMethodService() {
     private lateinit var settingsRoot: View
     private lateinit var emojiRoot: View
     private val predictionEngine = PredictionEngine()
+    private val ghostTextManager = GhostTextManager()
     private val wordSeparatorRegex = Regex("[^a-zA-ZáéíóúãõâêîôûçÁÉÍÓÚÃÕÂÊÎÔÛÇ]+")
     private var suggestion1: android.widget.TextView? = null
     private var suggestion2: android.widget.TextView? = null
@@ -176,6 +177,8 @@ override fun onCreateInputView(): View {
         val s2 = predictions.getOrNull(1) ?: ""
         val s3 = predictions.getOrNull(2) ?: ""
         
+        ghostTextManager.updateGhostText(ic, lastWord, s1)
+        
         suggestion1?.text = s1
         suggestion1?.visibility = if (s1.isEmpty()) android.view.View.INVISIBLE else android.view.View.VISIBLE
         
@@ -208,6 +211,8 @@ override fun onCreateInputView(): View {
     
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        
+        ghostTextManager.onStartInput(info)
         
         getWindow()?.window?.let { win ->
             applyGlassmorphismBlur(win)
@@ -395,13 +400,17 @@ override fun onCreateInputView(): View {
             }
             
             swipeOverlay.onSwipeComplete = { wordPattern ->
-                val prediction = predictionEngine.getSwipePrediction(wordPattern)
-                if (prediction != null) {
-                    val ic = currentInputConnection
-                    ic?.commitText(prediction + " ", 1)
-                    playClickFeedback()
-                } else {
-                    android.widget.Toast.makeText(this, "Palavra não encontrada", android.widget.Toast.LENGTH_SHORT).show()
+                scope.launch(Dispatchers.Default) {
+                    val prediction = predictionEngine.getSwipePrediction(wordPattern)
+                    withContext(Dispatchers.Main) {
+                        if (prediction != null) {
+                            val ic = currentInputConnection
+                            ic?.commitText(prediction + " ", 1)
+                            playClickFeedback()
+                        } else {
+                            android.widget.Toast.makeText(this@StitchKeyboardService, "Palavra não encontrada", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             }
             
@@ -595,7 +604,9 @@ private fun setupCommandKeys(view: View) {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!isSpaceSwiping) {
-                        currentInputConnection?.commitText(" ", 1)
+                        if (!ghostTextManager.onSpaceClicked(currentInputConnection)) {
+                            currentInputConnection?.commitText(" ", 1)
+                        }
                         playClickFeedback()
                         triggerVibration()
                     }
@@ -699,6 +710,8 @@ private fun setupCommandKeys(view: View) {
                 val textBeforeCursor = ic.getTextBeforeCursor(30, 0)?.toString() ?: ""
                 val words = textBeforeCursor.split(wordSeparatorRegex)
                 val lastWord = words.lastOrNull() ?: ""
+                
+                ghostTextManager.clearGhostText(ic)
                 
                 if (lastWord.isNotEmpty()) {
                     ic.deleteSurroundingText(lastWord.length, 0)
@@ -837,6 +850,7 @@ private fun setupCommandKeys(view: View) {
     }
     private fun handleBackspace() {
         val ic = currentInputConnection ?: return
+        ghostTextManager.clearGhostText(ic)
         val selectedText = ic.getSelectedText(0)
         if (selectedText.isNullOrEmpty()) {
             ic.deleteSurroundingText(1, 0)
