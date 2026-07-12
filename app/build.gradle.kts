@@ -29,6 +29,8 @@ android {
       storePassword = "tessera123"
       keyAlias = "tessera-key"
       keyPassword = "tessera123"
+      enableV1Signing = true
+      enableV2Signing = true
     }
   }
 
