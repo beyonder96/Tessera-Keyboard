@@ -7,7 +7,7 @@
 
 ---
 
-## ✨ Funcionalidades Principais (v0.0.3)
+## ✨ Funcionalidades Principais (v0.0.1)
 
 * 🎨 **Temas Dinâmicos e Glassmorphism:** Suporte a temas Light e Dark com forte ênfase em Glassmorphism, transparências e blur de fundo. Transparência consistente estendida para o painel de emojis.
 * ⌨️ **Layout em Grade Perfeita:** Design elegante em 7 colunas perfeitamente alinhadas simulando um visual clean, com a tecla "space" substituída pelo nome "Tessera" para identidade da marca.
@@ -33,6 +33,7 @@ Para usar o Tessera Keyboard no seu celular sem precisar compilar o código:
 ## 🛠️ Para Desenvolvedores
 
 Se você deseja contribuir para o projeto ou modificá-lo localmente, o processo é bem simples. A arquitetura central é construída usando o `InputMethodService` nativo do Android (principalmente via `StitchKeyboardService`).
+Os pacotes do projeto foram organizados em boas práticas, dividindo responsabilidades em: `activity`, `service`, `api`, `manager` e `engine`.
 
 ### Pré-requisitos
 - [Android Studio](https://developer.android.com/studio) atualizado
