@@ -7,13 +7,12 @@
 
 ---
 
-## ✨ Funcionalidades Principais (v0.0.2)
+## ✨ Funcionalidades Principais (v0.0.3)
 
-* 🎨 **Temas Dinâmicos e Glassmorphism:** Suporte a temas Light e Dark com forte ênfase em Glassmorphism, transparências e blur de fundo.
-* ⌨️ **Layout em Grade Perfeita (Novo):** Design elegante em 7 colunas perfeitamente alinhadas simulando um visual clean, com remoção de teclas desnecessárias para mais espaço e teclas arredondadas customizadas.
+* 🎨 **Temas Dinâmicos e Glassmorphism:** Suporte a temas Light e Dark com forte ênfase em Glassmorphism, transparências e blur de fundo. Transparência consistente estendida para o painel de emojis.
+* ⌨️ **Layout em Grade Perfeita:** Design elegante em 7 colunas perfeitamente alinhadas simulando um visual clean, com a tecla "space" substituída pelo nome "Tessera" para identidade da marca.
 * 👻 **Ghost Text (Autocompletar Inline):** Sugestão avançada no próprio campo de texto onde a palavra em previsão aparece em tom cinza antes de ser confirmada. Funciona offline sem IA!
-* 〰️ **Swipe Opcional e Otimizado:** Desenho de rastro ultra-fluido (Bézier a 60FPS) com opção nativa de desativar o swipe nas configurações para maximizar a precisão da digitação padrão.
-* ⚙️ **Barra de Tarefas Superior:** Acesso instantâneo à tecla Shift (Aa), Digitação por Voz, Emojis (😊) e Menu de Configurações (≡) perfeitamente posicionados no cabeçalho superior.
+* ⚙️ **Barra de Tarefas Superior (Minimalista):** Acesso instantâneo com novos ícones "lines" minimalistas para Emojis, Configurações Diretas (abre as opções do app), Animação elegante na tecla Shift (Aa -> AA) e maior destaque para o Ditado por Voz.
 * 🤖 **Previsão Inteligente e IA:** Motor de sugestão de palavras nativo (`PredictionEngine`) com sugestões rápidas e integração ao Gemini (Sparkles) acessível na base do teclado.
 * 👆 **Feedback Tátil e Visual:** Animações instantâneas (ripples reais ajustados ao formato pílula), popups visuais ao pressionar, vibração e sons ajustados ao sistema.
 

@@ -39,8 +39,6 @@ class StitchKeyboardService : InputMethodService() {
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private lateinit var keyboardRoot: View
     private lateinit var voiceRoot: View
-    private lateinit var aiRoot: View
-    private lateinit var settingsRoot: View
     private lateinit var emojiRoot: View
     private val predictionEngine = PredictionEngine()
     private val ghostTextManager = GhostTextManager()
@@ -83,8 +81,6 @@ override fun onCreateInputView(): View {
 
             keyboardRoot = keyboardView.findViewById(R.id.keyboard_root)
             voiceRoot = keyboardView.findViewById(R.id.voice_ui_root)
-            aiRoot = keyboardView.findViewById(R.id.ai_ui_root)
-            settingsRoot = keyboardView.findViewById(R.id.settings_ui_root)
             emojiRoot = keyboardView.findViewById(R.id.emoji_ui_root)
 
             // Key preview popup elements
@@ -101,17 +97,10 @@ override fun onCreateInputView(): View {
             keyboardView.findViewById<View>(R.id.btn_mic_action)?.setOnClickListener {
                 if (isListening) stopListening() else startListening()
             }
-            keyboardView.findViewById<View>(R.id.btn_close_ai)?.setOnClickListener {
-                aiRoot.visibility = View.GONE
-                keyboardRoot.visibility = View.VISIBLE
-            }
             keyboardView.findViewById<View>(R.id.btn_close_emoji)?.setOnClickListener {
                 emojiRoot.visibility = View.GONE
                 keyboardRoot.visibility = View.VISIBLE
             }
-
-            keyboardView.findViewById<View>(R.id.btn_ai_prof)?.setOnClickListener { rewriteText("profissional") }
-            keyboardView.findViewById<View>(R.id.btn_ai_casual)?.setOnClickListener { rewriteText("casual") }
 
             setupKeys(keyboardView)
                     setupEmojiKeyboard(keyboardView)
@@ -253,7 +242,7 @@ override fun onCreateInputView(): View {
         if (::keyboardRoot.isInitialized) {
             keyboardRoot.visibility = View.VISIBLE
             voiceRoot.visibility = View.GONE
-            aiRoot.visibility = View.GONE
+
         }
     }
 
@@ -380,51 +369,6 @@ override fun onCreateInputView(): View {
         }
 
         updateKeyLabels()
-
-        val swipeOverlay = view.findViewById<com.example.ui.SwipeGestureOverlay>(R.id.swipe_overlay)
-        if (swipeOverlay != null) {
-            val swipeEnabled = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getBoolean("SWIPE_ENABLED", true)
-            swipeOverlay.visibility = if (swipeEnabled) android.view.View.VISIBLE else android.view.View.GONE
-            
-            val typedValue = android.util.TypedValue()
-            theme.resolveAttribute(R.attr.stitchGlowColor, typedValue, true)
-            swipeOverlay.setThemeColor(typedValue.data)
-
-            swipeOverlay.onKeyDown = { v, char ->
-                val uppercaseChar = if (isShifted && !isSymbolMode) char.uppercase() else char
-                showKeyPopup(v, uppercaseChar)
-                v.isPressed = true
-                triggerVibration()
-            }
-            
-            swipeOverlay.onKeyUp = {
-                hideKeyPopup()
-                for (k in keyViews) { k.isPressed = false }
-            }
-            
-            swipeOverlay.onSwipeComplete = { wordPattern ->
-                scope.launch(Dispatchers.Default) {
-                    val prediction = predictionEngine.getSwipePrediction(wordPattern)
-                    withContext(Dispatchers.Main) {
-                        if (prediction != null) {
-                            val ic = currentInputConnection
-                            ic?.commitText(prediction + " ", 1)
-                            playClickFeedback()
-                        } else {
-                            android.widget.Toast.makeText(this@StitchKeyboardService, "Palavra não encontrada", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-            }
-            
-            swipeOverlay.onSwipeChar = { char ->
-                handleCharacterClick(char)
-            }
-            
-            swipeOverlay.onSwipeStart = {
-                triggerVibration()
-            }
-        }
     }
     
     private fun setupEmojiKeyboard(view: View) {
@@ -731,68 +675,11 @@ private fun setupCommandKeys(view: View) {
         plusBtn?.setOnClickListener {
             playClickFeedback()
             triggerVibration()
-            keyboardRoot.visibility = View.GONE
-            settingsRoot.visibility = View.VISIBLE
-        }
-        
-        view.findViewById<View>(R.id.btn_close_settings)?.setOnClickListener {
-            playClickFeedback()
-            triggerVibration()
-            settingsRoot.visibility = View.GONE
-            keyboardRoot.visibility = View.VISIBLE
-        }
-        
-        view.findViewById<View>(R.id.btn_settings_app)?.setOnClickListener {
             val intent = android.content.Intent(this, MainActivity::class.java)
             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
-            settingsRoot.visibility = View.GONE
-            keyboardRoot.visibility = View.VISIBLE
         }
         
-        view.findViewById<View>(R.id.btn_settings_theme)?.setOnClickListener {
-            val prefs = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
-            val current = prefs.getString("KEYBOARD_THEME", "Dark")
-            val newTheme = if (current == "Dark") "Light" else "Dark"
-            prefs.edit().putString("KEYBOARD_THEME", newTheme).apply()
-            setInputView(onCreateInputView())
-        }
-        
-        view.findViewById<View>(R.id.btn_settings_size)?.setOnClickListener {
-            val prefs = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
-            val current = prefs.getFloat("KEYBOARD_SCALE", 1.0f)
-            val newScale = if (current == 1.0f) 0.85f else if (current == 0.85f) 1.15f else 1.0f
-            prefs.edit().putFloat("KEYBOARD_SCALE", newScale).apply()
-            setInputView(onCreateInputView())
-        }
-        
-        view.findViewById<View>(R.id.btn_settings_emoji)?.setOnClickListener {
-            val prefs = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
-            val currentTone = prefs.getString("EMOJI_TONE", "") ?: ""
-            val tones = listOf("", "🏻", "🏼", "🏽", "🏾", "🏿")
-            val nextToneIndex = (tones.indexOf(currentTone) + 1) % tones.size
-            val nextTone = tones[nextToneIndex]
-            prefs.edit().putString("EMOJI_TONE", nextTone).apply()
-            
-            val toneName = when(nextToneIndex) {
-                0 -> "Amarelo (Padrão)"
-                1 -> "Claro"
-                2 -> "Médio-Claro"
-                3 -> "Médio"
-                4 -> "Médio-Escuro"
-                else -> "Escuro"
-            }
-            android.widget.Toast.makeText(this, "Tom de pele: $toneName", android.widget.Toast.LENGTH_SHORT).show()
-            setupEmojiKeyboard(keyboardRoot.rootView)
-        }
-
-
-        iaBtn?.setOnClickListener {
-            playClickFeedback()
-            triggerVibration()
-            keyboardRoot.visibility = View.GONE
-            aiRoot.visibility = View.VISIBLE
-        }
     }
 
     private fun handleCharacterClick(baseChar: String) {
@@ -810,6 +697,12 @@ private fun setupCommandKeys(view: View) {
 
     private fun toggleShift() {
         isShifted = !isShifted
+        
+        shiftText?.animate()?.scaleX(0.7f)?.scaleY(0.7f)?.alpha(0.5f)?.setDuration(100)?.withEndAction {
+            shiftText?.text = if (isShifted) "AA" else "Aa"
+            shiftText?.animate()?.scaleX(1f)?.scaleY(1f)?.alpha(1f)?.setDuration(100)?.start()
+        }?.start()
+        
         updateKeyLabels()
         playClickFeedback()
     }
@@ -828,8 +721,7 @@ private fun setupCommandKeys(view: View) {
             keyList.add(Pair(keyView, char))
         }
         
-        val swipeOverlay = keyboardRoot.findViewById<com.example.ui.SwipeGestureOverlay>(R.id.swipe_overlay)
-        swipeOverlay?.setKeys(keyList)
+        // swipe keys removed
         
         val symbolKeyText = keyboardRoot.findViewById<TextView>(R.id.text_key_symbol)
         symbolKeyText?.text = if (isSymbolMode) "ABC" else "?123"
@@ -1001,7 +893,7 @@ private fun setupCommandKeys(view: View) {
         val extractedText = ic.getTextBeforeCursor(500, 0)?.toString() ?: ""
         if (extractedText.isBlank()) {
             Toast.makeText(this, "Nada para reescrever", Toast.LENGTH_SHORT).show()
-            aiRoot.visibility = View.GONE
+
             keyboardRoot.visibility = View.VISIBLE
             return
         }
@@ -1030,7 +922,7 @@ private fun setupCommandKeys(view: View) {
             } catch (e: Exception) {
                 Toast.makeText(this@StitchKeyboardService, "Erro AI", Toast.LENGTH_SHORT).show()
             } finally {
-                aiRoot.visibility = View.GONE
+
                 keyboardRoot.visibility = View.VISIBLE
             }
         }
