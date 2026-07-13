@@ -299,6 +299,36 @@ fun StitchDashboardScreen(modifier: Modifier = Modifier) {
             )
         }
         
+        // Swipe Selection
+        Spacer(modifier = Modifier.height(16.dp))
+        var swipeEnabled by remember { mutableStateOf(context.getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE).getBoolean("SWIPE_ENABLED", true)) }
+        
+        Text("Gestos por Swipe", style = MaterialTheme.typography.titleMedium, color = Color.White, modifier = Modifier.align(Alignment.Start))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            ThemeOption(
+                title = "Ativado",
+                isSelected = swipeEnabled,
+                onClick = {
+                    swipeEnabled = true
+                    context.getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE).edit().putBoolean("SWIPE_ENABLED", true).apply()
+                },
+                modifier = Modifier.weight(1f)
+            )
+            ThemeOption(
+                title = "Desativado",
+                isSelected = !swipeEnabled,
+                onClick = {
+                    swipeEnabled = false
+                    context.getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE).edit().putBoolean("SWIPE_ENABLED", false).apply()
+                },
+                modifier = Modifier.weight(1f)
+            )
+        }
+        
         // Test Input Field
         Spacer(modifier = Modifier.height(32.dp))
         var testText by remember { mutableStateOf("") }

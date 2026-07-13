@@ -7,16 +7,15 @@
 
 ---
 
-## ✨ Funcionalidades Principais
+## ✨ Funcionalidades Principais (v0.0.2)
 
-* 🎨 **Temas Dinâmicos e Layout Flutuante:** Suporte nativo para os temas **Claro (Light)** e **Escuro (Dark)**. Design premium com fundo em cápsula flutuante e teclas circulares inspiradas no iOS/VisionOS.
+* 🎨 **Temas Dinâmicos e Glassmorphism:** Suporte a temas Light e Dark com forte ênfase em Glassmorphism, transparências e blur de fundo.
+* ⌨️ **Layout em Grade Perfeita (Novo):** Design elegante em 7 colunas perfeitamente alinhadas simulando um visual clean, com remoção de teclas desnecessárias para mais espaço e teclas arredondadas customizadas.
 * 👻 **Ghost Text (Autocompletar Inline):** Sugestão avançada no próprio campo de texto onde a palavra em previsão aparece em tom cinza antes de ser confirmada. Funciona offline sem IA!
-* 〰️ **Swipe Suave e Otimizado:** Desenho de rastro ultra-fluido usando Curvas de Bézier (`quadTo`) decodificado de forma assíncrona por Coroutines para performance livre de engasgos a 60FPS.
-* 🎙️ **Digitação por Voz:** Integração com reconhecimento de fala avançado, incluindo interface de gravação (`voice_ui_root`).
-* 🤖 **Previsão Inteligente e IA:** Motor de sugestão de palavras nativo (`PredictionEngine`) com sugestões rápidas integradas à topbar de ferramentas.
-* 😄 **Suporte a Emojis:** Painel integrado de Emojis para uso rápido em qualquer aplicativo.
-* ⚙️ **Configurações Customizáveis:** Acesse facilmente opções adicionais direto da interface do teclado (`settings_ui_root`).
-* 👆 **Feedback Tátil e Visual:** Animações, popups visuais instantâneos ao pressionar as teclas, acompanhados de vibração e sons ajustados ao sistema.
+* 〰️ **Swipe Opcional e Otimizado:** Desenho de rastro ultra-fluido (Bézier a 60FPS) com opção nativa de desativar o swipe nas configurações para maximizar a precisão da digitação padrão.
+* ⚙️ **Barra de Tarefas Superior:** Acesso instantâneo à tecla Shift (Aa), Digitação por Voz, Emojis (😊) e Menu de Configurações (≡) perfeitamente posicionados no cabeçalho superior.
+* 🤖 **Previsão Inteligente e IA:** Motor de sugestão de palavras nativo (`PredictionEngine`) com sugestões rápidas e integração ao Gemini (Sparkles) acessível na base do teclado.
+* 👆 **Feedback Tátil e Visual:** Animações instantâneas (ripples reais ajustados ao formato pílula), popups visuais ao pressionar, vibração e sons ajustados ao sistema.
 
 ---
 

@@ -32,7 +32,7 @@ import kotlinx.coroutines.withContext
 class StitchKeyboardService : InputMethodService() {
 
     private var isShifted = false
-    private lateinit var shiftIcon: ImageView
+    private lateinit var shiftText: TextView
     private val alphabetKeys = mutableMapOf<Int, String>()
     private val keyViews = mutableListOf<TextView>()
     
@@ -139,9 +139,9 @@ override fun onCreateInputView(): View {
         R.id.key_o to "o", R.id.key_p to "p",
         R.id.key_a to "a", R.id.key_s to "s", R.id.key_d to "d", R.id.key_f to "f",
         R.id.key_g to "g", R.id.key_h to "h", R.id.key_j to "j", R.id.key_k to "k",
-        R.id.key_l to "l", R.id.key_cedilla to "ç",
+        R.id.key_l to "l",
         R.id.key_z to "z", R.id.key_x to "x", R.id.key_c to "c", R.id.key_v to "v",
-        R.id.key_b to "b", R.id.key_n to "n", R.id.key_m to "m"
+        R.id.key_b to "b", R.id.key_n to "n", R.id.key_m to "m", R.id.key_comma to ","
     )
 
     private val idMapSymbols = mapOf(
@@ -150,9 +150,9 @@ override fun onCreateInputView(): View {
         R.id.key_o to "9", R.id.key_p to "0",
         R.id.key_a to "@", R.id.key_s to "#", R.id.key_d to "$", R.id.key_f to "_",
         R.id.key_g to "&", R.id.key_h to "-", R.id.key_j to "+", R.id.key_k to "(",
-        R.id.key_l to ")", R.id.key_cedilla to "/",
+        R.id.key_l to ")",
         R.id.key_z to "*", R.id.key_x to "\"", R.id.key_c to "'", R.id.key_v to ":",
-        R.id.key_b to ";", R.id.key_n to "!", R.id.key_m to "?"
+        R.id.key_b to ";", R.id.key_n to "!", R.id.key_m to "?", R.id.key_comma to ","
     )
     override fun onUpdateSelection(
         oldSelStart: Int, oldSelEnd: Int,
@@ -383,6 +383,9 @@ override fun onCreateInputView(): View {
 
         val swipeOverlay = view.findViewById<com.example.ui.SwipeGestureOverlay>(R.id.swipe_overlay)
         if (swipeOverlay != null) {
+            val swipeEnabled = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getBoolean("SWIPE_ENABLED", true)
+            swipeOverlay.visibility = if (swipeEnabled) android.view.View.VISIBLE else android.view.View.GONE
+            
             val typedValue = android.util.TypedValue()
             theme.resolveAttribute(R.attr.stitchGlowColor, typedValue, true)
             swipeOverlay.setThemeColor(typedValue.data)
@@ -479,8 +482,8 @@ override fun onCreateInputView(): View {
         }
     }
 private fun setupCommandKeys(view: View) {
-        val shiftKey = view.findViewById<FrameLayout>(R.id.key_shift)
-        shiftIcon = view.findViewById(R.id.img_shift_icon)
+        val shiftKey = view.findViewById<FrameLayout>(R.id.key_shift_top)
+        shiftText = view.findViewById(R.id.text_shift_top)
         shiftKey?.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -638,7 +641,7 @@ private fun setupCommandKeys(view: View) {
             }
         }
 
-        val emojiKey = view.findViewById<FrameLayout>(R.id.key_emoji)
+        val emojiKey = view.findViewById<FrameLayout>(R.id.key_emoji_top)
         emojiKey?.setOnTouchListener { v, event ->
             if (event.action == android.view.MotionEvent.ACTION_DOWN) {
                 playClickFeedback()
@@ -672,7 +675,7 @@ private fun setupCommandKeys(view: View) {
             }
         }
 
-        val micKey = view.findViewById<FrameLayout>(R.id.key_mic)
+        val micKey = view.findViewById<FrameLayout>(R.id.key_mic_top)
         micKey?.setOnClickListener {
             playClickFeedback()
             triggerVibration()
@@ -700,8 +703,7 @@ private fun setupCommandKeys(view: View) {
         val suggestion1 = this.suggestion1
         val suggestion2 = this.suggestion2
         val suggestion3 = this.suggestion3
-        val plusBtn = view.findViewById<View>(R.id.key_shift_top)
-        val sparkleBtn = view.findViewById<View>(R.id.key_mic_top)
+        val plusBtn = view.findViewById<View>(R.id.key_settings_top)
         val iaBtn = view.findViewById<TextView>(R.id.key_ia)
 
         val suggestionClickListener = View.OnClickListener { v ->
@@ -785,12 +787,6 @@ private fun setupCommandKeys(view: View) {
         }
 
 
-        sparkleBtn?.setOnClickListener {
-            playClickFeedback()
-            triggerVibration()
-            predictWithGemini(view)
-        }
-
         iaBtn?.setOnClickListener {
             playClickFeedback()
             triggerVibration()
@@ -838,13 +834,13 @@ private fun setupCommandKeys(view: View) {
         val symbolKeyText = keyboardRoot.findViewById<TextView>(R.id.text_key_symbol)
         symbolKeyText?.text = if (isSymbolMode) "ABC" else "?123"
 
-        if (::shiftIcon.isInitialized) {
+        if (::shiftText.isInitialized) {
             if (isShifted) {
                 val typedValue = android.util.TypedValue()
                 theme.resolveAttribute(R.attr.stitchGlowColor, typedValue, true)
-                shiftIcon.setColorFilter(typedValue.data)
+                shiftText.setTextColor(typedValue.data)
             } else {
-                shiftIcon.clearColorFilter()
+                shiftText.setTextColor(android.graphics.Color.WHITE)
             }
         }
     }
@@ -991,14 +987,7 @@ private fun setupCommandKeys(view: View) {
                     view.findViewById<TextView>(R.id.suggestion_2)?.text = parts[1].trim()
                     view.findViewById<TextView>(R.id.suggestion_3)?.text = parts[2].trim()
                     
-                    val textEmoji = view.findViewById<TextView>(R.id.text_emoji)
-                    val imgEmoji = view.findViewById<ImageView>(R.id.img_emoji)
-                    
-                    if (textEmoji != null && imgEmoji != null) {
-                        textEmoji.text = parts[3].trim()
-                        textEmoji.visibility = View.VISIBLE
-                        imgEmoji.visibility = View.GONE
-                    }
+                    // Emoji updating logic removed
                 }
             } catch (e: Exception) {
                 Toast.makeText(this@StitchKeyboardService, "Erro AI: ${e.message}", Toast.LENGTH_SHORT).show()
