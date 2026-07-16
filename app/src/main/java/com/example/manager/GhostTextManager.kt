@@ -65,10 +65,8 @@ class GhostTextManager {
     fun onSpaceClicked(ic: InputConnection?): Boolean {
         if (ic == null) return false
         if (currentGhostText != null) {
-            val textToCommit = currentGhostText + " "
             currentGhostText = null
-            ic.commitText(textToCommit, 1)
-            return true
+            ic.commitText("", 1)
         }
         return false
     }

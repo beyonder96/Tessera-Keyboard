@@ -49,8 +49,9 @@ class StitchKeyboardService : InputMethodService() {
     private lateinit var keyboardRoot: View
     private lateinit var voiceRoot: View
     private lateinit var emojiRoot: View
-    private val predictionEngine = PredictionEngine()
-    private val ghostTextManager = GhostTextManager()
+    private lateinit var localDict: com.example.manager.LocalDictionaryManager
+    private lateinit var predictionEngine: com.example.engine.PredictionEngine
+    private val ghostTextManager = com.example.manager.GhostTextManager()
     private val wordSeparatorRegex = Regex("[^a-zA-ZáéíóúãõâêîôûçÁÉÍÓÚÃÕÂÊÎÔÛÇ]+")
     private var suggestion1: android.widget.TextView? = null
     private var suggestion2: android.widget.TextView? = null
@@ -74,6 +75,8 @@ class StitchKeyboardService : InputMethodService() {
 
     override fun onCreate() {
         super.onCreate()
+        localDict = com.example.manager.LocalDictionaryManager(this)
+        predictionEngine = com.example.engine.PredictionEngine(localDict)
         vibrator = getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
         audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
         inputMethodManager = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
@@ -139,7 +142,7 @@ override fun onCreateInputView(): View {
         R.id.key_g to "g", R.id.key_h to "h", R.id.key_j to "j", R.id.key_k to "k",
         R.id.key_l to "l",
         R.id.key_z to "z", R.id.key_x to "x", R.id.key_c to "c", R.id.key_v to "v",
-        R.id.key_b to "b", R.id.key_n to "n", R.id.key_m to "m", R.id.key_comma to ","
+        R.id.key_b to "b", R.id.key_n to "n", R.id.key_m to "m", R.id.key_comma to ",", R.id.key_period to "."
     )
 
     private val idMapSymbols = mapOf(
@@ -150,7 +153,7 @@ override fun onCreateInputView(): View {
         R.id.key_g to "&", R.id.key_h to "-", R.id.key_j to "+", R.id.key_k to "(",
         R.id.key_l to ")",
         R.id.key_z to "*", R.id.key_x to "\"", R.id.key_c to "'", R.id.key_v to ":",
-        R.id.key_b to ";", R.id.key_n to "!", R.id.key_m to "?", R.id.key_comma to ","
+        R.id.key_b to ";", R.id.key_n to "!", R.id.key_m to "?", R.id.key_comma to ",", R.id.key_period to "."
     )
     override fun onUpdateSelection(
         oldSelStart: Int, oldSelEnd: Int,
@@ -230,7 +233,11 @@ override fun onCreateInputView(): View {
         if (::keyboardRoot.isInitialized) {
             val rootLayout = (keyboardRoot.parent as? android.widget.FrameLayout)
             
-            // Adjust row heights instead of visual scaling
+            // Adjust row heights to maintain 1:1 aspect ratio for circular keys
+            val density = resources.displayMetrics.density
+            val availableWidth = resources.displayMetrics.widthPixels - (16 * density) // 8dp padding on each side
+            val keyWidth = availableWidth / 10f
+            
             val rowsToScale = listOf(
                 R.id.key_q, R.id.key_a, R.id.key_z, R.id.key_space
             )
@@ -239,10 +246,9 @@ override fun onCreateInputView(): View {
                 val row = key?.parent as? android.view.View
                 if (row != null) {
                     val lp = row.layoutParams
-                    // Base heights: Q/A/Z = 52dp, Space = 44dp
-                    val baseHeightDp = if (id == R.id.key_space) 44f else 52f
-                    val density = resources.displayMetrics.density
-                    lp.height = (baseHeightDp * density * scale).toInt()
+                    // Make height equal to key width for perfect circles, except space row
+                    val targetHeight = if (id == R.id.key_space) (44f * density).toInt() else keyWidth.toInt()
+                    lp.height = (targetHeight * scale).toInt()
                     row.layoutParams = lp
                 }
             }
@@ -365,15 +371,25 @@ override fun onCreateInputView(): View {
                         triggerVibration()
                         showKeyPopup(keyView, uppercaseChar)
                         v.isPressed = true
+                        v.animate().scaleX(0.85f).scaleY(0.85f).setDuration(50).start()
                         true
                     }
                     android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
                         hideKeyPopup()
                         v.isPressed = false
+                        v.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
                         true
                     }
                     else -> false
                 }
+            }
+            keyView.setOnLongClickListener {
+                val currentMap = if (isSymbolMode) idMapSymbols else idMapLetters
+                val currentChar = currentMap[id]
+                if (currentChar != null && !isSymbolMode) {
+                    showAccentsPopup(keyView, currentChar)
+                    true
+                } else false
             }
         }
 
@@ -560,8 +576,16 @@ private fun setupCommandKeys(view: View) {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!isSpaceSwiping) {
-                        if (!ghostTextManager.onSpaceClicked(currentInputConnection)) {
-                            currentInputConnection?.commitText(" ", 1)
+                        val ic = currentInputConnection
+                        ic?.getTextBeforeCursor(30, 0)?.toString()?.let { text ->
+                            val words = text.split(wordSeparatorRegex)
+                            val lastWord = words.lastOrNull() ?: ""
+                            if (lastWord.isNotBlank()) {
+                                localDict.learnWord(lastWord)
+                            }
+                        }
+                        if (!ghostTextManager.onSpaceClicked(ic)) {
+                            ic?.commitText(" ", 1)
                         }
                         playClickFeedback()
                         triggerVibration()
@@ -807,11 +831,15 @@ private fun setupCommandKeys(view: View) {
         previewPopup.translationY = y.toFloat() - popupHeight - (10 * density)
 
         previewPopup.visibility = View.VISIBLE
+        previewPopup.alpha = 0f
+        previewPopup.animate().alpha(1f).translationYBy(-10f).setDuration(100).start()
     }
 
     private fun hideKeyPopup() {
         if (::previewPopup.isInitialized) {
-            previewPopup.visibility = View.GONE
+            previewPopup.animate().alpha(0f).translationYBy(10f).setDuration(100).withEndAction {
+                previewPopup.visibility = View.GONE
+            }.start()
         }
     }
 
@@ -1029,4 +1057,42 @@ private fun setupCommandKeys(view: View) {
         speechRecognizer = null
     }
 
+    private fun showAccentsPopup(keyView: View, char: String) {
+        val accentsMap = mapOf(
+            "a" to listOf("a", "á", "à", "ã", "â", "ä"),
+            "e" to listOf("e", "é", "è", "ê", "ë"),
+            "i" to listOf("i", "í", "ì", "î", "ï"),
+            "o" to listOf("o", "ó", "ò", "õ", "ô", "ö"),
+            "u" to listOf("u", "ú", "ù", "û", "ü"),
+            "c" to listOf("c", "ç"),
+            "n" to listOf("n", "ñ")
+        )
+        val accents = accentsMap[char.lowercase()] ?: return
+        
+        val context = keyView.context
+        val container = android.widget.LinearLayout(context)
+        container.orientation = android.widget.LinearLayout.HORIZONTAL
+        container.background = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.bg_preview_popup)
+        container.setPadding(8, 8, 8, 8)
+
+        val popupWindow = android.widget.PopupWindow(container, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, true)
+        
+        for (accent in accents) {
+            val tv = android.widget.TextView(context)
+            tv.text = if (isShifted && !isSymbolMode) accent.uppercase() else accent
+            tv.textSize = 24f
+            tv.setTextColor(android.graphics.Color.WHITE)
+            tv.setPadding(24, 12, 24, 12)
+            tv.setOnClickListener {
+                handleCharacterClick(tv.text.toString())
+                popupWindow.dismiss()
+            }
+            container.addView(tv)
         }
+        
+        val location = IntArray(2)
+        keyView.getLocationInWindow(location)
+        val density = resources.displayMetrics.density
+        popupWindow.showAtLocation(keyView, android.view.Gravity.NO_GRAVITY, location[0] - (container.measuredWidth / 2), location[1] - (80 * density).toInt())
+    }
+}

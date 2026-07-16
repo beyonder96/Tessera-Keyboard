@@ -1,6 +1,8 @@
 package com.example.engine
 
-class PredictionEngine {
+import com.example.manager.LocalDictionaryManager
+
+class PredictionEngine(private val localDict: LocalDictionaryManager? = null) {
     private val dictionary = listOf(
         "the", "and", "you", "that", "was", "for", "are", "with", "his", "they", "this", "have", "from", "one", "had", "word", "but", "not", "what", "all", "were", "when", "your", "can", "said", "there", "use", "each", "which", "she", "how", "their", "will", "other", "about", "many", "then", "them", "these", "some", "her", "would", "make", "like", "him", "into", "time", "has", "look", "two", "more", "write", "go", "see", "number", "no", "way", "could", "people", "my", "than", "first", "water", "been", "call", "who", "oil", "its", "now", "find", "long", "down", "day", "did", "get", "come", "made", "may", "part",
         "eu", "você", "ele", "ela", "nós", "eles", "elas", "meu", "minha", "seu", "sua", "nosso", "nossa", "um", "uma", "o", "a", "os", "as", "que", "de", "do", "da", "em", "no", "na", "para", "com", "por", "como", "mas", "se", "ou", "não", "sim", "bom", "dia", "boa", "noite", "tarde", "hoje", "amanhã", "ontem", "sempre", "nunca", "muito", "pouco", "tudo", "nada", "alguém", "ninguém", "qualquer", "cada", "mesmo", "outro", "onde", "quando", "quem", "qual", "porque", "pois", "então", "assim", "apenas", "só", "já", "ainda", "até", "bem", "mal", "melhor", "pior", "maior", "menor", "novo", "velho", "certo", "errado", "claro", "escuro", "alto", "baixo", "grande", "pequeno", "forte", "fraco", "feliz", "triste", "amor", "vida", "tempo", "ano", "vez", "hora", "coisa", "casa", "lugar", "trabalho", "pessoa", "gente", "homem", "mulher", "criança", "amigo", "amiga", "nome", "mundo", "parte", "fim", "jeito", "caso", "forma", "exemplo", "ideia", "problema", "verdade", "história", "certeza", "motivo", "razão", "caminho", "lado", "olho", "mão", "cabeça", "palavra", "água", "fogo", "terra", "ar", "sol", "lua", "mês", "semana", "agora",
@@ -14,7 +16,11 @@ class PredictionEngine {
             return listOf("eu", "o", "que")
         }
         val lower = currentWord.lowercase()
-        return dictionary.filter { it.startsWith(lower) && it != lower }
+        
+        val localMatches = localDict?.getWords()?.filter { it.startsWith(lower) && it != lower } ?: emptyList()
+        val staticMatches = dictionary.filter { it.startsWith(lower) && it != lower }
+        
+        return (localMatches + staticMatches).distinct()
             .sortedBy { it.length }
             .take(3)
     }
