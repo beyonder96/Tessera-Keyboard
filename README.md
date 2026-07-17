@@ -7,14 +7,15 @@
 
 ---
 
-## ✨ Funcionalidades Principais (v0.0.6)
+## ✨ Funcionalidades Principais (v0.0.7)
 
 * 🔴 **Teclas Perfeitamente Redondas:** Ajuste de layout dinâmico que converte as teclas em círculos perfeitos, eliminando a forma oval.
-* 😊 **Layout de Emojis Organizado:** Emojis agora separados em abas categóricas navegáveis na barra inferior, mantendo o tamanho proporcional sem exceder a altura do teclado.
+* 😊 **Layout de Emojis Aprimorado:** Emojis organizados em categorias perfeitas. Adição do botão "Backspace" integrado na janela de emojis e correção dos ícones indicadores de abas na barra inferior.
+* á **Acentos 100% Interativos:** Popups focados permitem selecionar letras acentuadas (como á, é, í) através de cliques reais com feedback, corrigindo o problema de interação travada.
+* 🐛 **Correção de Sobreposição:** Correção definitiva do bug onde a tela de emojis continuava visível e sobrepunha o teclado normal após bloquear e desbloquear o celular.
 * ✍️ **Sugestões Inline e Barra de Palavras:** O texto sugerido (Ghost Text) é finalizado ao pressionar Espaço. Uma nova barra inteligente de sugestões aparece quando há predições para a palavra atual.
-* á **Acentos por Toque Longo:** Refinamento no `ACTION_DOWN` e `ACTION_UP` que permite a exibição do popup de acentos ao segurar as vogais por 400ms sem conflitos na digitação normal.
 * 🎨 **Temas Dinâmicos e Glassmorphism:** Suporte a temas Light e Dark com forte ênfase em Glassmorphism, transparências e blur de fundo. Transparência consistente estendida para o painel de emojis. "lines" minimalistas para Emojis, Configurações Diretas (abre as opções do app), Animação elegante na tecla Shift (Aa -> AA) e maior destaque para o Ditado por Voz.
-* 🤖 **Previsão Inteligente e IA em Background:** Motor de sugestão de palavras nativo (`PredictionEngine`) com sugestões rápidas, agora executadas em *background coroutines* para uma digitação super fluida sem engasgos. Suporte integrado à Edição Inteligente de Palavras (correção a partir do meio da palavra).
+* 🤖 **Previsão Inteligente e IA em Background:** Motor de sugestão de palavras nativo (`PredictionEngine`) com sugestões rápidas, executadas em background coroutines.
 * 👆 **Feedback Tátil e Visual Aprimorados:** Animações instantâneas (ripples reais ajustados ao formato pílula), popups centrais precisos ao pressionar (para seleção de acentos) e vibração.
 * 🎙️ **Animação Premium de Voz:** Novo visual de onda senoidal (Sine Wave) fluida para feedback do microfone.
 * 🌎 **Suporte Amplo a Emojis e Bandeiras:** Catálogo completo de centenas de emojis atualizados, suporte a tons de pele e lista exaustiva de bandeiras integrados à rolagem nativa.
@@ -26,7 +27,7 @@
 Para usar o Tessera Keyboard no seu celular sem precisar compilar o código:
 
 1. Acesse o repositório e vá até a pasta `/apks/` (ou baixe diretamente da aba **Releases**).
-2. Baixe o arquivo `app-release-v0.0.5.apk` (ou `app-debug-v0.0.5.apk`).
+2. Baixe o arquivo `app-release-v0.0.7.apk` (ou `app-debug-v0.0.7.apk`).
 3. Instale o APK no seu dispositivo (talvez seja necessário habilitar a "Instalação de Fontes Desconhecidas" nas configurações do seu aparelho).
 4. Ao final da instalação, abra o aplicativo **Tessera** ou vá até as configurações do seu Android em `Sistema > Idiomas e entrada > Teclado na tela`.
 5. Ative o Tessera Keyboard e o defina como o teclado padrão.

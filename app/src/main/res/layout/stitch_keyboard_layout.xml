@@ -109,7 +109,7 @@
     </LinearLayout>
     <LinearLayout android:id="@+id/emoji_ui_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@android:color/transparent" android:visibility="gone" android:padding="8dp">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="end|center_vertical" android:layout_marginBottom="8dp">
-            <ImageButton android:id="@+id/btn_close_emoji" android:layout_width="32dp" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:src="@drawable/ic_backspace" android:contentDescription="Close" android:tint="?attr/stitchTextColor" android:padding="6dp" android:scaleType="fitCenter" />
+            <TextView android:id="@+id/btn_close_emoji" android:layout_width="wrap_content" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:text="ABC" android:textColor="?attr/stitchTextColor" android:textSize="14sp" android:textStyle="bold" android:gravity="center" android:paddingHorizontal="16dp" android:clickable="true" android:focusable="true" />
         </LinearLayout>
         
         <ScrollView android:id="@+id/emoji_scroll_view" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scrollbars="none">
@@ -119,12 +119,13 @@
         <HorizontalScrollView android:layout_width="match_parent" android:layout_height="44dp" android:layout_marginTop="8dp" android:scrollbars="none">
             <LinearLayout android:layout_width="wrap_content" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center" android:background="@drawable/bg_command_pill" android:paddingHorizontal="4dp">
                 <TextView android:id="@+id/cat_smileys" android:layout_width="44dp" android:layout_height="match_parent" android:text="😀" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
+                <TextView android:id="@+id/cat_people" android:layout_width="44dp" android:layout_height="match_parent" android:text="👋" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
                 <TextView android:id="@+id/cat_animals" android:layout_width="44dp" android:layout_height="match_parent" android:text="🐻" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
                 <TextView android:id="@+id/cat_food" android:layout_width="44dp" android:layout_height="match_parent" android:text="🍔" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
-                <TextView android:id="@+id/cat_activities" android:layout_width="44dp" android:layout_height="match_parent" android:text="⚽" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
-                <TextView android:id="@+id/cat_travel" android:layout_width="44dp" android:layout_height="match_parent" android:text="🚗" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
                 <TextView android:id="@+id/cat_objects" android:layout_width="44dp" android:layout_height="match_parent" android:text="💡" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
-                <TextView android:id="@+id/cat_symbols" android:layout_width="44dp" android:layout_height="match_parent" android:text="❤️" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
+                <TextView android:id="@+id/cat_symbols" android:layout_width="44dp" android:layout_height="match_parent" android:text="🏁" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
+                
+                <ImageButton android:id="@+id/btn_emoji_backspace" android:layout_width="44dp" android:layout_height="match_parent" android:background="?android:attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_backspace" android:contentDescription="Backspace" android:tint="?attr/stitchTextColor" android:padding="10dp" android:scaleType="fitCenter" />
             </LinearLayout>
         </HorizontalScrollView>
     </LinearLayout>

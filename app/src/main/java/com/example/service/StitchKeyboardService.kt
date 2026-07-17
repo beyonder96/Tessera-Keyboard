@@ -270,7 +270,7 @@ override fun onCreateInputView(): View {
         if (::keyboardRoot.isInitialized) {
             keyboardRoot.visibility = View.VISIBLE
             voiceRoot.visibility = View.GONE
-
+            emojiRoot.visibility = View.GONE
         }
     }
 
@@ -535,10 +535,15 @@ override fun onCreateInputView(): View {
         }
 
         view.findViewById<View>(R.id.cat_smileys)?.setOnClickListener { scrollToCategory("Smileys") }
+        view.findViewById<View>(R.id.cat_people)?.setOnClickListener { scrollToCategory("People") }
         view.findViewById<View>(R.id.cat_animals)?.setOnClickListener { scrollToCategory("Animals") }
         view.findViewById<View>(R.id.cat_food)?.setOnClickListener { scrollToCategory("Food") }
         view.findViewById<View>(R.id.cat_objects)?.setOnClickListener { scrollToCategory("Objects") }
         view.findViewById<View>(R.id.cat_symbols)?.setOnClickListener { scrollToCategory("Flags") }
+
+        view.findViewById<View>(R.id.btn_emoji_backspace)?.setOnClickListener {
+            handleBackspace()
+        }
     }
     private fun setupCommandKeys(view: View) {
         val shiftKey = view.findViewById<FrameLayout>(R.id.key_shift_top)
@@ -1168,7 +1173,10 @@ override fun onCreateInputView(): View {
         container.background = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.bg_preview_popup)
         container.setPadding(8, 8, 8, 8)
 
-        val popupWindow = android.widget.PopupWindow(container, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, true)
+        val popupWindow = android.widget.PopupWindow(container, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, false)
+        popupWindow.isTouchable = true
+        popupWindow.isOutsideTouchable = true
+        popupWindow.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         
         for (accent in accents) {
             val tv = android.widget.TextView(context)
