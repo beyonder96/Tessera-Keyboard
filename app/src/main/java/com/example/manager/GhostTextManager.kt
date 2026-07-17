@@ -45,6 +45,11 @@ class GhostTextManager {
 
             if (suggestion.startsWith(lastWord, ignoreCase = true) && suggestion.length > lastWord.length) {
                 val ghostPart = suggestion.substring(lastWord.length)
+                
+                if (currentGhostText == ghostPart) {
+                    return
+                }
+                
                 currentGhostText = ghostPart
 
                 val spannable = SpannableString(ghostPart)
