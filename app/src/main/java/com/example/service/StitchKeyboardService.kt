@@ -169,25 +169,32 @@ override fun onCreateInputView(): View {
         if (ic == null || !::keyboardRoot.isInitialized) return
         
         val textBeforeCursor = ic.getTextBeforeCursor(30, 0)?.toString() ?: ""
-        val words = textBeforeCursor.split(wordSeparatorRegex)
-        val lastWord = words.lastOrNull() ?: ""
+        val textAfterCursor = ic.getTextAfterCursor(30, 0)?.toString() ?: ""
         
-        val predictions = predictionEngine.getPredictions(lastWord)
+        val wordPrefix = textBeforeCursor.takeLastWhile { it.isLetter() }
+        val wordSuffix = textAfterCursor.takeWhile { it.isLetter() }
+        val currentWord = wordPrefix + wordSuffix
         
-        val s1 = predictions.getOrNull(0) ?: ""
-        val s2 = predictions.getOrNull(1) ?: ""
-        val s3 = predictions.getOrNull(2) ?: ""
-        
-        ghostTextManager.updateGhostText(ic, lastWord, s1)
-        
-        suggestion1?.text = s1
-        suggestion1?.visibility = if (s1.isEmpty()) android.view.View.INVISIBLE else android.view.View.VISIBLE
-        
-        suggestion2?.text = s2
-        suggestion2?.visibility = if (s2.isEmpty()) android.view.View.INVISIBLE else android.view.View.VISIBLE
-        
-        suggestion3?.text = s3
-        suggestion3?.visibility = if (s3.isEmpty()) android.view.View.INVISIBLE else android.view.View.VISIBLE
+        scope.launch(Dispatchers.Default) {
+            val predictions = predictionEngine.getPredictions(currentWord)
+            
+            val s1 = predictions.getOrNull(0) ?: ""
+            val s2 = predictions.getOrNull(1) ?: ""
+            val s3 = predictions.getOrNull(2) ?: ""
+            
+            withContext(Dispatchers.Main) {
+                ghostTextManager.updateGhostText(ic, currentWord, s1)
+                
+                suggestion1?.text = s1
+                suggestion1?.visibility = if (s1.isEmpty()) android.view.View.INVISIBLE else android.view.View.VISIBLE
+                
+                suggestion2?.text = s2
+                suggestion2?.visibility = if (s2.isEmpty()) android.view.View.INVISIBLE else android.view.View.VISIBLE
+                
+                suggestion3?.text = s3
+                suggestion3?.visibility = if (s3.isEmpty()) android.view.View.INVISIBLE else android.view.View.VISIBLE
+            }
+        }
     }
 
     override fun onConfigureWindow(win: android.view.Window, isFullScreen: Boolean, isCandidatesOnly: Boolean) {
@@ -233,10 +240,7 @@ override fun onCreateInputView(): View {
         if (::keyboardRoot.isInitialized) {
             val rootLayout = (keyboardRoot.parent as? android.widget.FrameLayout)
             
-            // Adjust row heights to maintain 1:1 aspect ratio for circular keys
             val density = resources.displayMetrics.density
-            val availableWidth = resources.displayMetrics.widthPixels - (16 * density) // 8dp padding on each side
-            val keyWidth = availableWidth / 10f
             
             val rowsToScale = listOf(
                 R.id.key_q, R.id.key_a, R.id.key_z, R.id.key_space
@@ -246,12 +250,12 @@ override fun onCreateInputView(): View {
                 val row = key?.parent as? android.view.View
                 if (row != null) {
                     val lp = row.layoutParams
-                    // Make height equal to key width for perfect circles, except space row
-                    val targetHeight = if (id == R.id.key_space) (44f * density).toInt() else keyWidth.toInt()
-                    lp.height = (targetHeight * scale).toInt()
+                    val baseHeightDp = if (id == R.id.key_space) 44f else 52f
+                    lp.height = (baseHeightDp * density * scale).toInt()
                     row.layoutParams = lp
                 }
             }
+            keyboardRoot.requestLayout()
         }
 
         if (::keyboardRoot.isInitialized) {
@@ -399,16 +403,23 @@ override fun onCreateInputView(): View {
     private fun setupEmojiKeyboard(view: View) {
         val emojiGridLayout = view.findViewById<android.widget.GridLayout>(R.id.emoji_grid_layout) ?: return
         val baseEmojis = listOf(
-            "😀", "😂", "😊", "🥰", "😎", "🤩", "😭", "🤯",
-            "🤔", "😬", "🙄", "😴", "🤧", "🤠", "😈", "💩", 
-            "👍", "👎", "✌", "🤞", "🤟", "🤘", "🤙", "👋", 
-            "👦", "👧", "👨", "👩", "👴", "👵", "👮", "👷", 
-            "❤️", "🔥", "💯", "💥", "💫", "💦", "💨", "🕳"
+            // Smileys & Emotion
+            "😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","☺️","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😮‍💨","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🫣","🤗","🫡","🤔","🫢","🤭","🤫","🤥","😶","😶‍🌫️","😐","😑","😬","🫨","🫠","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","😵‍💫","🫥","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😸","😹","😻","😼","😽","🙀","😿","😾",
+            // People & Body (Skinnable included)
+            "👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","🫷","🫸","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🦿","🦵","🦶","👂","🦻","👃","🧠","🫀","🫁","🦷","🦴","👀","👁️","👅","👄","🫦","👶","👧","🧒","👦","👩","🧑","👨","👩‍🦱","🧑‍🦱","👨‍🦱","👩‍🦰","🧑‍🦰","👨‍🦰","👱‍♀️","👱","👱‍♂️","👩‍🦳","🧑‍🦳","👨‍🦳","👩‍🦲","🧑‍🦲","👨‍🦲","🧔‍♀️","🧔","🧔‍♂️","👵","🧓","👴","👲","👳‍♀️","👳","👳‍♂️","🧕","👮‍♀️","👮","👮‍♂️","👷‍♀️","👷","👷‍♂️","💂‍♀️","💂","💂‍♂️","🕵️‍♀️","🕵️","🕵️‍♂️","👩‍⚕️","🧑‍⚕️","👨‍⚕️","👩‍🌾","🧑‍🌾","👨‍🌾","👩‍🍳","🧑‍🍳","👨‍🍳","👩‍🎓","🧑‍🎓","👨‍🎓","👩‍🎤","🧑‍🎤","👨‍🎤","👩‍🏫","🧑‍🏫","👨‍🏫","👩‍🏭","🧑‍🏭","👨‍🏭","👩‍💻","🧑‍💻","👨‍💻","👩‍💼","🧑‍💼","👨‍💼","👩‍🔧","🧑‍🔧","👨‍🔧","👩‍🔬","🧑‍🔬","👨‍🔬","👩‍🎨","🧑‍🎨","👨‍🎨","👩‍🚒","🧑‍🚒","👨‍🚒","👩‍✈️","🧑‍✈️","👨‍✈️","👩‍🚀","🧑‍🚀","👨‍🚀","👩‍⚖️","🧑‍⚖️","👨‍⚖️","👰‍♀️","👰","👰‍♂️","🤵‍♀️","🤵","🤵‍♂️","👸","🫅","🤴","🥷","🦸‍♀️","🦸","🦸‍♂️","🦹‍♀️","🦹","🦹‍♂️","🤶","🧑‍🎄","🎅","🧙‍♀️","🧙","🧙‍♂️","🧝‍♀️","🧝","🧝‍♂️","🧛‍♀️","🧛","🧛‍♂️","🧟‍♀️","🧟","🧟‍♂️","🧞‍♀️","🧞","🧞‍♂️","🧜‍♀️","🧜","🧜‍♂️","🧚‍♀️","🧚","🧚‍♂️","👼","🤰","🫄","🫃","🤱","👩‍🍼","🧑‍🍼","👨‍🍼","🙇‍♀️","🙇","🙇‍♂️","💁‍♀️","💁","💁‍♂️","🙅‍♀️","🙅","🙅‍♂️","🙆‍♀️","🙆","🙆‍♂️","🙋‍♀️","🙋","🙋‍♂️","🧏‍♀️","🧏","🧏‍♂️","🤦‍♀️","🤦","🤦‍♂️","🤷‍♀️","🤷","🤷‍♂️","🙎‍♀️","🙎","🙎‍♂️","🙍‍♀️","🙍","🙍‍♂️","💇‍♀️","💇","💇‍♂️","💆‍♀️","💆","💆‍♂️","🧖‍♀️","🧖","🧖‍♂️","💅","🤳","💃","🕺","👯‍♀️","👯","👯‍♂️","🕴️","👩‍🦽","🧑‍🦽","👨‍🦽","👩‍🦼","🧑‍🦼","👨‍🦼","🚶‍♀️","🚶","🚶‍♂️","👩‍🦯","🧑‍🦯","👨‍🦯","🧎‍♀️","🧎","🧎‍♂️","🏃‍♀️","🏃","🏃‍♂️","🧍‍♀️","🧍","🧍‍♂️",
+            // Animals & Nature
+            "🐵","🐒","🦍","🦧","🐶","🐕","🦮","🐕‍🦺","🐩","🐺","🦊","🦝","🐱","🐈","🐈‍⬛","🦁","🐯","🐅","🐆","🐴","🫎","🫏","🐎","🦄","🦓","🦌","🦬","🐮","🐂","🐃","🐄","🐷","🐖","🐗","🐽","🐏","🐑","🐐","🐪","🐫","🦙","🦒","🐘","🦣","🦏","🦛","🐭","🐁","🐀","🐹","🐰","🐇","🐿️","🦫","🦔","🦇","🐻","🐻‍❄️","🐨","🐼","🦥","🦦","🦨","🦘","🦡","🐾","🦃","🐔","🐓","🐣","🐤","🐥","🐦","🐧","🕊️","🦅","🦆","🦢","🦉","🦤","🪶","🦩","🦚","🦜","🪽","🐦‍⬛","🪿","🐸","🐊","🐢","🦎","🐍","🐲","🐉","🦕","🦖","🐳","🐋","🐬","🦭","🐟","🐠","🐡","🦈","🐙","🐚","🪸","🐌","🦋","🐛","🐜","🐝","🪲","🐞","🦗","🪳","🕷️","🕸️","🦂","🦟","🪰","🪱","🦠","💐","🌸","💮","🪷","🏵️","🌹","🥀","🌺","🌻","🌼","🌷","🪻","🌱","🪴","🌲","🌳","🌴","🌵","🌾","🌿","☘️","🍀","🍁","🍂","🍃","🪹","🪺","🍄","🪨","🪵",
+            // Food & Drink
+            "🍇","🍈","🍉","🍊","🍋","🍌","🍍","🥭","🍎","🍏","🍐","🍑","🍒","🍓","🫐","🥝","🍅","🫒","🥥","🥑","🍆","🥔","🥕","🌽","🌶️","🫑","🥒","🥬","🥦","🧄","🧅","🍄","🥜","🫘","🌰","🍞","🥐","🥖","🫓","🥨","🥯","🥞","🧇","🧀","🍖","🍗","🥩","🥓","🍔","🍟","🍕","🌭","🥪","🌮","🌯","🫔","🥙","🧆","🥚","🍳","🥘","🍲","🫕","🥣","🥗","🍿","🧈","🧂","🥫","🍱","🍘","🍙","🍚","🍛","🍜","🍝","🍠","🍢","🍣","🍤","🍥","🥮","🍡","🥟","🥠","🥡","🦀","🦞","🦐","🦑","🦪","🍦","🍧","🍨","🍩","🍪","🎂","🍰","🧁","🥧","🍫","🍬","🍭","🍮","🍯","🍼","🥛","☕","🫖","🍵","🍶","🍾","🍷","🍸","🍹","🍺","🍻","🥂","🥃","🫗","🥤","🧋","🧃","🧉","🧊","🥢","🍽️","🍴","🥄","🔪","🫙",
+            // Objects & Symbols
+            "❤️","🧡","💛","💚","💙","🩵","💜","🤎","🖤","🩶","🤍","🩷","💘","💝","💖","💗","💓","💞","💕","💌","💟","💔","❤️‍🔥","❤️‍🩹","💋","💯","💢","💥","💫","💦","💨","🕳️","💣","💬","👁️‍🗨️","🗨️","🗯️","💭","💤","🌍","🌎","🌏","🌐","🗺️","🗾","🧭","🏔️","⛰️","🌋","🗻","🏕️","🏖️","🏜️","🏝️","🏞️","🏟️","🏛️","🏗️","🧱","🪨","🪵","🛖","🏘️","🏚️","🏠","🏡","🏢","🏣","🏤","🏥","🏦","🏨","🏩","🏪","🏫","🏬","🏭","🏯","🏰","💒","🗼","🗽","⛪","🕌","🛕","🕍","⛩️","🕋","⛲","⛺","🌁","🌃","🏙️","🌄","🌅","🌆","🌇","🌉","♨️","🎠","🎡","🎢","💈","🎪","🚂","🚃","🚄","🚅","🚆","🚇","🚈","🚉","🚊","🚝","🚞","🚋","🚌","🚍","🚎","🚐","🚑","🚒","🚓","🚔","🚕","🚖","🚗","🚘","🚙","🛻","🚚","🚛","🚜","🏎️","🏍️","🛵","🦽","🦼","🛺","🚲","🛴","🛹","🛼","🚏","🛣️","🛤️","🛢️","⛽","🚨","🚥","🚦","🛑","🚧","⚓","⛵","🛶","🚤","🛳️","⛴️","🛥️","🚢","✈️","🛩️","🛫","🛬","🪂","💺","🚁","🚟","🚠","🚡","🛰️","🚀","🛸","🛎️","🧳","⌛","⏳","⌚","⏰","⏱️","⏲️","🕰️","🕛","🕧","🕐","🕜","🕑","🕝","🕒","🕞","🕓","🕟","🕔","🕠","🕕","🕡","🕖","🕢","🕗","🕣","🕘","🕤","🕙","🕥","🕚","🕦","🌑","🌒","🌓","🌔","🌕","🌖","🌗","🌘","🌙","🌚","🌛","🌜","🌡️","☀️","🌝","🌞","🪐","⭐","🌟","🌠","🌌","☁️","⛅","⛈️","🌤️","🌥️","🌦️","🌧️","🌨️","🌩️","🌪️","🌫️","🌬️","🌀","🌈","🌂","☂️","☔","⛱️","⚡","❄️","☃️","⛄","☄️","🔥","💧","🌊",
+            // Flags
+            "🏁","🚩","🎌","🏴","🏳️","🏳️‍🌈","🏳️‍⚧️","🏴‍☠️","🇦🇨","🇦🇩","🇦🇪","🇦🇫","🇦🇬","🇦🇮","🇦🇱","🇦🇲","🇦🇴","🇦🇶","🇦🇷","🇦🇸","🇦🇹","🇦🇺","🇦🇼","🇦🇽","🇦🇿","🇧🇦","🇧🇧","🇧🇩","🇧🇪","🇧🇫","🇧🇬","🇧🇭","🇧🇮","🇧🇯","🇧🇱","🇧🇲","🇧🇳","🇧🇴","🇧🇶","🇧🇷","🇧🇸","🇧🇹","🇧🇻","🇧🇼","🇧🇾","🇧🇿","🇨🇦","🇨🇨","🇨🇩","🇨🇫","🇨🇬","🇨🇭","🇨🇮","🇨🇰","🇨🇱","🇨🇲","🇨🇳","🇨🇴","🇨🇵","🇨🇷","🇨🇺","🇨🇻","🇨🇼","🇨🇽","🇨🇾","🇨🇿","🇩🇪","🇩🇬","🇩🇯","🇩🇰","🇩🇲","🇩🇴","🇩🇿","🇪🇦","🇪🇨","🇪🇪","🇪🇬","🇪🇭","🇪🇷","🇪🇸","🇪🇹","🇪🇺","🇫🇮","🇫🇯","🇫🇰","🇫🇲","🇫🇴","🇫🇷","🇬🇦","🇬🇧","🇬🇩","🇬🇪","🇬🇫","🇬🇬","🇬🇭","🇬🇮","🇬🇱","🇬🇲","🇬🇳","🇬🇵","🇬🇶","🇬🇷","🇬🇸","🇬🇹","🇬🇺","🇬🇼","🇬🇾","🇭🇰","🇭🇲","🇭🇳","🇭🇷","🇭🇹","🇭🇺","🇮🇨","🇮🇩","🇮🇪","🇮🇱","🇮🇲","🇮🇳","🇮🇴","🇮🇶","🇮🇷","🇮🇸","🇮🇹","🇯🇪","🇯🇲","🇯🇴","🇯🇵","🇰🇪","🇰🇬","🇰🇭","🇰🇮","🇰🇲","🇰🇳","🇰🇵","🇰🇷","🇰🇼","🇰🇾","🇰🇿","🇱🇦","🇱🇧","🇱🇨","🇱🇮","🇱🇰","🇱🇷","🇱🇸","🇱🇹","🇱🇺","🇱🇻","🇱🇾","🇲🇦","🇲🇨","🇲🇩","🇲🇪","🇲🇫","🇲🇬","🇲🇭","🇲🇰","🇲🇱","🇲🇲","🇲🇳","🇲🇴","🇲🇵","🇲🇶","🇲🇷","🇲🇸","🇲🇹","🇲🇺","🇲🇻","🇲🇼","🇲🇽","🇲🇾","🇲🇿","🇳🇦","🇳🇨","🇳🇪","🇳🇫","🇳🇬","🇳🇮","🇳🇱","🇳🇴","🇳🇵","🇳🇷","🇳🇺","🇳🇿","🇴🇲","🇵🇦","🇵🇪","🇵🇫","🇵🇬","🇵🇭","🇵🇰","🇵🇱","🇵🇲","🇵🇳","🇵🇷","🇵🇸","🇵🇹","🇵🇼","🇵🇾","🇶🇦","🇷🇪","🇷🇴","🇷🇸","🇷🇺","🇷🇼","🇸🇦","🇸🇧","🇸🇨","🇸🇩","🇸🇪","🇸🇬","🇸🇭","🇸🇮","🇸🇯","🇸🇰","🇸🇱","🇸🇲","🇸🇳","🇸🇴","🇸🇷","🇸🇸","🇸🇹","🇸🇻","🇸🇽","🇸🇾","🇸🇿","🇹🇦","🇹🇨","🇹🇩","🇹🇫","🇹🇬","🇹🇭","🇹🇯","🇹🇰","🇹🇱","🇹🇲","🇹🇳","🇹🇴","🇹🇷","🇹🇹","🇹🇻","🇹🇼","🇹🇿","🇺🇦","🇺🇬","🇺🇲","🇺🇳","🇺🇸","🇺🇾","🇺🇿","🇻🇦","🇻🇨","🇻🇪","🇻🇬","🇻🇮","🇻🇳","🇻🇺","🇼🇫","🇼🇸","🇽🇰","🇾🇪","🇾🇹","🇿🇦","🇿🇲","🇿🇼"
         )
         
         val prefs = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
         val tone = prefs.getString("EMOJI_TONE", "") ?: ""
-        val skinnable = listOf("👍", "👎", "✌", "🤞", "🤟", "🤘", "🤙", "👋", "👦", "👧", "👨", "👩", "👴", "👵", "👮", "👷")
+        val skinnable = listOf("👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","🫷","🫸","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦵","🦶","👂","🦻","👃","👶","👧","🧒","👦","👩","🧑","👨","👩‍🦱","🧑‍🦱","👨‍🦱","👩‍🦰","🧑‍🦰","👨‍🦰","👱‍♀️","👱","👱‍♂️","👩‍🦳","🧑‍🦳","👨‍🦳","👩‍🦲","🧑‍🦲","👨‍🦲","🧔‍♀️","🧔","🧔‍♂️","👵","🧓","👴","👲","👳‍♀️","👳","👳‍♂️","🧕","👮‍♀️","👮","👮‍♂️","👷‍♀️","👷","👷‍♂️","💂‍♀️","💂","💂‍♂️","🕵️‍♀️","🕵️","🕵️‍♂️","👩‍⚕️","🧑‍⚕️","👨‍⚕️","👩‍🌾","🧑‍🌾","👨‍🌾","👩‍🍳","🧑‍🍳","👨‍🍳","👩‍🎓","🧑‍🎓","👨‍🎓","👩‍🎤","🧑‍🎤","👨‍🎤","👩‍🏫","🧑‍🏫","👨‍🏫","👩‍🏭","🧑‍🏭","👨‍🏭","👩‍💻","🧑‍💻","👨‍💻","👩‍💼","🧑‍💼","👨‍💼","👩‍🔧","🧑‍🔧","👨‍🔧","👩‍🔬","🧑‍🔬","👨‍🔬","👩‍🎨","🧑‍🎨","👨‍🎨","👩‍🚒","🧑‍🚒","👨‍🚒","👩‍✈️","🧑‍✈️","👨‍✈️","👩‍🚀","🧑‍🚀","👨‍🚀","👩‍⚖️","🧑‍⚖️","👨‍⚖️","👰‍♀️","👰","👰‍♂️","🤵‍♀️","🤵","🤵‍♂️","👸","🫅","🤴","🥷","🦸‍♀️","🦸","🦸‍♂️","🦹‍♀️","🦹","🦹‍♂️","🤶","🧑‍🎄","🎅","🧙‍♀️","🧙","🧙‍♂️","🧝‍♀️","🧝","🧝‍♂️","🧛‍♀️","🧛","🧛‍♂️","🧜‍♀️","🧜","🧜‍♂️","🧚‍♀️","🧚","🧚‍♂️","👼","🤰","🫄","🫃","🤱","👩‍🍼","🧑‍🍼","👨‍🍼","🙇‍♀️","🙇","🙇‍♂️","💁‍♀️","💁","💁‍♂️","🙅‍♀️","🙅","🙅‍♂️","🙆‍♀️","🙆","🙆‍♂️","🙋‍♀️","🙋","🙋‍♂️","🧏‍♀️","🧏","🧏‍♂️","🤦‍♀️","🤦","🤦‍♂️","🤷‍♀️","🤷","🤷‍♂️","🙎‍♀️","🙎","🙎‍♂️","🙍‍♀️","🙍","🙍‍♂️","💇‍♀️","💇","💇‍♂️","💆‍♀️","💆","💆‍♂️","🧖‍♀️","🧖","🧖‍♂️","💃","🕺","🕴️","👩‍🦽","🧑‍🦽","👨‍🦽","👩‍🦼","🧑‍🦼","👨‍🦼","🚶‍♀️","🚶","🚶‍♂️","👩‍🦯","🧑‍🦯","👨‍🦯","🧎‍♀️","🧎","🧎‍♂️","🏃‍♀️","🏃","🏃‍♂️","🧍‍♀️","🧍","🧍‍♂️")
         
         val emojis = baseEmojis.map { if (skinnable.contains(it)) it + tone else it }
         
@@ -435,11 +446,24 @@ override fun onCreateInputView(): View {
             tv.isClickable = true
             tv.isFocusable = true
             
-            tv.setOnClickListener {
-                playClickFeedback()
-                triggerVibration()
-                val ic = currentInputConnection
-                ic?.commitText(emoji, 1)
+            tv.setOnTouchListener { v, event ->
+                when (event.action) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        playClickFeedback()
+                        triggerVibration()
+                        val ic = currentInputConnection
+                        ic?.commitText(emoji, 1)
+                        v.isPressed = true
+                        v.animate().scaleX(0.85f).scaleY(0.85f).setDuration(50).start()
+                        true
+                    }
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                        v.isPressed = false
+                        v.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
+                        true
+                    }
+                    else -> false
+                }
             }
             emojiGridLayout.addView(tv)
         }
@@ -687,13 +711,15 @@ private fun setupCommandKeys(view: View) {
             if (v is TextView) {
                 val ic = currentInputConnection ?: return@OnClickListener
                 val textBeforeCursor = ic.getTextBeforeCursor(30, 0)?.toString() ?: ""
-                val words = textBeforeCursor.split(wordSeparatorRegex)
-                val lastWord = words.lastOrNull() ?: ""
+                val textAfterCursor = ic.getTextAfterCursor(30, 0)?.toString() ?: ""
+                
+                val wordPrefix = textBeforeCursor.takeLastWhile { it.isLetter() }
+                val wordSuffix = textAfterCursor.takeWhile { it.isLetter() }
                 
                 ghostTextManager.clearGhostText(ic)
                 
-                if (lastWord.isNotEmpty()) {
-                    ic.deleteSurroundingText(lastWord.length, 0)
+                if (wordPrefix.isNotEmpty() || wordSuffix.isNotEmpty()) {
+                    ic.deleteSurroundingText(wordPrefix.length, wordSuffix.length)
                 }
                 ic.commitText(v.text.toString() + " ", 1)
                 playClickFeedback()
@@ -866,20 +892,20 @@ private fun setupCommandKeys(view: View) {
                 view.findViewById<View>(R.id.wave_bar_4),
                 view.findViewById<View>(R.id.wave_bar_5)
             )
+            var time = 0f
             while (voiceRoot.visibility == View.VISIBLE) {
-                for (bar in bars) {
-                    if (bar == null) continue
-                    val randomScale = (Math.random() * 1.6 + 0.4).toFloat()
-                    bar.animate()
-                        .scaleY(randomScale)
-                        .setDuration(100)
-                        .start()
+                time += 0.2f
+                bars.forEachIndexed { index, bar ->
+                    if (bar != null) {
+                        val scale = 1f + 0.8f * kotlin.math.sin((time + index).toDouble()).toFloat()
+                        bar.scaleY = scale.coerceIn(0.4f, 1.8f)
+                    }
                 }
-                kotlinx.coroutines.delay(100)
+                kotlinx.coroutines.delay(32)
             }
             // Reset scale when stopped
             for (bar in bars) {
-                bar?.animate()?.scaleY(1.0f)?.setDuration(100)?.start()
+                bar?.animate()?.scaleY(1.0f)?.setDuration(150)?.start()
             }
         }
     }
@@ -1090,9 +1116,10 @@ private fun setupCommandKeys(view: View) {
             container.addView(tv)
         }
         
+        container.measure(android.view.View.MeasureSpec.UNSPECIFIED, android.view.View.MeasureSpec.UNSPECIFIED)
         val location = IntArray(2)
         keyView.getLocationInWindow(location)
         val density = resources.displayMetrics.density
-        popupWindow.showAtLocation(keyView, android.view.Gravity.NO_GRAVITY, location[0] - (container.measuredWidth / 2), location[1] - (80 * density).toInt())
+        popupWindow.showAtLocation(keyView, android.view.Gravity.NO_GRAVITY, location[0] + (keyView.width / 2) - (container.measuredWidth / 2), location[1] - container.measuredHeight - (10 * density).toInt())
     }
 }
