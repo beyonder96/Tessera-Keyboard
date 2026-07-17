@@ -7,12 +7,13 @@
 
 ---
 
-## ✨ Funcionalidades Principais (v0.0.5)
+## ✨ Funcionalidades Principais (v0.0.6)
 
-* 🎨 **Temas Dinâmicos e Glassmorphism:** Suporte a temas Light e Dark com forte ênfase em Glassmorphism, transparências e blur de fundo. Transparência consistente estendida para o painel de emojis.
-* ⌨️ **Layout em Grade Perfeita:** Design elegante em 7 colunas perfeitamente alinhadas simulando um visual clean, com a tecla "space" substituída pelo nome "Tessera" para identidade da marca.
-* 👻 **Ghost Text (Autocompletar Inline):** Sugestão avançada no próprio campo de texto onde a palavra em previsão aparece em tom cinza antes de ser confirmada. Funciona offline sem IA!
-* ⚙️ **Barra de Tarefas Superior (Minimalista):** Acesso instantâneo com novos ícones "lines" minimalistas para Emojis, Configurações Diretas (abre as opções do app), Animação elegante na tecla Shift (Aa -> AA) e maior destaque para o Ditado por Voz.
+* 🔴 **Teclas Perfeitamente Redondas:** Ajuste de layout dinâmico que converte as teclas em círculos perfeitos, eliminando a forma oval.
+* 😊 **Layout de Emojis Organizado:** Emojis agora separados em abas categóricas navegáveis na barra inferior, mantendo o tamanho proporcional sem exceder a altura do teclado.
+* ✍️ **Sugestões Inline e Barra de Palavras:** O texto sugerido (Ghost Text) é finalizado ao pressionar Espaço. Uma nova barra inteligente de sugestões aparece quando há predições para a palavra atual.
+* á **Acentos por Toque Longo:** Refinamento no `ACTION_DOWN` e `ACTION_UP` que permite a exibição do popup de acentos ao segurar as vogais por 400ms sem conflitos na digitação normal.
+* 🎨 **Temas Dinâmicos e Glassmorphism:** Suporte a temas Light e Dark com forte ênfase em Glassmorphism, transparências e blur de fundo. Transparência consistente estendida para o painel de emojis. "lines" minimalistas para Emojis, Configurações Diretas (abre as opções do app), Animação elegante na tecla Shift (Aa -> AA) e maior destaque para o Ditado por Voz.
 * 🤖 **Previsão Inteligente e IA em Background:** Motor de sugestão de palavras nativo (`PredictionEngine`) com sugestões rápidas, agora executadas em *background coroutines* para uma digitação super fluida sem engasgos. Suporte integrado à Edição Inteligente de Palavras (correção a partir do meio da palavra).
 * 👆 **Feedback Tátil e Visual Aprimorados:** Animações instantâneas (ripples reais ajustados ao formato pílula), popups centrais precisos ao pressionar (para seleção de acentos) e vibração.
 * 🎙️ **Animação Premium de Voz:** Novo visual de onda senoidal (Sine Wave) fluida para feedback do microfone.

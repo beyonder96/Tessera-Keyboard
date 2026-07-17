@@ -2,14 +2,15 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content"><LinearLayout android:id="@+id/keyboard_root" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_floating_keyboard" android:paddingLeft="8dp" android:paddingRight="8dp" android:paddingTop="12dp" android:paddingBottom="56dp" android:clickable="true" android:focusable="true">
 
     
-    <FrameLayout android:id="@+id/drag_handle_container" android:layout_width="match_parent" android:layout_height="24dp" android:layout_marginTop="-8dp"><View android:layout_width="40dp" android:layout_height="4dp" android:layout_gravity="center" android:background="@drawable/bg_command_pill" android:alpha="0.5" />
-    <!-- Missing Views for Kotlin bindings -->
-    <TextView android:id="@+id/suggestion_1" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
-    <TextView android:id="@+id/suggestion_2" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
-    <TextView android:id="@+id/suggestion_3" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
-    <TextView android:id="@+id/key_ia" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
-
-</FrameLayout>    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="12dp">
+    <FrameLayout android:id="@+id/drag_handle_container" android:layout_width="match_parent" android:layout_height="36dp" android:layout_marginTop="-8dp">
+        <View android:id="@+id/drag_pill" android:layout_width="40dp" android:layout_height="4dp" android:layout_gravity="center" android:background="@drawable/bg_command_pill" android:alpha="0.5" />
+        <LinearLayout android:id="@+id/suggestion_container" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:visibility="gone" android:gravity="center" android:weightSum="3">
+            <TextView android:id="@+id/suggestion_1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:textColor="?attr/stitchTextColor" android:textSize="16sp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackgroundBorderless" />
+            <TextView android:id="@+id/suggestion_2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:textColor="?attr/stitchTextColor" android:textSize="16sp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackgroundBorderless" />
+            <TextView android:id="@+id/suggestion_3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:textColor="?attr/stitchTextColor" android:textSize="16sp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackgroundBorderless" />
+        </LinearLayout>
+        <TextView android:id="@+id/key_ia" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+    </FrameLayout>    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="12dp">
         <!-- 1: Shift Toggle -->
         <FrameLayout android:id="@+id/key_shift_top" android:layout_width="0dp" android:layout_weight="1.2" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
             <TextView android:id="@+id/text_shift_top" android:layout_width="match_parent" android:layout_height="match_parent" android:text="Aa" android:textColor="#FFFFFF" android:textSize="16sp" android:gravity="center" />
@@ -112,7 +113,7 @@
         </LinearLayout>
         
         <ScrollView android:id="@+id/emoji_scroll_view" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scrollbars="none">
-            <GridLayout android:id="@+id/emoji_grid_layout" android:layout_width="match_parent" android:layout_height="wrap_content" android:columnCount="8" android:useDefaultMargins="true" />
+            <LinearLayout android:id="@+id/emoji_lists_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
         </ScrollView>
         
         <HorizontalScrollView android:layout_width="match_parent" android:layout_height="44dp" android:layout_marginTop="8dp" android:scrollbars="none">
