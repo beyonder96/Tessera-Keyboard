@@ -7,7 +7,7 @@
 
 ---
 
-## ✨ Funcionalidades Principais (v0.0.7)
+## ✨ Funcionalidades Principais (v0.008)
 
 * 🔴 **Teclas Perfeitamente Redondas:** Ajuste de layout dinâmico que converte as teclas em círculos perfeitos, eliminando a forma oval.
 * 😊 **Layout de Emojis Aprimorado:** Emojis organizados em categorias perfeitas. Adição do botão "Backspace" integrado na janela de emojis e correção dos ícones indicadores de abas na barra inferior.
@@ -26,8 +26,8 @@
 
 Para usar o Tessera Keyboard no seu celular sem precisar compilar o código:
 
-1. Acesse o repositório e vá até a pasta `/apks/` (ou baixe diretamente da aba **Releases**).
-2. Baixe o arquivo `app-release-v0.0.7.apk` (ou `app-debug-v0.0.7.apk`).
+1. Acesse a pasta [`/apks/`](./apks/) do repositório (ou baixe diretamente da aba **Releases**).
+2. Baixe o arquivo [`app-release-v0.008.apk`](./apks/app-release-v0.008.apk) (ou [`app-debug-v0.008.apk`](./apks/app-debug-v0.008.apk)).
 3. Instale o APK no seu dispositivo (talvez seja necessário habilitar a "Instalação de Fontes Desconhecidas" nas configurações do seu aparelho).
 4. Ao final da instalação, abra o aplicativo **Tessera** ou vá até as configurações do seu Android em `Sistema > Idiomas e entrada > Teclado na tela`.
 5. Ative o Tessera Keyboard e o defina como o teclado padrão.
