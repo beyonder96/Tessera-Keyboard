@@ -7,18 +7,18 @@
 
 ---
 
-## ✨ Funcionalidades Principais (v0.0.8)
+## ✨ Funcionalidades Principais (v0.0.9)
 
+* ⚡ **Performance e Fluidez de Digitação (Padrão Gboard):** Pipeline de toque direto sem atrasos de animação na UI thread, cancelamento atômico de corrotinas concorrentes e busca em memória sub-milissegundo.
+* 🛡️ **Correção do Glitch de Piscar na Barra de Sugestões:** Eliminação do ciclo reentrante de seleção do IME (`onUpdateSelection`), debouncing inteligente e estabilização de layout sem reflows desnecessários.
+* 🎯 **Autocompletar Não-Invasivo:** O Espaço agora insere exclusivamente `' '`, deixando a aceitação de sugestões para o clique intencional do usuário na barra.
+* 🔒 **Proteção de Privacidade:** Detecção automática de campos de senha e privados (`isPrivateOrPassword`), impedindo o aprendizado de termos confidenciais no dicionário.
+* 📖 **Dicionário Otimizado e Acentos Inteligentes:** Normalização de acentos (NFD) permitindo encontrar palavras acentuadas (ex: `voce` -> `você`) e priorização de vocabulário frequente do usuário.
 * 🔴 **Teclas Perfeitamente Redondas:** Ajuste de layout dinâmico que converte as teclas em círculos perfeitos, eliminando a forma oval.
-* 😊 **Layout de Emojis Aprimorado:** Emojis organizados em categorias perfeitas. Adição do botão "Backspace" integrado na janela de emojis e correção dos ícones indicadores de abas na barra inferior.
-* á **Acentos 100% Interativos:** Popups focados permitem selecionar letras acentuadas (como á, é, í) através de cliques reais com feedback, corrigindo o problema de interação travada.
-* 🐛 **Correção de Sobreposição:** Correção definitiva do bug onde a tela de emojis continuava visível e sobrepunha o teclado normal após bloquear e desbloquear o celular.
-* ✍️ **Sugestões Inline e Barra de Palavras:** O texto sugerido (Ghost Text) é finalizado ao pressionar Espaço. Uma nova barra inteligente de sugestões aparece quando há predições para a palavra atual.
-* 🎨 **Temas Dinâmicos e Glassmorphism:** Suporte a temas Light e Dark com forte ênfase em Glassmorphism, transparências e blur de fundo. Transparência consistente estendida para o painel de emojis. "lines" minimalistas para Emojis, Configurações Diretas (abre as opções do app), Animação elegante na tecla Shift (Aa -> AA) e maior destaque para o Ditado por Voz.
-* 🤖 **Previsão Inteligente e IA em Background:** Motor de sugestão de palavras nativo (`PredictionEngine`) com sugestões rápidas, executadas em background coroutines.
-* 👆 **Feedback Tátil e Visual Aprimorados:** Animações instantâneas (ripples reais ajustados ao formato pílula), popups centrais precisos ao pressionar (para seleção de acentos) e vibração.
-* 🎙️ **Animação Premium de Voz:** Novo visual de onda senoidal (Sine Wave) fluida para feedback do microfone.
-* 🌎 **Suporte Amplo a Emojis e Bandeiras:** Catálogo completo de centenas de emojis atualizados, suporte a tons de pele e lista exaustiva de bandeiras integrados à rolagem nativa.
+* 😊 **Layout de Emojis Aprimorado:** Emojis organizados em categorias, botão "Backspace" integrado e correção dos indicadores de abas.
+* á **Acentos 100% Interativos:** Popups focados permitem selecionar letras acentuadas (como á, é, í) através de cliques reais com feedback.
+* 🎨 **Temas Dinâmicos e Glassmorphism:** Suporte a temas Light e Dark com forte ênfase em Glassmorphism, transparências e blur de fundo.
+* 🎙️ **Ditado por Voz com Animação Senoidal:** Feedback tátil e visual de alta fidelidade para reconhecimento de fala.
 
 ---
 
@@ -28,8 +28,8 @@ Para usar o Tessera Keyboard no seu celular sem precisar compilar o código:
 
 1. Baixe a versão mais recente clicando diretamente nos botões abaixo:
 
-   [![Baixar APK Release](https://img.shields.io/badge/Baixar-APK_Release_v0.0.8-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/raw/main/apks/app-release-v0.0.8.apk)
-   [![Baixar APK Debug](https://img.shields.io/badge/Baixar-APK_Debug_v0.0.8-0095D5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/raw/main/apks/app-debug-v0.0.8.apk)
+   [![Baixar APK Release](https://img.shields.io/badge/Baixar-APK_Release_v0.0.9-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/raw/main/apks/app-release-v0.0.9.apk)
+   [![Baixar APK Debug](https://img.shields.io/badge/Baixar-APK_Debug_v0.0.9-0095D5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/raw/main/apks/app-debug-v0.0.9.apk)
 3. Instale o APK no seu dispositivo (talvez seja necessário habilitar a "Instalação de Fontes Desconhecidas" nas configurações do seu aparelho).
 4. Ao final da instalação, abra o aplicativo **Tessera** ou vá até as configurações do seu Android em `Sistema > Idiomas e entrada > Teclado na tela`.
 5. Ative o Tessera Keyboard e o defina como o teclado padrão.

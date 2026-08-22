@@ -2,11 +2,11 @@ package com.example.ui
 
 import android.animation.ValueAnimator
 import android.content.Context
-import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Shader
 import android.util.AttributeSet
+import android.view.View
 import android.widget.TextView
 
 class ShimmerTextView @JvmOverloads constructor(
@@ -24,8 +24,8 @@ class ShimmerTextView @JvmOverloads constructor(
         super.onSizeChanged(w, h, oldw, oldh)
         if (w > 0) {
             val color = textColors.defaultColor
-            val shimmerColor = (color and 0x00FFFFFF.toInt()) or 0x66000000.toInt() // Alpha adjusted
-            val brightColor = (color and 0x00FFFFFF.toInt()) or 0xFF000000.toInt() // Full alpha
+            val shimmerColor = (color and 0x00FFFFFF) or 0x44000000 // Alpha sutil
+            val brightColor = (color and 0x00FFFFFF) or -0x1000000 // Full alpha
             
             linearGradient = LinearGradient(
                 0f, 0f, w.toFloat(), 0f,
@@ -36,28 +36,52 @@ class ShimmerTextView @JvmOverloads constructor(
             paint.shader = linearGradient
             gradientMatrix = Matrix()
 
-            startAnimation(w)
+            if (isShown) {
+                startAnimation(w)
+            }
         }
     }
 
     private fun startAnimation(width: Int) {
         animator?.cancel()
         animator = ValueAnimator.ofFloat(0f, 2f).apply {
-            duration = 3000
+            duration = 3500
             repeatCount = ValueAnimator.INFINITE
             addUpdateListener { animation ->
-                val value = animation.animatedValue as Float
-                translate = width * (value - 1f)
-                gradientMatrix?.setTranslate(translate, 0f)
-                linearGradient?.setLocalMatrix(gradientMatrix)
-                invalidate()
+                if (isShown && isAttachedToWindow) {
+                    val value = animation.animatedValue as Float
+                    translate = width * (value - 1f)
+                    gradientMatrix?.setTranslate(translate, 0f)
+                    linearGradient?.setLocalMatrix(gradientMatrix)
+                    invalidate()
+                }
             }
             start()
+        }
+    }
+
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (visibility == View.VISIBLE && width > 0) {
+            startAnimation(width)
+        } else {
+            animator?.cancel()
+        }
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility == View.VISIBLE && width > 0) {
+            startAnimation(width)
+        } else {
+            animator?.cancel()
         }
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         animator?.cancel()
+        animator = null
     }
 }
+

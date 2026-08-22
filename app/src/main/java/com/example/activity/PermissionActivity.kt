@@ -22,6 +22,7 @@ class PermissionActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         if (requestCode == 100) {
             val intent = Intent("com.example.RECORD_AUDIO_PERMISSION_RESULT")
+            intent.setPackage(packageName)
             intent.putExtra("granted", grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
             sendBroadcast(intent)
         }

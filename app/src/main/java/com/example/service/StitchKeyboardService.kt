@@ -37,6 +37,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.cancel
 
 class StitchKeyboardService : InputMethodService() {
 
@@ -52,13 +53,18 @@ class StitchKeyboardService : InputMethodService() {
     private lateinit var localDict: com.example.manager.LocalDictionaryManager
     private lateinit var predictionEngine: com.example.engine.PredictionEngine
     private val ghostTextManager = com.example.manager.GhostTextManager()
-    private val wordSeparatorRegex = Regex("[^a-zA-ZáéíóúãõâêîôûçÁÉÍÓÚÃÕÂÊÎÔÛÇ]+")
+    private val wordSeparatorRegex = Regex("[^a-zA-ZáéíóúãõâêîôûçÁÉÍÓÚÃÕÂÊÎÔÛÇ0-9]+")
+    private val ptLetterRegex = Regex("[a-zA-ZáéíóúãõâêîôûçÁÉÍÓÚÃÕÂÊÎÔÛÇ0-9]")
     private var suggestion1: android.widget.TextView? = null
     private var suggestion2: android.widget.TextView? = null
     private var suggestion3: android.widget.TextView? = null
+    private var dragPill: android.view.View? = null
+    private var predictionJob: Job? = null
+    private var lastQueriedWord: String = ""
+    private var cachedKeyboardScale: Float = 1.0f
     
     // Wave animation bars
-        private var speechRecognizer: SpeechRecognizer? = null
+    private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
     private var voiceText: TextView? = null
 
@@ -67,7 +73,6 @@ class StitchKeyboardService : InputMethodService() {
     // Key preview popups
     private lateinit var previewPopup: View
     private lateinit var previewPopupText: TextView
-
     
     private var vibrator: android.os.Vibrator? = null
     private var audioManager: android.media.AudioManager? = null
@@ -80,9 +85,10 @@ class StitchKeyboardService : InputMethodService() {
         vibrator = getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
         audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
         inputMethodManager = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+        cachedKeyboardScale = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
     }
 
-override fun onCreateInputView(): View {
+    override fun onCreateInputView(): View {
         try {
             val themePref = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getString("KEYBOARD_THEME", "Dark") ?: "Dark"
             currentTheme = themePref
@@ -94,6 +100,7 @@ override fun onCreateInputView(): View {
             keyboardRoot = keyboardView.findViewById(R.id.keyboard_root)
             voiceRoot = keyboardView.findViewById(R.id.voice_ui_root)
             emojiRoot = keyboardView.findViewById(R.id.emoji_ui_root)
+            dragPill = keyboardView.findViewById(R.id.drag_pill)
 
             // Key preview popup elements
             previewPopup = keyboardView.findViewById(R.id.key_preview_popup)
@@ -115,8 +122,8 @@ override fun onCreateInputView(): View {
             }
 
             setupKeys(keyboardView)
-                    setupEmojiKeyboard(keyboardView)
-        setupCommandKeys(keyboardView)
+            setupEmojiKeyboard(keyboardView)
+            setupCommandKeys(keyboardView)
             setupSuggestionBar(keyboardView)
             setupDragResizer(keyboardView)
             setupEmojiGrid(keyboardView)
@@ -155,6 +162,7 @@ override fun onCreateInputView(): View {
         R.id.key_z to "*", R.id.key_x to "\"", R.id.key_c to "'", R.id.key_v to ":",
         R.id.key_b to ";", R.id.key_n to "!", R.id.key_m to "?", R.id.key_comma to ",", R.id.key_period to "."
     )
+
     override fun onUpdateSelection(
         oldSelStart: Int, oldSelEnd: Int,
         newSelStart: Int, newSelEnd: Int,
@@ -164,18 +172,42 @@ override fun onCreateInputView(): View {
         updatePredictions()
     }
 
+    private fun isPrivateOrPassword(info: EditorInfo?): Boolean {
+        if (info == null) return false
+        val inputType = info.inputType
+        val variation = inputType and EditorInfo.TYPE_MASK_VARIATION
+        val isPassword = variation == EditorInfo.TYPE_TEXT_VARIATION_PASSWORD ||
+                variation == EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+                variation == EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD ||
+                (inputType and EditorInfo.TYPE_MASK_CLASS) == EditorInfo.TYPE_CLASS_NUMBER
+        val noLearning = (info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0
+        return isPassword || noLearning
+    }
+
     private fun updatePredictions() {
         val ic = currentInputConnection
         if (ic == null || !::keyboardRoot.isInitialized) return
         
+        val editorInfo = currentInputEditorInfo
+        if (editorInfo != null && isPrivateOrPassword(editorInfo)) {
+            clearPredictionsUi()
+            return
+        }
+
         val textBeforeCursor = ic.getTextBeforeCursor(30, 0)?.toString() ?: ""
         val textAfterCursor = ic.getTextAfterCursor(30, 0)?.toString() ?: ""
         
-        val wordPrefix = textBeforeCursor.takeLastWhile { it.isLetter() }
-        val wordSuffix = textAfterCursor.takeWhile { it.isLetter() }
+        val wordPrefix = textBeforeCursor.takeLastWhile { ptLetterRegex.matches(it.toString()) }
+        val wordSuffix = textAfterCursor.takeWhile { ptLetterRegex.matches(it.toString()) }
         val currentWord = wordPrefix + wordSuffix
-        
-        scope.launch(Dispatchers.Default) {
+
+        if (currentWord == lastQueriedWord && currentWord.isNotEmpty()) {
+            return
+        }
+        lastQueriedWord = currentWord
+
+        predictionJob?.cancel()
+        predictionJob = scope.launch(Dispatchers.Default) {
             val predictions = predictionEngine.getPredictions(currentWord)
             
             val s1 = predictions.getOrNull(0) ?: ""
@@ -183,24 +215,31 @@ override fun onCreateInputView(): View {
             val s3 = predictions.getOrNull(2) ?: ""
             
             withContext(Dispatchers.Main) {
-                ghostTextManager.updateGhostText(ic, currentWord, s1)
-                
                 suggestion1?.text = s1
-                suggestion1?.visibility = if (s1.isEmpty()) android.view.View.INVISIBLE else android.view.View.VISIBLE
+                suggestion1?.visibility = if (s1.isEmpty()) View.INVISIBLE else View.VISIBLE
                 
                 suggestion2?.text = s2
-                suggestion2?.visibility = if (s2.isEmpty()) android.view.View.INVISIBLE else android.view.View.VISIBLE
+                suggestion2?.visibility = if (s2.isEmpty()) View.INVISIBLE else View.VISIBLE
                 
                 suggestion3?.text = s3
-                suggestion3?.visibility = if (s3.isEmpty()) android.view.View.INVISIBLE else android.view.View.VISIBLE
+                suggestion3?.visibility = if (s3.isEmpty()) View.INVISIBLE else View.VISIBLE
 
                 val hasSuggestions = s1.isNotEmpty() || s2.isNotEmpty() || s3.isNotEmpty()
-                val container = keyboardRoot.findViewById<View>(R.id.suggestion_container)
-                val pill = keyboardRoot.findViewById<View>(R.id.drag_pill)
-                container?.visibility = if (hasSuggestions) View.VISIBLE else View.GONE
-                pill?.visibility = if (hasSuggestions) View.GONE else View.VISIBLE
+                dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
             }
         }
+    }
+
+    private fun clearPredictionsUi() {
+        predictionJob?.cancel()
+        lastQueriedWord = ""
+        suggestion1?.text = ""
+        suggestion1?.visibility = View.INVISIBLE
+        suggestion2?.text = ""
+        suggestion2?.visibility = View.INVISIBLE
+        suggestion3?.text = ""
+        suggestion3?.visibility = View.INVISIBLE
+        dragPill?.alpha = 0.5f
     }
 
     override fun onConfigureWindow(win: android.view.Window, isFullScreen: Boolean, isCandidatesOnly: Boolean) {
@@ -214,7 +253,6 @@ override fun onCreateInputView(): View {
         }
     }
 
-
     override fun onEvaluateFullscreenMode(): Boolean {
         return false
     }
@@ -227,6 +265,7 @@ override fun onCreateInputView(): View {
         super.onStartInputView(info, restarting)
         
         ghostTextManager.onStartInput(info)
+        lastQueriedWord = ""
         
         getWindow()?.window?.let { win ->
             applyGlassmorphismBlur(win)
@@ -242,10 +281,8 @@ override fun onCreateInputView(): View {
         updateKeyLabels()
         updatePredictions()
 
-        val scale = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
+        val scale = cachedKeyboardScale
         if (::keyboardRoot.isInitialized) {
-            val rootLayout = (keyboardRoot.parent as? android.widget.FrameLayout)
-            
             val displayMetrics = resources.displayMetrics
             val density = displayMetrics.density
             val screenWidth = displayMetrics.widthPixels
@@ -313,17 +350,15 @@ override fun onCreateInputView(): View {
     private fun setupDragResizer(view: View) {
         val dragHandle = view.findViewById<View>(R.id.drag_handle_container)
         var initialY = 0f
-        var initialScale = 1.0f
-        var currentScale = 1.0f
+        var initialScale = cachedKeyboardScale
+        var currentScale = cachedKeyboardScale
         
         dragHandle?.setOnTouchListener { v, event ->
-            val rootLayout = (keyboardRoot.parent as? android.widget.FrameLayout) ?: return@setOnTouchListener false
-            
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     initialY = event.rawY
-                    initialScale = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
-                    keyboardRoot.alpha = 0.6f
+                    initialScale = cachedKeyboardScale
+                    keyboardRoot.alpha = 0.7f
                     v.isPressed = true
                     true
                 }
@@ -337,29 +372,28 @@ override fun onCreateInputView(): View {
                     val rowsToScale = listOf(
                         R.id.key_q, R.id.key_a, R.id.key_z, R.id.key_space
                     )
+                    val displayMetrics = resources.displayMetrics
+                    val density = displayMetrics.density
+                    val screenWidth = displayMetrics.widthPixels
+                    val keyWidth = screenWidth / 10f
+
                     for (id in rowsToScale) {
                         val key = keyboardRoot.findViewById<android.view.View>(id)
                         val row = key?.parent as? android.view.View
                         if (row != null) {
                             val lp = row.layoutParams
-                            val displayMetrics = resources.displayMetrics
-                            val density = displayMetrics.density
-                            val screenWidth = displayMetrics.widthPixels
-                            val keyWidth = screenWidth / 10f
                             val baseHeightDp = if (id == R.id.key_space) 44f else (keyWidth / density)
                             lp.height = (baseHeightDp * density * newScale).toInt()
                             row.layoutParams = lp
                         }
                     }
                     keyboardRoot.requestLayout()
-                    
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     keyboardRoot.alpha = 1.0f
                     v.isPressed = false
-                    
-                    
+                    cachedKeyboardScale = currentScale
                     getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).edit().putFloat("KEYBOARD_SCALE", currentScale).apply()
                     true
                 }
@@ -391,7 +425,6 @@ override fun onCreateInputView(): View {
                         
                         showKeyPopup(keyView, uppercaseChar)
                         v.isPressed = true
-                        v.animate().scaleX(0.85f).scaleY(0.85f).setDuration(50).start()
 
                         longPressRunnable = Runnable {
                             isLongPress = true
@@ -401,15 +434,13 @@ override fun onCreateInputView(): View {
                                 triggerVibration()
                             }
                         }
-                        handler.postDelayed(longPressRunnable!!, 400)
-                        
+                        handler.postDelayed(longPressRunnable!!, 350)
                         true
                     }
                     android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
                         longPressRunnable?.let { handler.removeCallbacks(it) }
                         hideKeyPopup()
                         v.isPressed = false
-                        v.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
                         
                         if (event.action == android.view.MotionEvent.ACTION_UP && !isLongPress) {
                             val currentMap = if (isSymbolMode) idMapSymbols else idMapLetters
@@ -434,27 +465,23 @@ override fun onCreateInputView(): View {
             "Smileys & Emotion" to listOf(
                 "😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","☺️","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😮‍💨","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🫣","🤗","🫡","🤔","🫢","🤭","🤫","🤥","😶","😶‍🌫️","😐","😑","😬","🫨","🫠","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","😵‍💫","🫥","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😸","😹","😻","😼","😽","🙀","😿","😾",
             ),
-            "People & Body (Skinnable included)" to listOf(
-                "👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","🫷","🫸","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🦿","🦵","🦶","👂","🦻","👃","🧠","🫀","🫁","🦷","🦴","👀","👁️","👅","👄","🫦","👶","👧","🧒","👦","👩","🧑","👨","👩‍🦱","🧑‍🦱","👨‍🦱","👩‍🦰","🧑‍🦰","👨‍🦰","👱‍♀️","👱","👱‍♂️","👩‍🦳","🧑‍🦳","👨‍🦳","👩‍🦲","🧑‍🦲","👨‍🦲","🧔‍♀️","🧔","🧔‍♂️","👵","🧓","👴","👲","👳‍♀️","👳","👳‍♂️","🧕","👮‍♀️","👮","👮‍♂️","👷‍♀️","👷","👷‍♂️","💂‍♀️","💂","💂‍♂️","🕵️‍♀️","🕵️","🕵️‍♂️","👩‍⚕️","🧑‍⚕️","👨‍⚕️","👩‍🌾","🧑‍🌾","👨‍🌾","👩‍🍳","🧑‍🍳","👨‍🍳","👩‍🎓","🧑‍🎓","👨‍🎓","👩‍🎤","🧑‍🎤","👨‍🎤","👩‍🏫","🧑‍🏫","👨‍🏫","👩‍🏭","🧑‍🏭","👨‍🏭","👩‍💻","🧑‍💻","👨‍💻","👩‍💼","🧑‍💼","👨‍💼","👩‍🔧","🧑‍🔧","👨‍🔧","👩‍🔬","🧑‍🔬","👨‍🔬","👩‍🎨","🧑‍🎨","👨‍🎨","👩‍🚒","🧑‍🚒","👨‍🚒","👩‍✈️","🧑‍✈️","👨‍✈️","👩‍🚀","🧑‍🚀","👨‍🚀","👩‍⚖️","🧑‍⚖️","👨‍⚖️","👰‍♀️","👰","👰‍♂️","🤵‍♀️","🤵","🤵‍♂️","👸","🫅","🤴","🥷","🦸‍♀️","🦸","🦸‍♂️","🦹‍♀️","🦹","🦹‍♂️","🤶","🧑‍🎄","🎅","🧙‍♀️","🧙","🧙‍♂️","🧝‍♀️","🧝","🧝‍♂️","🧛‍♀️","🧛","🧛‍♂️","🧟‍♀️","🧟","🧟‍♂️","🧞‍♀️","🧞","🧞‍♂️","🧜‍♀️","🧜","🧜‍♂️","🧚‍♀️","🧚","🧚‍♂️","👼","🤰","🫄","🫃","🤱","👩‍🍼","🧑‍🍼","👨‍🍼","🙇‍♀️","🙇","🙇‍♂️","💁‍♀️","💁","💁‍♂️","🙅‍♀️","🙅","🙅‍♂️","🙆‍♀️","🙆","🙆‍♂️","🙋‍♀️","🙋","🙋‍♂️","🧏‍♀️","🧏","🧏‍♂️","🤦‍♀️","🤦","🤦‍♂️","🤷‍♀️","🤷","🤷‍♂️","🙎‍♀️","🙎","🙎‍♂️","🙍‍♀️","🙍","🙍‍♂️","💇‍♀️","💇","💇‍♂️","💆‍♀️","💆","💆‍♂️","🧖‍♀️","🧖","🧖‍♂️","💅","🤳","💃","🕺","👯‍♀️","👯","👯‍♂️","🕴️","👩‍🦽","🧑‍🦽","👨‍🦽","👩‍🦼","🧑‍🦼","👨‍🦼","🚶‍♀️","🚶","🚶‍♂️","👩‍🦯","🧑‍🦯","👨‍🦯","🧎‍♀️","🧎","🧎‍♂️","🏃‍♀️","🏃","🏃‍♂️","🧍‍♀️","🧍","🧍‍♂️",
+            "People & Body" to listOf(
+                "👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","🫷","🫸","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🦿","🦵","🦶","👂","🦻","👃","🧠","🫀","🫁","🦷","🦴","👀","👁️","👅","👄","🫦","👶","👧","🧒","👦","👩","🧑","👨"
             ),
             "Animals & Nature" to listOf(
-                "🐵","🐒","🦍","🦧","🐶","🐕","🦮","🐕‍🦺","🐩","🐺","🦊","🦝","🐱","🐈","🐈‍⬛","🦁","🐯","🐅","🐆","🐴","🫎","🫏","🐎","🦄","🦓","🦌","🦬","🐮","🐂","🐃","🐄","🐷","🐖","🐗","🐽","🐏","🐑","🐐","🐪","🐫","🦙","🦒","🐘","🦣","🦏","🦛","🐭","🐁","🐀","🐹","🐰","🐇","🐿️","🦫","🦔","🦇","🐻","🐻‍❄️","🐨","🐼","🦥","🦦","🦨","🦘","🦡","🐾","🦃","🐔","🐓","🐣","🐤","🐥","🐦","🐧","🕊️","🦅","🦆","🦢","🦉","🦤","🪶","🦩","🦚","🦜","🪽","🐦‍⬛","🪿","🐸","🐊","🐢","🦎","🐍","🐲","🐉","🦕","🦖","🐳","🐋","🐬","🦭","🐟","🐠","🐡","🦈","🐙","🐚","🪸","🐌","🦋","🐛","🐜","🐝","🪲","🐞","🦗","🪳","🕷️","🕸️","🦂","🦟","🪰","🪱","🦠","💐","🌸","💮","🪷","🏵️","🌹","🥀","🌺","🌻","🌼","🌷","🪻","🌱","🪴","🌲","🌳","🌴","🌵","🌾","🌿","☘️","🍀","🍁","🍂","🍃","🪹","🪺","🍄","🪨","🪵",
+                "🐵","🐒","🦍","🦧","🐶","🐕","🦮","🐕‍🦺","🐩","🐺","🦊","🦝","🐱","🐈","🐈‍⬛","🦁","🐯","🐅","🐆","🐴","🫎","🫏","🐎","🦄","🦓","🦌","🦬","🐮","🐂","🐃","🐄","🐷","🐖","🐗","🐽","🐏","🐑","🐐","🐪","🐫","🦙","🦒","🐘","🦣","🦏","🦛","🐭","🐁","🐀","🐹","🐰","🐇","🐿️","🦫","🦔","🦇","🐻","🐻‍❄️","🐨","🐼","🦥","🦦","🦨","🦘","🦡","🐾"
             ),
             "Food & Drink" to listOf(
-                "🍇","🍈","🍉","🍊","🍋","🍌","🍍","🥭","🍎","🍏","🍐","🍑","🍒","🍓","🫐","🥝","🍅","🫒","🥥","🥑","🍆","🥔","🥕","🌽","🌶️","🫑","🥒","🥬","🥦","🧄","🧅","🍄","🥜","🫘","🌰","🍞","🥐","🥖","🫓","🥨","🥯","🥞","🧇","🧀","🍖","🍗","🥩","🥓","🍔","🍟","🍕","🌭","🥪","🌮","🌯","🫔","🥙","🧆","🥚","🍳","🥘","🍲","🫕","🥣","🥗","🍿","🧈","🧂","🥫","🍱","🍘","🍙","🍚","🍛","🍜","🍝","🍠","🍢","🍣","🍤","🍥","🥮","🍡","🥟","🥠","🥡","🦀","🦞","🦐","🦑","🦪","🍦","🍧","🍨","🍩","🍪","🎂","🍰","🧁","🥧","🍫","🍬","🍭","🍮","🍯","🍼","🥛","☕","🫖","🍵","🍶","🍾","🍷","🍸","🍹","🍺","🍻","🥂","🥃","🫗","🥤","🧋","🧃","🧉","🧊","🥢","🍽️","🍴","🥄","🔪","🫙",
+                "🍇","🍈","🍉","🍊","🍋","🍌","🍍","🥭","🍎","🍏","🍐","🍑","🍒","🍓","🫐","🥝","🍅","🫒","🥥","🥑","🍆","🥔","🥕","🌽","🌶️","🫑","🥒","🥬","🥦","🧄","🧅","🍄","🥜","🫘","🌰","🍞","🥐","🥖","🫓","🥨","🥯","🥞","🧇","🧀","🍖","🍗","🥩","🥓","🍔","🍟","🍕","🌭","🥪","🌮","🌯","🫔","🥙","🧆","🥚","🍳","🥘","🍲","🫕","🥣","🥗","🍿","🧈","🧂","🥫"
             ),
             "Objects & Symbols" to listOf(
-                "❤️","🧡","💛","💚","💙","🩵","💜","🤎","🖤","🩶","🤍","🩷","💘","💝","💖","💗","💓","💞","💕","💌","💟","💔","❤️‍🔥","❤️‍🩹","💋","💯","💢","💥","💫","💦","💨","🕳️","💣","💬","👁️‍🗨️","🗨️","🗯️","💭","💤","🌍","🌎","🌏","🌐","🗺️","🗾","🧭","🏔️","⛰️","🌋","🗻","🏕️","🏖️","🏜️","🏝️","🏞️","🏟️","🏛️","🏗️","🧱","🪨","🪵","🛖","🏘️","🏚️","🏠","🏡","🏢","🏣","🏤","🏥","🏦","🏨","🏩","🏪","🏫","🏬","🏭","🏯","🏰","💒","🗼","🗽","⛪","🕌","🛕","🕍","⛩️","🕋","⛲","⛺","🌁","🌃","🏙️","🌄","🌅","🌆","🌇","🌉","♨️","🎠","🎡","🎢","💈","🎪","🚂","🚃","🚄","🚅","🚆","🚇","🚈","🚉","🚊","🚝","🚞","🚋","🚌","🚍","🚎","🚐","🚑","🚒","🚓","🚔","🚕","🚖","🚗","🚘","🚙","🛻","🚚","🚛","🚜","🏎️","🏍️","🛵","🦽","🦼","🛺","🚲","🛴","🛹","🛼","🚏","🛣️","🛤️","🛢️","⛽","🚨","🚥","🚦","🛑","🚧","⚓","⛵","🛶","🚤","🛳️","⛴️","🛥️","🚢","✈️","🛩️","🛫","🛬","🪂","💺","🚁","🚟","🚠","🚡","🛰️","🚀","🛸","🛎️","🧳","⌛","⏳","⌚","⏰","⏱️","⏲️","🕰️","🕛","🕧","🕐","🕜","🕑","🕝","🕒","🕞","🕓","🕟","🕔","🕠","🕕","🕡","🕖","🕢","🕗","🕣","🕘","🕤","🕙","🕥","🕚","🕦","🌑","🌒","🌓","🌔","🌕","🌖","🌗","🌘","🌙","🌚","🌛","🌜","🌡️","☀️","🌝","🌞","🪐","⭐","🌟","🌠","🌌","☁️","⛅","⛈️","🌤️","🌥️","🌦️","🌧️","🌨️","🌩️","🌪️","🌫️","🌬️","🌀","🌈","🌂","☂️","☔","⛱️","⚡","❄️","☃️","⛄","☄️","🔥","💧","🌊",
+                "❤️","🧡","💛","💚","💙","🩵","💜","🤎","🖤","🩶","🤍","🩷","💘","💝","💖","💗","💓","💞","💕","💌","💟","💔","❤️‍🔥","❤️‍🩹","💋","💯","💢","💥","💫","💦","💨","🕳️","💣","💬","👁️‍🗨️","🗨️","🗯️","💭","💤","🌍","🌎","🌏","🌐","🗺️","🗾","🧭","🏔️","⛰️","🌋","🗻","🏕️","🏖️","🏜️","🏝️","🏞️","🏟️","🏛️","🏗️","🧱","🪨","🪵"
             ),
             "Flags" to listOf(
-                "🏁","🚩","🎌","🏴","🏳️","🏳️‍🌈","🏳️‍⚧️","🏴‍☠️","🇦🇨","🇦🇩","🇦🇪","🇦🇫","🇦🇬","🇦🇮","🇦🇱","🇦🇲","🇦🇴","🇦🇶","🇦🇷","🇦🇸","🇦🇹","🇦🇺","🇦🇼","🇦🇽","🇦🇿","🇧🇦","🇧🇧","🇧🇩","🇧🇪","🇧🇫","🇧🇬","🇧🇭","🇧🇮","🇧🇯","🇧🇱","🇧🇲","🇧🇳","🇧🇴","🇧🇶","🇧🇷","🇧🇸","🇧🇹","🇧🇻","🇧🇼","🇧🇾","🇧🇿","🇨🇦","🇨🇨","🇨🇩","🇨🇫","🇨🇬","🇨🇭","🇨🇮","🇨🇰","🇨🇱","🇨🇲","🇨🇳","🇨🇴","🇨🇵","🇨🇷","🇨🇺","🇨🇻","🇨🇼","🇨🇽","🇨🇾","🇨🇿","🇩🇪","🇩🇬","🇩🇯","🇩🇰","🇩🇲","🇩🇴","🇩🇿","🇪🇦","🇪🇨","🇪🇪","🇪🇬","🇪🇭","🇪🇷","🇪🇸","🇪🇹","🇪🇺","🇫🇮","🇫🇯","🇫🇰","🇫🇲","🇫🇴","🇫🇷","🇬🇦","🇬🇧","🇬🇩","🇬🇪","🇬🇫","🇬🇬","🇬🇭","🇬🇮","🇬🇱","🇬🇲","🇬🇳","🇬🇵","🇬🇶","🇬🇷","🇬🇸","🇬🇹","🇬🇺","🇬🇼","🇬🇾","🇭🇰","🇭🇲","🇭🇳","🇭🇷","🇭🇹","🇭🇺","🇮🇨","🇮🇩","🇮🇪","🇮🇱","🇮🇲","🇮🇳","🇮🇴","🇮🇶","🇮🇷","🇮🇸","🇮🇹","🇯🇪","🇯🇲","🇯🇴","🇯🇵","🇰🇪","🇰🇬","🇰🇭","🇰🇮","🇰🇲","🇰🇳","🇰🇵","🇰🇷","🇰🇼","🇰🇾","🇰🇿","🇱🇦","🇱🇧","🇱🇨","🇱🇮","🇱🇰","🇱🇷","🇱🇸","🇱🇹","🇱🇺","🇱🇻","🇱🇾","🇲🇦","🇲🇨","🇲🇩","🇲🇪","🇲🇫","🇲🇬","🇲🇭","🇲🇰","🇲🇱","🇲🇲","🇲🇳","🇲🇴","🇲🇵","🇲🇶","🇲🇷","🇲🇸","🇲🇹","🇲🇺","🇲🇻","🇲🇼","🇲🇽","🇲🇾","🇲🇿","🇳🇦","🇳🇨","🇳🇪","🇳🇫","🇳🇬","🇳🇮","🇳🇱","🇳🇴","🇳🇵","🇳🇷","🇳🇺","🇳🇿","🇴🇲","🇵🇦","🇵🇪","🇵🇫","🇵🇬","🇵🇭","🇵🇰","🇵🇱","🇵🇲","🇵🇳","🇵🇷","🇵🇸","🇵🇹","🇵🇼","🇵🇾","🇶🇦","🇷🇪","🇷🇴","🇷🇸","🇷🇺","🇷🇼","🇸🇦","🇸🇧","🇸🇨","🇸🇩","🇸🇪","🇸🇬","🇸🇭","🇸🇮","🇸🇯","🇸🇰","🇸🇱","🇸🇲","🇸🇳","🇸🇴","🇸🇷","🇸🇸","🇸🇹","🇸🇻","🇸🇽","🇸🇾","🇸🇿","🇹🇦","🇹🇨","🇹🇩","🇹🇫","🇹🇬","🇹🇭","🇹🇯","🇹🇰","🇹🇱","🇹🇲","🇹🇳","🇹🇴","🇹🇷","🇹🇹","🇹🇻","🇹🇼","🇹🇿","🇺🇦","🇺🇬","🇺🇲","🇺🇳","🇺🇸","🇺🇾","🇺🇿","🇻🇦","🇻🇨","🇻🇪","🇻🇬","🇻🇮","🇻🇳","🇻🇺","🇼🇫","🇼🇸","🇽🇰","🇾🇪","🇾🇹","🇿🇦","🇿🇲","🇿🇼"
-            ),
+                "🏁","🚩","🎌","🏴","🏳️","🏳️‍🌈","🏳️‍⚧️","🏴‍☠️","🇧🇷","🇵🇹","🇺🇸","🇪🇸","🇫🇷","🇩🇪","🇮🇹","🇬🇧","🇯🇵","🇨🇳","🇦🇷","🇨🇦","🇲🇽"
+            )
         )
 
-        val prefs = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
-        val tone = prefs.getString("EMOJI_TONE", "") ?: ""
-        val skinnable = listOf("👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","🫷","🫸","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦵","🦶","👂","🦻","👃","👶","👧","🧒","👦","👩","🧑","👨","👩‍🦱","🧑‍🦱","👨‍🦱","👩‍🦰","🧑‍🦰","👨‍🦰","👱‍♀️","👱","👱‍♂️","👩‍🦳","🧑‍🦳","👨‍🦳","👩‍🦲","🧑‍🦲","👨‍🦲","🧔‍♀️","🧔","🧔‍♂️","👵","🧓","👴","👲","👳‍♀️","👳","👳‍♂️","🧕","👮‍♀️","👮","👮‍♂️","👷‍♀️","👷","👷‍♂️","💂‍♀️","💂","💂‍♂️","🕵️‍♀️","🕵️","🕵️‍♂️","👩‍⚕️","🧑‍⚕️","👨‍⚕️","👩‍🌾","🧑‍🌾","👨‍🌾","👩‍🍳","🧑‍🍳","👨‍🍳","👩‍🎓","🧑‍🎓","👨‍🎓","👩‍🎤","🧑‍🎤","👨‍🎤","👩‍🏫","🧑‍🏫","👨‍🏫","👩‍🏭","🧑‍🏭","👨‍🏭","👩‍💻","🧑‍💻","👨‍💻","👩‍💼","🧑‍💼","👨‍💼","👩‍🔧","🧑‍🔧","👨‍🔧","👩‍🔬","🧑‍🔬","👨‍🔬","👩‍🎨","🧑‍🎨","👨‍🎨","👩‍🚒","🧑‍🚒","👨‍🚒","👩‍✈️","🧑‍✈️","👨‍✈️","👩‍🚀","🧑‍🚀","👨‍🚀","👩‍⚖️","🧑‍⚖️","👨‍⚖️","👰‍♀️","👰","👰‍♂️","🤵‍♀️","🤵","🤵‍♂️","👸","🫅","🤴","🥷","🦸‍♀️","🦸","🦸‍♂️","🦹‍♀️","🦹","🦹‍♂️","🤶","🧑‍🎄","🎅","🧙‍♀️","🧙","🧙‍♂️","🧝‍♀️","🧝","🧝‍♂️","🧛‍♀️","🧛","🧛‍♂️","🧜‍♀️","🧜","🧜‍♂️","🧚‍♀️","🧚","🧚‍♂️","👼","🤰","🫄","🫃","🤱","👩‍🍼","🧑‍🍼","👨‍🍼","🙇‍♀️","🙇","🙇‍♂️","💁‍♀️","💁","💁‍♂️","🙅‍♀️","🙅","🙅‍♂️","🙆‍♀️","🙆","🙆‍♂️","🙋‍♀️","🙋","🙋‍♂️","🧏‍♀️","🧏","🧏‍♂️","🤦‍♀️","🤦","🤦‍♂️","🤷‍♀️","🤷","🤷‍♂️","🙎‍♀️","🙎","🙎‍♂️","🙍‍♀️","🙍","🙍‍♂️","💇‍♀️","💇","💇‍♂️","💆‍♀️","💆","💆‍♂️","🧖‍♀️","🧖","🧖‍♂️","💃","🕺","🕴️","👩‍🦽","🧑‍🦽","👨‍🦽","👩‍🦼","🧑‍🦼","👨‍🦼","🚶‍♀️","🚶","🚶‍♂️","👩‍🦯","🧑‍🦯","👨‍🦯","🧎‍♀️","🧎","🧎‍♂️","🏃‍♀️","🏃","🏃‍♂️","🧍‍♀️","🧍","🧍‍♂️")
-        
         val emojiListsContainer = view.findViewById<android.widget.LinearLayout>(R.id.emoji_lists_container)
         emojiListsContainer?.removeAllViews()
         val density = resources.displayMetrics.density
@@ -476,8 +503,7 @@ override fun onCreateInputView(): View {
             grid.useDefaultMargins = true
             emojiListsContainer?.addView(grid)
 
-            val emojis = categoryEmojis.map { if (skinnable.contains(it)) it + tone else it }
-            for (emoji in emojis) {
+            for (emoji in categoryEmojis) {
                 val tv = android.widget.TextView(this)
                 tv.text = emoji
                 tv.textSize = 28f
@@ -490,31 +516,29 @@ override fun onCreateInputView(): View {
                 tv.layoutParams = params
 
                 val typedValue = android.util.TypedValue()
-            theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, typedValue, true)
-            tv.setBackgroundResource(typedValue.resourceId)
-            tv.isClickable = true
-            tv.isFocusable = true
-            
-            tv.setOnTouchListener { v, event ->
-                when (event.action) {
-                    android.view.MotionEvent.ACTION_DOWN -> {
-                        playClickFeedback()
-                        triggerVibration()
-                        val ic = currentInputConnection
-                        ic?.commitText(emoji, 1)
-                        v.isPressed = true
-                        v.animate().scaleX(0.85f).scaleY(0.85f).setDuration(50).start()
-                        true
+                theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, typedValue, true)
+                tv.setBackgroundResource(typedValue.resourceId)
+                tv.isClickable = true
+                tv.isFocusable = true
+                
+                tv.setOnTouchListener { v, event ->
+                    when (event.action) {
+                        android.view.MotionEvent.ACTION_DOWN -> {
+                            playClickFeedback()
+                            triggerVibration()
+                            val ic = currentInputConnection
+                            ic?.commitText(emoji, 1)
+                            v.isPressed = true
+                            true
+                        }
+                        android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                            v.isPressed = false
+                            true
+                        }
+                        else -> false
                     }
-                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
-                        v.isPressed = false
-                        v.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
-                        true
-                    }
-                    else -> false
                 }
-            }
-            grid.addView(tv)
+                grid.addView(tv)
             }
         }
         
@@ -526,7 +550,7 @@ override fun onCreateInputView(): View {
 
         val scrollView = view.findViewById<android.widget.ScrollView>(R.id.emoji_scroll_view)
         fun scrollToCategory(catName: String) {
-            val targetView = categoryViews.entries.find { it.key.contains(catName) }?.value
+            val targetView = categoryViews.entries.find { it.key.contains(catName, ignoreCase = true) }?.value
             if (targetView != null && scrollView != null) {
                 scrollView.post {
                     scrollView.smoothScrollTo(0, targetView.top)
@@ -545,6 +569,7 @@ override fun onCreateInputView(): View {
             handleBackspace()
         }
     }
+
     private fun setupCommandKeys(view: View) {
         val shiftKey = view.findViewById<FrameLayout>(R.id.key_shift_top)
         shiftText = view.findViewById(R.id.text_shift_top)
@@ -568,7 +593,7 @@ override fun onCreateInputView(): View {
         var backspaceStartX = 0f
         var isBackspaceSwiping = false
         var lastDeleteX = 0f
-        var backspaceHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        val backspaceHandler = android.os.Handler(android.os.Looper.getMainLooper())
         var backspaceRunnable: Runnable? = null
 
         backspaceKey?.setOnTouchListener { v, event ->
@@ -589,7 +614,7 @@ override fun onCreateInputView(): View {
                             backspaceHandler.postDelayed(this, 50)
                         }
                     }
-                    backspaceHandler.postDelayed(backspaceRunnable!!, 400)
+                    backspaceHandler.postDelayed(backspaceRunnable!!, 350)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -651,16 +676,14 @@ override fun onCreateInputView(): View {
                     
                     if (isSpaceSwiping) {
                         val moveDelta = event.rawX - lastCursorMoveX
-                        val threshold = 40f // pixels per cursor move
+                        val threshold = 40f
                         
                         if (moveDelta > threshold) {
-                            // Move cursor right
                             currentInputConnection?.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_RIGHT))
                             currentInputConnection?.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_DPAD_RIGHT))
                             lastCursorMoveX = event.rawX
                             triggerVibration()
                         } else if (moveDelta < -threshold) {
-                            // Move cursor left
                             currentInputConnection?.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_LEFT))
                             currentInputConnection?.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_DPAD_LEFT))
                             lastCursorMoveX = event.rawX
@@ -672,18 +695,23 @@ override fun onCreateInputView(): View {
                 MotionEvent.ACTION_UP -> {
                     if (!isSpaceSwiping) {
                         val ic = currentInputConnection
-                        ic?.getTextBeforeCursor(30, 0)?.toString()?.let { text ->
-                            val words = text.split(wordSeparatorRegex)
-                            val lastWord = words.lastOrNull() ?: ""
-                            if (lastWord.isNotBlank()) {
-                                localDict.learnWord(lastWord)
+                        val editorInfo = currentInputEditorInfo
+                        
+                        if (editorInfo == null || !isPrivateOrPassword(editorInfo)) {
+                            ic?.getTextBeforeCursor(30, 0)?.toString()?.let { text ->
+                                val words = text.split(wordSeparatorRegex)
+                                val lastWord = words.lastOrNull() ?: ""
+                                if (lastWord.isNotBlank() && lastWord.length in 2..30) {
+                                    localDict.learnWord(lastWord)
+                                }
                             }
                         }
-                        if (!ghostTextManager.onSpaceClicked(ic)) {
-                            ic?.commitText(" ", 1)
-                        }
+                        
+                        // Espaço insere apenas ' ' - sem autocompletar invasivo
+                        ic?.commitText(" ", 1)
                         playClickFeedback()
                         triggerVibration()
+                        updatePredictions()
                     }
                     v.isPressed = false
                     true
@@ -773,29 +801,34 @@ override fun onCreateInputView(): View {
         suggestion1 = view.findViewById<TextView>(R.id.suggestion_1)
         suggestion2 = view.findViewById<TextView>(R.id.suggestion_2)
         suggestion3 = view.findViewById<TextView>(R.id.suggestion_3)
-        val suggestion1 = this.suggestion1
-        val suggestion2 = this.suggestion2
-        val suggestion3 = this.suggestion3
         val plusBtn = view.findViewById<View>(R.id.key_settings_top)
-        val iaBtn = view.findViewById<TextView>(R.id.key_ia)
 
         val suggestionClickListener = View.OnClickListener { v ->
             if (v is TextView) {
+                val selectedSuggestion = v.text.toString()
+                if (selectedSuggestion.isEmpty()) return@OnClickListener
+                
                 val ic = currentInputConnection ?: return@OnClickListener
-                val textBeforeCursor = ic.getTextBeforeCursor(30, 0)?.toString() ?: ""
-                val textAfterCursor = ic.getTextAfterCursor(30, 0)?.toString() ?: ""
+                val textBeforeCursor = ic.getTextBeforeCursor(40, 0)?.toString() ?: ""
+                val textAfterCursor = ic.getTextAfterCursor(40, 0)?.toString() ?: ""
                 
-                val wordPrefix = textBeforeCursor.takeLastWhile { it.isLetter() }
-                val wordSuffix = textAfterCursor.takeWhile { it.isLetter() }
+                val wordPrefix = textBeforeCursor.takeLastWhile { ptLetterRegex.matches(it.toString()) }
+                val wordSuffix = textAfterCursor.takeWhile { ptLetterRegex.matches(it.toString()) }
                 
-                ghostTextManager.clearGhostText(ic)
-                
+                ic.beginBatchEdit()
                 if (wordPrefix.isNotEmpty() || wordSuffix.isNotEmpty()) {
                     ic.deleteSurroundingText(wordPrefix.length, wordSuffix.length)
                 }
-                ic.commitText(v.text.toString() + " ", 1)
+                ic.commitText(selectedSuggestion + " ", 1)
+                ic.endBatchEdit()
+                
+                val editorInfo = currentInputEditorInfo
+                if (editorInfo == null || !isPrivateOrPassword(editorInfo)) {
+                    localDict.learnWord(selectedSuggestion)
+                }
                 playClickFeedback()
                 triggerVibration()
+                updatePredictions()
             }
         }
 
@@ -810,7 +843,6 @@ override fun onCreateInputView(): View {
             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
         }
-        
     }
 
     private fun handleCharacterClick(baseChar: String) {
@@ -829,9 +861,9 @@ override fun onCreateInputView(): View {
     private fun toggleShift() {
         isShifted = !isShifted
         
-        shiftText?.animate()?.scaleX(0.7f)?.scaleY(0.7f)?.alpha(0.5f)?.setDuration(100)?.withEndAction {
+        shiftText?.animate()?.scaleX(0.7f)?.scaleY(0.7f)?.alpha(0.5f)?.setDuration(80)?.withEndAction {
             shiftText?.text = if (isShifted) "AA" else "Aa"
-            shiftText?.animate()?.scaleX(1f)?.scaleY(1f)?.alpha(1f)?.setDuration(100)?.start()
+            shiftText?.animate()?.scaleX(1f)?.scaleY(1f)?.alpha(1f)?.setDuration(80)?.start()
         }?.start()
         
         updateKeyLabels()
@@ -842,17 +874,12 @@ override fun onCreateInputView(): View {
         val currentMap = if (isSymbolMode) idMapSymbols else idMapLetters
         alphabetKeys.clear()
         
-        val keyList = mutableListOf<Pair<android.widget.TextView, String>>()
-        
         for ((id, char) in currentMap) {
             val keyView = keyViews.find { it.id == id } ?: continue
             val displayChar = if (isShifted && !isSymbolMode) char.uppercase() else char
             keyView.text = displayChar
             alphabetKeys[id] = char
-            keyList.add(Pair(keyView, char))
         }
-        
-        // swipe keys removed
         
         val symbolKeyText = keyboardRoot.findViewById<TextView>(R.id.text_key_symbol)
         symbolKeyText?.text = if (isSymbolMode) "ABC" else "?123"
@@ -867,6 +894,7 @@ override fun onCreateInputView(): View {
             }
         }
     }
+
     private fun handleBackspace() {
         val ic = currentInputConnection ?: return
         ghostTextManager.clearGhostText(ic)
@@ -877,6 +905,7 @@ override fun onCreateInputView(): View {
             ic.commitText("", 1)
         }
         playClickFeedback()
+        updatePredictions()
     }
 
     private fun handleEnter() {
@@ -923,21 +952,18 @@ override fun onCreateInputView(): View {
         val popupWidth = if (previewPopup.width > 0) previewPopup.width else (54 * density).toInt()
         val popupHeight = if (previewPopup.height > 0) previewPopup.height else (60 * density).toInt()
 
-        // Center popup horizontally relative to the key
         previewPopup.translationX = x.toFloat() + (keyView.width - popupWidth) / 2f
-        // Float popup above the key
-        previewPopup.translationY = y.toFloat() - popupHeight - (10 * density)
+        previewPopup.translationY = y.toFloat() - popupHeight - (6 * density)
 
+        previewPopup.animate().cancel()
+        previewPopup.alpha = 1f
         previewPopup.visibility = View.VISIBLE
-        previewPopup.alpha = 0f
-        previewPopup.animate().alpha(1f).translationYBy(-10f).setDuration(100).start()
     }
 
     private fun hideKeyPopup() {
         if (::previewPopup.isInitialized) {
-            previewPopup.animate().alpha(0f).translationYBy(10f).setDuration(100).withEndAction {
-                previewPopup.visibility = View.GONE
-            }.start()
+            previewPopup.animate().cancel()
+            previewPopup.visibility = View.GONE
         }
     }
 
@@ -975,7 +1001,6 @@ override fun onCreateInputView(): View {
                 }
                 kotlinx.coroutines.delay(32)
             }
-            // Reset scale when stopped
             for (bar in bars) {
                 bar?.animate()?.scaleY(1.0f)?.setDuration(150)?.start()
             }
@@ -1009,12 +1034,10 @@ override fun onCreateInputView(): View {
                 val result = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
                 
                 val parts = result.trim().split("|")
-                if (parts.size >= 4) {
+                if (parts.size >= 3) {
                     view.findViewById<TextView>(R.id.suggestion_1)?.text = parts[0].trim()
                     view.findViewById<TextView>(R.id.suggestion_2)?.text = parts[1].trim()
                     view.findViewById<TextView>(R.id.suggestion_3)?.text = parts[2].trim()
-                    
-                    // Emoji updating logic removed
                 }
             } catch (e: Exception) {
                 Toast.makeText(this@StitchKeyboardService, "Erro AI: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -1028,7 +1051,6 @@ override fun onCreateInputView(): View {
         val extractedText = ic.getTextBeforeCursor(500, 0)?.toString() ?: ""
         if (extractedText.isBlank()) {
             Toast.makeText(this, "Nada para reescrever", Toast.LENGTH_SHORT).show()
-
             keyboardRoot.visibility = View.VISIBLE
             return
         }
@@ -1057,7 +1079,6 @@ override fun onCreateInputView(): View {
             } catch (e: Exception) {
                 Toast.makeText(this@StitchKeyboardService, "Erro AI", Toast.LENGTH_SHORT).show()
             } finally {
-
                 keyboardRoot.visibility = View.VISIBLE
             }
         }
@@ -1089,7 +1110,7 @@ override fun onCreateInputView(): View {
                     voiceText?.text = errorMsg
                     isListening = false
                     
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                    scope.launch(Dispatchers.Main) {
                         kotlinx.coroutines.delay(1500)
                         if (!isListening && voiceRoot.visibility == android.view.View.VISIBLE) {
                             stopListening()
@@ -1107,7 +1128,7 @@ override fun onCreateInputView(): View {
                     }
                     isListening = false
                     
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                    scope.launch(Dispatchers.Main) {
                         kotlinx.coroutines.delay(1000)
                         if (!isListening && voiceRoot.visibility == android.view.View.VISIBLE) {
                             stopListening()
@@ -1151,6 +1172,9 @@ override fun onCreateInputView(): View {
     
     override fun onDestroy() {
         super.onDestroy()
+        predictionJob?.cancel()
+        waveJob?.cancel()
+        scope.cancel()
         speechRecognizer?.destroy()
         speechRecognizer = null
     }
