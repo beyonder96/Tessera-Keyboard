@@ -1,13 +1,13 @@
 package com.example.engine
 
 import com.example.manager.LocalDictionaryManager
-import java.text.Normalizer
-import java.util.regex.Pattern
 
 class PredictionEngine(private val localDict: LocalDictionaryManager? = null) {
 
+    private val trie = TrieDictionary()
+
     private val staticDictionary = listOf(
-        // Pronomes e conectivos frequentes
+        // Pronomes e conectivos frequentes (alta prioridade)
         "eu", "você", "ele", "ela", "nós", "eles", "elas", "meu", "minha", "seu", "sua", "nosso", "nossa",
         "um", "uma", "uns", "umas", "o", "a", "os", "as", "que", "de", "do", "da", "dos", "das", "em", "no",
         "na", "nos", "nas", "para", "com", "por", "como", "mas", "se", "ou", "não", "sim", "já", "ainda", "até",
@@ -15,7 +15,7 @@ class PredictionEngine(private val localDict: LocalDictionaryManager? = null) {
         "outra", "onde", "quando", "quem", "qual", "quais", "porque", "porquê", "pois", "então", "assim", "apenas", "só",
         // Saudações e tempo
         "bom", "dia", "boa", "tarde", "noite", "olá", "oi", "hoje", "amanhã", "ontem", "sempre", "nunca", "agora",
-        "depois", "tempo", "ano", "anos", "mês", "semana", "hora", "horas", "vez", "vezes", "cedo", "tarde",
+        "depois", "tempo", "ano", "anos", "mês", "semana", "hora", "horas", "vez", "vezes", "cedo",
         // Substantivos comuns
         "coisa", "casa", "lugar", "trabalho", "pessoa", "pessoas", "gente", "homem", "mulher", "criança",
         "amigo", "amiga", "amigos", "família", "nome", "mundo", "parte", "fim", "começo", "jeito", "caso",
@@ -37,60 +37,46 @@ class PredictionEngine(private val localDict: LocalDictionaryManager? = null) {
         "acredito", "acredita", "acreditamos", "acreditam", "obrigado", "obrigada", "favor", "por favor", "beleza", "tudo bem"
     )
 
-    private val accentPattern: Pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+")
-
-    private fun normalize(str: String): String {
-        val nfd = Normalizer.normalize(str.lowercase(), Normalizer.Form.NFD)
-        return accentPattern.matcher(nfd).replaceAll("")
+    private val normalizedStatic: List<Pair<String, String>> = staticDictionary.map {
+        it to TrieDictionary.normalizeFast(it)
     }
 
-    // Cache pré-computado de palavras e suas formas normalizadas para busca ultrarrápida
-    private val normalizedStatic = staticDictionary.map { word -> word to normalize(word) }
+    init {
+        for (word in staticDictionary) {
+            trie.insert(word, frequency = 50)
+        }
+        localDict?.getWords()?.forEach { word ->
+            trie.insert(word, frequency = 200)
+        }
+    }
+
+    fun learnWord(word: String) {
+        val clean = word.trim().lowercase()
+        if (clean.length in 2..30 && clean.all { it.isLetter() }) {
+            localDict?.learnWord(clean)
+            trie.insert(clean, frequency = 200)
+        }
+    }
 
     fun getPredictions(currentWord: String): List<String> {
         if (currentWord.isBlank()) {
             return listOf("eu", "o", "que")
         }
-        val cleanInput = currentWord.trim().lowercase()
-        val normalizedInput = normalize(cleanInput)
-        
-        // 1. Busca primeiro nas palavras aprendidas pelo usuário
-        val localWords = localDict?.getWords() ?: emptySet()
-        val localMatches = mutableListOf<String>()
-        for (word in localWords) {
-            val normWord = normalize(word)
-            if (normWord.startsWith(normalizedInput) && !word.equals(cleanInput, ignoreCase = true)) {
-                localMatches.add(word)
-                if (localMatches.size >= 3) break
-            }
-        }
-
-        // 2. Busca no dicionário estático
-        val staticMatches = mutableListOf<String>()
-        for ((word, normWord) in normalizedStatic) {
-            if (normWord.startsWith(normalizedInput) && !word.equals(cleanInput, ignoreCase = true) && !localMatches.contains(word)) {
-                staticMatches.add(word)
-                if (localMatches.size + staticMatches.size >= 6) break
-            }
-        }
-
-        // Ordena por comprimento (mais curtas primeiro) e pega as top 3
-        return (localMatches + staticMatches)
-            .distinct()
-            .sortedBy { it.length }
-            .take(3)
+        return trie.findTopSuggestions(currentWord, maxCount = 3, excludeExact = true)
     }
 
     fun getSwipePrediction(swipePattern: String): String? {
         if (swipePattern.length < 2) return null
-        val lower = normalize(swipePattern)
+        val lower = TrieDictionary.normalizeFast(swipePattern)
+        if (lower.isEmpty()) return null
         val firstChar = lower.first()
         val lastChar = lower.last()
 
         val matches = normalizedStatic.filter { (word, norm) ->
-            if (norm.first() != firstChar || norm.last() != lastChar) return@filter false
+            if (norm.isEmpty() || norm.first() != firstChar || norm.last() != lastChar) return@filter false
             var wordIdx = 0
-            for (char in lower) {
+            for (i in 0 until lower.length) {
+                val char = lower[i]
                 if (wordIdx < norm.length && char == norm[wordIdx]) {
                     wordIdx++
                 }
@@ -101,4 +87,3 @@ class PredictionEngine(private val localDict: LocalDictionaryManager? = null) {
         return matches.sortedBy { it.first.length }.firstOrNull()?.first
     }
 }
-

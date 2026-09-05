@@ -19,6 +19,16 @@ class ShimmerTextView @JvmOverloads constructor(
     private var gradientMatrix: Matrix? = null
     private var animator: ValueAnimator? = null
     private var translate = 0f
+    private var isPaused = false
+
+    private val resumeRunnable = Runnable {
+        if (isPaused) {
+            isPaused = false
+            if (isShown && isAttachedToWindow && animator?.isPaused == true) {
+                animator?.resume()
+            }
+        }
+    }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
@@ -42,13 +52,22 @@ class ShimmerTextView @JvmOverloads constructor(
         }
     }
 
+    fun temporarilyPause(durationMs: Long = 1000L) {
+        removeCallbacks(resumeRunnable)
+        if (!isPaused) {
+            isPaused = true
+            animator?.pause()
+        }
+        postDelayed(resumeRunnable, durationMs)
+    }
+
     private fun startAnimation(width: Int) {
         animator?.cancel()
         animator = ValueAnimator.ofFloat(0f, 2f).apply {
             duration = 3500
             repeatCount = ValueAnimator.INFINITE
             addUpdateListener { animation ->
-                if (isShown && isAttachedToWindow) {
+                if (!isPaused && isShown && isAttachedToWindow) {
                     val value = animation.animatedValue as Float
                     translate = width * (value - 1f)
                     gradientMatrix?.setTranslate(translate, 0f)
@@ -80,8 +99,8 @@ class ShimmerTextView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        removeCallbacks(resumeRunnable)
         animator?.cancel()
         animator = null
     }
 }
-
