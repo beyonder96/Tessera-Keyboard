@@ -67,4 +67,46 @@ class PredictionEngineTest {
         val predictions = testEngine.getPredictions("compart")
         assertTrue(predictions.contains("compartilhamento"))
     }
+
+    @Test
+    fun testAutoAccentuation() {
+        val testEngine = PredictionEngine()
+        val naoPreds = testEngine.getPredictions("nao")
+        assertEquals("não", naoPreds.firstOrNull())
+
+        val vocePreds = testEngine.getPredictions("voce")
+        assertEquals("você", vocePreds.firstOrNull())
+
+        val atePreds = testEngine.getPredictions("ate")
+        assertEquals("até", atePreds.firstOrNull())
+
+        val tambemPreds = testEngine.getPredictions("tambem")
+        assertEquals("também", tambemPreds.firstOrNull())
+    }
+
+    @Test
+    fun testCapitalizationPreservation() {
+        val testEngine = PredictionEngine()
+        val capNao = testEngine.getPredictions("Nao")
+        assertEquals("Não", capNao.firstOrNull())
+
+        val upperVoce = testEngine.getPredictions("VOCE")
+        assertEquals("VOCÊ", upperVoce.firstOrNull())
+    }
+
+    @Test
+    fun testFuzzyTypoCorrectionRudoToTudo() {
+        val testEngine = PredictionEngine()
+        val preds = testEngine.getPredictions("rudo")
+        // "r" is adjacent to "t" in QWERTY, so "rudo" must correct to "tudo"
+        assertEquals("tudo", preds.firstOrNull())
+        assertTrue(preds.contains("rudo")) // literal typed word is kept as alternative
+    }
+
+    @Test
+    fun testFuzzyTypoTransposition() {
+        val testEngine = PredictionEngine()
+        val preds = testEngine.getPredictions("tduo")
+        assertEquals("tudo", preds.firstOrNull())
+    }
 }

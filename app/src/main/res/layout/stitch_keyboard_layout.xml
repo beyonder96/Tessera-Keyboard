@@ -1,5 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content"><LinearLayout android:id="@+id/keyboard_root" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_floating_keyboard" android:paddingLeft="8dp" android:paddingRight="8dp" android:paddingTop="12dp" android:paddingBottom="56dp" android:clickable="true" android:focusable="true">
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content"><LinearLayout android:id="@+id/keyboard_root" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_floating_keyboard" android:paddingLeft="8dp" android:paddingRight="8dp" android:paddingTop="12dp" android:paddingBottom="56dp" android:clickable="true" android:focusable="true" android:splitMotionEvents="true">
 
     
     <FrameLayout android:id="@+id/drag_handle_container" android:layout_width="match_parent" android:layout_height="36dp" android:layout_marginTop="-8dp">
@@ -9,6 +8,7 @@
             <TextView android:id="@+id/suggestion_2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:textColor="?attr/stitchTextColor" android:textSize="16sp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackgroundBorderless" />
             <TextView android:id="@+id/suggestion_3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:textColor="?attr/stitchTextColor" android:textSize="16sp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackgroundBorderless" />
         </LinearLayout>
+        <TextView android:id="@+id/clipboard_pill" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_gravity="center" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingLeft="12dp" android:paddingRight="12dp" android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:fontFamily="sans-serif-medium" android:singleLine="true" android:ellipsize="end" android:visibility="gone" />
         <TextView android:id="@+id/key_ia" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
     </FrameLayout>    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="12dp">
         <!-- 1: Shift Toggle -->
@@ -33,8 +33,8 @@
         </FrameLayout>
     </LinearLayout>
     <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content">
-    <LinearLayout android:id="@+id/keys_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
-    <LinearLayout android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" android:weightSum="10" android:layout_marginBottom="6dp" android:gravity="center">
+    <LinearLayout android:id="@+id/keys_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:splitMotionEvents="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" android:weightSum="10" android:layout_marginBottom="6dp" android:gravity="center" android:splitMotionEvents="true">
         <TextView android:id="@+id/key_q" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="Q" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:layout_marginHorizontal="2dp" android:layout_marginVertical="2dp" android:fontFamily="sans-serif-light" />
         <TextView android:id="@+id/key_w" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="W" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:layout_marginHorizontal="2dp" android:layout_marginVertical="2dp" android:fontFamily="sans-serif-light" />
         <TextView android:id="@+id/key_e" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="E" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:layout_marginHorizontal="2dp" android:layout_marginVertical="2dp" android:fontFamily="sans-serif-light" />
@@ -47,7 +47,7 @@
         <TextView android:id="@+id/key_p" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="P" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:layout_marginHorizontal="2dp" android:layout_marginVertical="2dp" android:fontFamily="sans-serif-light" />
     </LinearLayout>
 
-    <LinearLayout android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" android:weightSum="10" android:layout_marginBottom="6dp" android:gravity="center">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" android:weightSum="10" android:layout_marginBottom="6dp" android:gravity="center" android:splitMotionEvents="true">
         <Space android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="0.5" />
         <TextView android:id="@+id/key_a" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="A" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:layout_marginHorizontal="2dp" android:layout_marginVertical="2dp" android:fontFamily="sans-serif-light" />
         <TextView android:id="@+id/key_s" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="S" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:layout_marginHorizontal="2dp" android:layout_marginVertical="2dp" android:fontFamily="sans-serif-light" />
@@ -61,7 +61,7 @@
         <Space android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="0.5" />
     </LinearLayout>
 
-    <LinearLayout android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" android:weightSum="10" android:layout_marginBottom="6dp" android:gravity="center">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" android:weightSum="10" android:layout_marginBottom="6dp" android:gravity="center" android:splitMotionEvents="true">
         <Space android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
         <TextView android:id="@+id/key_z" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="Z" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:layout_marginHorizontal="2dp" android:layout_marginVertical="2dp" android:fontFamily="sans-serif-light" />
         <TextView android:id="@+id/key_x" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="X" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:layout_marginHorizontal="2dp" android:layout_marginVertical="2dp" android:fontFamily="sans-serif-light" />
@@ -75,7 +75,7 @@
         </FrameLayout>
         <Space android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="0.5" />
     </LinearLayout>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:weightSum="10" android:gravity="center_vertical">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:weightSum="10" android:gravity="center_vertical" android:splitMotionEvents="true">
         <FrameLayout android:id="@+id/key_symbol" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.5" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:layout_marginLeft="4dp" android:layout_marginRight="4dp">
             <TextView android:id="@+id/text_key_symbol" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="123" android:textColor="?attr/stitchTextColor" android:textSize="14sp" />
         </FrameLayout>
@@ -83,7 +83,7 @@
         <com.example.ui.ShimmerTextView android:id="@+id/key_space" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="5.0" android:layout_marginLeft="4dp" android:layout_marginRight="4dp" android:background="@drawable/bg_command_pill" android:text="Tessera" android:fontFamily="sans-serif-medium" android:textStyle="normal" android:textColor="?attr/stitchTextColor" android:textSize="16sp" android:gravity="center" android:clickable="true" android:focusable="true" />
         <TextView android:id="@+id/key_period" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="." android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:layout_marginHorizontal="2dp" android:layout_marginVertical="2dp" android:fontFamily="sans-serif-light" />
         <FrameLayout android:id="@+id/key_enter" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.5" android:layout_marginLeft="4dp" android:layout_marginRight="4dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true">
-            <ImageView android:layout_width="24dp" android:layout_height="24dp" android:layout_gravity="center" android:src="@drawable/ic_enter_line" android:contentDescription="Enter" android:tint="?attr/stitchTextColor" />
+            <ImageView android:id="@+id/key_enter_icon" android:layout_width="24dp" android:layout_height="24dp" android:layout_gravity="center" android:src="@drawable/ic_enter_line" android:contentDescription="Enter" android:tint="?attr/stitchTextColor" />
         </FrameLayout>
     </LinearLayout>
 

@@ -18,6 +18,8 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.Manifest
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.speech.RecognitionListener
@@ -26,6 +28,7 @@ import android.speech.SpeechRecognizer
 import androidx.core.content.ContextCompat
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import android.view.ContextThemeWrapper
@@ -49,7 +52,18 @@ class StitchKeyboardService : InputMethodService() {
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val keyLocation = IntArray(2)
     private val rootLocation = IntArray(2)
+    private var localEditCount = 0
+    private val keyPositionCache = HashMap<Int, Pair<Float, Float>>()
     private var spaceKeyView: com.example.ui.ShimmerTextView? = null
+    
+    private data class LastAutocorrection(
+        val originalWord: String,
+        val correctedWord: String
+    )
+    private var lastAutocorrection: LastAutocorrection? = null
+    private var lastUndoneWord: String? = null
+    private var justCommittedSpace = false
+    private var lastSpaceTime = 0L
     
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private lateinit var keyboardRoot: View
@@ -58,10 +72,14 @@ class StitchKeyboardService : InputMethodService() {
     private lateinit var localDict: com.example.manager.LocalDictionaryManager
     private lateinit var predictionEngine: com.example.engine.PredictionEngine
     private val ghostTextManager = com.example.manager.GhostTextManager()
+    private var suggestionContainer: LinearLayout? = null
     private var suggestion1: android.widget.TextView? = null
     private var suggestion2: android.widget.TextView? = null
     private var suggestion3: android.widget.TextView? = null
+    private var clipboardPill: android.widget.TextView? = null
     private var dragPill: android.view.View? = null
+    private var enterIcon: android.widget.ImageView? = null
+    private var lastClipboardText: String? = null
     private var predictionJob: Job? = null
     private var lastQueriedWord: String = ""
     private var cachedKeyboardScale: Float = 1.0f
@@ -84,7 +102,7 @@ class StitchKeyboardService : InputMethodService() {
     override fun onCreate() {
         super.onCreate()
         localDict = com.example.manager.LocalDictionaryManager(this)
-        predictionEngine = com.example.engine.PredictionEngine(localDict)
+        predictionEngine = com.example.engine.PredictionEngine(localDict, this)
         vibrator = getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
         audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
         inputMethodManager = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
@@ -99,6 +117,7 @@ class StitchKeyboardService : InputMethodService() {
             val themedContext = ContextThemeWrapper(this, themeResId)
             val keyboardView = layoutInflater.cloneInContext(themedContext)
                 .inflate(R.layout.stitch_keyboard_layout, null)
+            keyPositionCache.clear()
 
             keyboardRoot = keyboardView.findViewById(R.id.keyboard_root)
             voiceRoot = keyboardView.findViewById(R.id.voice_ui_root)
@@ -172,9 +191,13 @@ class StitchKeyboardService : InputMethodService() {
         candidatesStart: Int, candidatesEnd: Int
     ) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        if (localEditCount > 0) {
+            localEditCount--
+            return
+        }
         if (newSelStart != oldSelStart || newSelEnd != oldSelEnd) {
-            syncComposingBufferFromIme()
-            scheduleAsyncPrediction(composingBuffer.toString())
+            composingBuffer.setLength(0)
+            clearPredictionsUi()
         }
     }
 
@@ -209,6 +232,123 @@ class StitchKeyboardService : InputMethodService() {
         return isPassword || noLearning
     }
 
+    private fun isEmailField(info: EditorInfo?): Boolean {
+        if (info == null) return false
+        val variation = info.inputType and EditorInfo.TYPE_MASK_VARIATION
+        return variation == EditorInfo.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
+                variation == EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS
+    }
+
+    private fun isUriField(info: EditorInfo?): Boolean {
+        if (info == null) return false
+        val variation = info.inputType and EditorInfo.TYPE_MASK_VARIATION
+        return variation == EditorInfo.TYPE_TEXT_VARIATION_URI
+    }
+
+    private fun getCharForId(id: Int): String? {
+        if (isSymbolMode) {
+            return idMapSymbols[id]
+        }
+        if (id == R.id.key_comma) {
+            val editorInfo = currentInputEditorInfo
+            if (isEmailField(editorInfo)) return "@"
+            if (isUriField(editorInfo)) return "/"
+            return ","
+        }
+        return idMapLetters[id]
+    }
+
+    private fun shouldAutocorrect(info: EditorInfo?): Boolean {
+        if (info == null) return true
+        if (isPrivateOrPassword(info)) return false
+        val inputType = info.inputType
+        val variation = inputType and EditorInfo.TYPE_MASK_VARIATION
+        val isEmailOrUrl = variation == EditorInfo.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
+                variation == EditorInfo.TYPE_TEXT_VARIATION_URI ||
+                variation == EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS
+        return !isEmailOrUrl
+    }
+
+    private fun shouldAutoCapitalize(info: EditorInfo?): Boolean {
+        if (info == null) return false
+        val inputType = info.inputType
+        if ((inputType and EditorInfo.TYPE_MASK_CLASS) != EditorInfo.TYPE_CLASS_TEXT) return false
+        if (isPrivateOrPassword(info)) return false
+        val variation = inputType and EditorInfo.TYPE_MASK_VARIATION
+        if (variation == EditorInfo.TYPE_TEXT_VARIATION_EMAIL_ADDRESS ||
+            variation == EditorInfo.TYPE_TEXT_VARIATION_URI ||
+            variation == EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS) {
+            return false
+        }
+        return true
+    }
+
+    private fun isPunctuation(c: String): Boolean {
+        return c in listOf(".", ",", "!", "?", ":", ";")
+    }
+
+    private fun updateEnterKeyAction(info: EditorInfo?) {
+        val iconView = enterIcon ?: keyboardRoot.findViewById<ImageView>(R.id.key_enter_icon) ?: return
+        if (info == null) {
+            iconView.setImageResource(R.drawable.ic_enter_line)
+            return
+        }
+
+        val imeOptions = info.imeOptions
+        val action = imeOptions and EditorInfo.IME_MASK_ACTION
+
+        val iconRes = when (action) {
+            EditorInfo.IME_ACTION_SEARCH -> R.drawable.ic_search_line
+            EditorInfo.IME_ACTION_SEND -> R.drawable.ic_send_line
+            EditorInfo.IME_ACTION_GO, EditorInfo.IME_ACTION_NEXT -> R.drawable.ic_next_line
+            EditorInfo.IME_ACTION_DONE -> R.drawable.ic_done_line
+            else -> R.drawable.ic_enter_line
+        }
+        iconView.setImageResource(iconRes)
+    }
+
+    private fun getClipboardText(): String? {
+        return try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            if (clipboard != null && clipboard.hasPrimaryClip()) {
+                val clip = clipboard.primaryClip
+                if (clip != null && clip.itemCount > 0) {
+                    val text = clip.getItemAt(0)?.coerceToText(this)?.toString()?.trim()
+                    if (!text.isNullOrBlank() && text.length <= 500) {
+                        text
+                    } else null
+                } else null
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun showClipboardPill(clipText: String) {
+        val pill = clipboardPill ?: return
+        val info = currentInputEditorInfo
+        val display = if (isPrivateOrPassword(info)) {
+            "📋 Colar"
+        } else {
+            val singleLine = clipText.replace("\n", " ").replace("\r", "")
+            val trimmed = if (singleLine.length > 22) singleLine.take(20) + "…" else singleLine
+            "📋 $trimmed"
+        }
+        pill.text = display
+        pill.visibility = View.VISIBLE
+        suggestionContainer?.visibility = View.INVISIBLE
+        dragPill?.alpha = 0f
+    }
+
+    private fun hideClipboardPill() {
+        clipboardPill?.visibility = View.GONE
+        suggestionContainer?.visibility = View.VISIBLE
+        val hasSuggestions = (suggestion1?.text?.isNotEmpty() == true) ||
+                (suggestion2?.text?.isNotEmpty() == true) ||
+                (suggestion3?.text?.isNotEmpty() == true)
+        dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
+    }
+
     private fun scheduleAsyncPrediction(word: String) {
         if (!::keyboardRoot.isInitialized) return
         val editorInfo = currentInputEditorInfo
@@ -216,6 +356,15 @@ class StitchKeyboardService : InputMethodService() {
             clearPredictionsUi()
             return
         }
+
+        if (word.isEmpty()) {
+            predictionJob?.cancel()
+            lastQueriedWord = ""
+            clearPredictionsUi()
+            return
+        }
+
+        hideClipboardPill()
 
         if (word == lastQueriedWord && word.isNotEmpty()) {
             return
@@ -225,15 +374,18 @@ class StitchKeyboardService : InputMethodService() {
         predictionJob?.cancel()
         predictionJob = scope.launch(Dispatchers.Default) {
             val predictions = predictionEngine.getPredictions(word)
-            val s1 = predictions.getOrNull(0) ?: ""
-            val s2 = predictions.getOrNull(1) ?: ""
-            val s3 = predictions.getOrNull(2) ?: ""
+            val (left, center, right) = when (predictions.size) {
+                0 -> Triple("", "", "")
+                1 -> Triple("", predictions[0], "")
+                2 -> Triple(predictions[1], predictions[0], "")
+                else -> Triple(predictions[1], predictions[0], predictions[2])
+            }
 
             withContext(Dispatchers.Main) {
-                updateSuggestionView(suggestion1, s1)
-                updateSuggestionView(suggestion2, s2)
-                updateSuggestionView(suggestion3, s3)
-                val hasSuggestions = s1.isNotEmpty() || s2.isNotEmpty() || s3.isNotEmpty()
+                updateSuggestionView(suggestion1, left)
+                updateSuggestionView(suggestion2, center)
+                updateSuggestionView(suggestion3, right)
+                val hasSuggestions = center.isNotEmpty() || left.isNotEmpty() || right.isNotEmpty()
                 dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
             }
         }
@@ -256,7 +408,12 @@ class StitchKeyboardService : InputMethodService() {
         updateSuggestionView(suggestion1, "")
         updateSuggestionView(suggestion2, "")
         updateSuggestionView(suggestion3, "")
-        dragPill?.alpha = 0.5f
+        if (!lastClipboardText.isNullOrBlank()) {
+            showClipboardPill(lastClipboardText!!)
+        } else {
+            hideClipboardPill()
+            dragPill?.alpha = 0.5f
+        }
     }
 
     override fun onConfigureWindow(win: android.view.Window, isFullScreen: Boolean, isCandidatesOnly: Boolean) {
@@ -277,10 +434,30 @@ class StitchKeyboardService : InputMethodService() {
     override fun onEvaluateInputViewShown(): Boolean {
         return super.onEvaluateInputViewShown()
     }
+
+    override fun onFinishInputView(finishingInput: Boolean) {
+        super.onFinishInputView(finishingInput)
+        localEditCount = 0
+        lastAutocorrection = null
+        lastUndoneWord = null
+        lastClipboardText = null
+        keyPositionCache.clear()
+        composingBuffer.setLength(0)
+        clearPredictionsUi()
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        keyPositionCache.clear()
+    }
     
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         
+        localEditCount = 0
+        lastAutocorrection = null
+        lastUndoneWord = null
+        keyPositionCache.clear()
         ghostTextManager.onStartInput(info)
         lastQueriedWord = ""
         composingBuffer.setLength(0)
@@ -295,8 +472,18 @@ class StitchKeyboardService : InputMethodService() {
             setInputView(onCreateInputView())
         }
 
-        isShifted = false
+        val autoCap = shouldAutoCapitalize(info)
+        isShifted = autoCap
+        justCommittedSpace = false
+        lastSpaceTime = 0L
         updateKeyLabels()
+        updateEnterKeyAction(info)
+        lastClipboardText = getClipboardText()
+        if (!lastClipboardText.isNullOrBlank()) {
+            showClipboardPill(lastClipboardText!!)
+        } else {
+            hideClipboardPill()
+        }
         scheduleAsyncPrediction(composingBuffer.toString())
 
         val scale = cachedKeyboardScale
@@ -411,6 +598,7 @@ class StitchKeyboardService : InputMethodService() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     keyboardRoot.alpha = 1.0f
                     v.isPressed = false
+                    keyPositionCache.clear()
                     cachedKeyboardScale = currentScale
                     getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).edit().putFloat("KEYBOARD_SCALE", currentScale).apply()
                     true
@@ -436,8 +624,7 @@ class StitchKeyboardService : InputMethodService() {
                 when (event.action) {
                     android.view.MotionEvent.ACTION_DOWN -> {
                         isLongPress = false
-                        val currentMap = if (isSymbolMode) idMapSymbols else idMapLetters
-                        val currentChar = currentMap[id] ?: return@setOnTouchListener false
+                        val currentChar = getCharForId(id) ?: return@setOnTouchListener false
                         val uppercaseChar = if (isShifted && !isSymbolMode) currentChar.uppercase() else currentChar
                         
                         showKeyPopup(keyView, uppercaseChar)
@@ -460,8 +647,7 @@ class StitchKeyboardService : InputMethodService() {
                         v.isPressed = false
                         
                         if (event.action == android.view.MotionEvent.ACTION_UP && !isLongPress) {
-                            val currentMap = if (isSymbolMode) idMapSymbols else idMapLetters
-                            val currentChar = currentMap[id]
+                            val currentChar = getCharForId(id)
                             if (currentChar != null) {
                                 handleCharacterClick(currentChar)
                                 triggerVibration()
@@ -543,6 +729,8 @@ class StitchKeyboardService : InputMethodService() {
                         android.view.MotionEvent.ACTION_DOWN -> {
                             playClickFeedback()
                             triggerVibration()
+                            localEditCount++
+                            composingBuffer.setLength(0)
                             val ic = currentInputConnection
                             ic?.commitText(emoji, 1)
                             v.isPressed = true
@@ -637,18 +825,17 @@ class StitchKeyboardService : InputMethodService() {
                 MotionEvent.ACTION_MOVE -> {
                     val deltaX = event.rawX - backspaceStartX
                     
-                    if (!isBackspaceSwiping && deltaX < -30f) {
+                    if (!isBackspaceSwiping && deltaX < -35f) {
                         isBackspaceSwiping = true
                         backspaceRunnable?.let { backspaceHandler.removeCallbacks(it) }
                     }
                     
                     if (isBackspaceSwiping) {
                         val moveDelta = event.rawX - lastDeleteX
-                        val threshold = -40f
+                        val threshold = -45f
                         
                         if (moveDelta < threshold) {
-                            val ic = currentInputConnection
-                            ic?.deleteSurroundingText(1, 0)
+                            deleteWordBeforeCursor()
                             triggerVibration()
                             lastDeleteX = event.rawX
                         } else if (moveDelta > -threshold && event.rawX < backspaceStartX) {
@@ -714,17 +901,57 @@ class StitchKeyboardService : InputMethodService() {
                     if (!isSpaceSwiping) {
                         val ic = currentInputConnection
                         val editorInfo = currentInputEditorInfo
-                        
                         val lastWord = composingBuffer.toString()
-                        if (editorInfo == null || !isPrivateOrPassword(editorInfo)) {
-                            if (lastWord.isNotBlank() && lastWord.length in 2..30) {
-                                predictionEngine.learnWord(lastWord)
-                            }
+                        val centerCandidate = suggestion2?.text?.toString()?.trim() ?: ""
+
+                        val now = android.os.SystemClock.uptimeMillis()
+                        if (now - lastSpaceTime < 350L && lastWord.isEmpty() && justCommittedSpace) {
+                            ic?.beginBatchEdit()
+                            localEditCount++
+                            ic?.deleteSurroundingText(1, 0)
+                            ic?.commitText(". ", 1)
+                            ic?.endBatchEdit()
+                            setShiftState(true)
+                            lastSpaceTime = 0L
+                            justCommittedSpace = true
+                            lastAutocorrection = null
+                            playClickFeedback()
+                            triggerVibration()
+                            v.isPressed = false
+                            return@setOnTouchListener true
                         }
+                        lastSpaceTime = now
+                        justCommittedSpace = true
+
+                        val doAutocorrect = shouldAutocorrect(editorInfo) &&
+                                lastWord.length in 2..30 &&
+                                centerCandidate.isNotEmpty() &&
+                                !centerCandidate.equals(lastWord, ignoreCase = false) &&
+                                lastWord != lastUndoneWord
+
+                        if (doAutocorrect) {
+                            ic?.beginBatchEdit()
+                            localEditCount++
+                            ic?.deleteSurroundingText(lastWord.length, 0)
+                            ic?.commitText(centerCandidate + " ", 1)
+                            ic?.endBatchEdit()
+                            lastAutocorrection = LastAutocorrection(lastWord, centerCandidate)
+
+                            if (editorInfo == null || !isPrivateOrPassword(editorInfo)) {
+                                predictionEngine.learnWord(centerCandidate)
+                            }
+                        } else {
+                            if (editorInfo == null || !isPrivateOrPassword(editorInfo)) {
+                                if (lastWord.isNotBlank() && lastWord.length in 2..30) {
+                                    predictionEngine.learnWord(lastWord)
+                                }
+                            }
+                            localEditCount++
+                            ic?.commitText(" ", 1)
+                            lastAutocorrection = null
+                        }
+
                         composingBuffer.setLength(0)
-                        
-                        // Espaço insere apenas ' ' - sem autocompletar invasivo
-                        ic?.commitText(" ", 1)
                         playClickFeedback()
                         triggerVibration()
                         scheduleAsyncPrediction("")
@@ -741,6 +968,7 @@ class StitchKeyboardService : InputMethodService() {
         }
 
         val enterKey = view.findViewById<FrameLayout>(R.id.key_enter)
+        enterIcon = view.findViewById<ImageView>(R.id.key_enter_icon)
         enterKey?.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -817,7 +1045,24 @@ class StitchKeyboardService : InputMethodService() {
         suggestion1 = view.findViewById<TextView>(R.id.suggestion_1)
         suggestion2 = view.findViewById<TextView>(R.id.suggestion_2)
         suggestion3 = view.findViewById<TextView>(R.id.suggestion_3)
+        suggestionContainer = view.findViewById<LinearLayout>(R.id.suggestion_container)
+        clipboardPill = view.findViewById<TextView>(R.id.clipboard_pill)
         val plusBtn = view.findViewById<View>(R.id.key_settings_top)
+
+        clipboardPill?.setOnClickListener {
+            val clip = lastClipboardText
+            if (!clip.isNullOrBlank()) {
+                val ic = currentInputConnection ?: return@setOnClickListener
+                ic.beginBatchEdit()
+                localEditCount++
+                ic.commitText(clip, 1)
+                ic.endBatchEdit()
+                triggerVibration()
+                playClickFeedback()
+                lastClipboardText = null
+                hideClipboardPill()
+            }
+        }
 
         val suggestionClickListener = View.OnClickListener { v ->
             if (v is TextView) {
@@ -840,9 +1085,14 @@ class StitchKeyboardService : InputMethodService() {
                         ic.deleteSurroundingText(count, 0)
                     }
                 }
+                localEditCount++
                 ic.commitText(selectedSuggestion + " ", 1)
                 ic.endBatchEdit()
                 
+                lastAutocorrection = null
+                lastUndoneWord = null
+                lastClipboardText = null
+                justCommittedSpace = true
                 composingBuffer.setLength(0)
                 val editorInfo = currentInputEditorInfo
                 if (editorInfo == null || !isPrivateOrPassword(editorInfo)) {
@@ -867,16 +1117,51 @@ class StitchKeyboardService : InputMethodService() {
         }
     }
 
+    private fun setShiftState(shifted: Boolean) {
+        if (isShifted != shifted) {
+            isShifted = shifted
+            if (::shiftText.isInitialized) {
+                shiftText.text = if (isShifted) "AA" else "Aa"
+            }
+            updateKeyLabels()
+        }
+    }
+
     private fun handleCharacterClick(baseChar: String) {
         val ic = currentInputConnection ?: return
+        lastAutocorrection = null
+        lastUndoneWord = null
+        lastClipboardText = null
+        hideClipboardPill()
+
+        // Smart punctuation check: attach punctuation to preceding word and follow with space
+        if (isPunctuation(baseChar) && justCommittedSpace) {
+            ic.beginBatchEdit()
+            localEditCount++
+            ic.deleteSurroundingText(1, 0)
+            ic.commitText(baseChar + " ", 1)
+            ic.endBatchEdit()
+            composingBuffer.setLength(0)
+            justCommittedSpace = true
+
+            if (baseChar == "." || baseChar == "!" || baseChar == "?") {
+                setShiftState(true)
+            }
+            playClickFeedback()
+            spaceKeyView?.temporarilyPause(1000L)
+            scheduleAsyncPrediction("")
+            return
+        }
+
+        justCommittedSpace = false
         val charToCommit = if (isShifted) baseChar.uppercase() else baseChar.lowercase()
         
+        localEditCount++
         // 1. Ação imediata na UI
         ic.commitText(charToCommit, 1)
 
         if (isShifted) {
-            isShifted = false
-            updateKeyLabels()
+            setShiftState(false)
         }
         playClickFeedback()
         spaceKeyView?.temporarilyPause(1000L)
@@ -893,19 +1178,15 @@ class StitchKeyboardService : InputMethodService() {
             composingBuffer.append(charToCommit)
         } else {
             composingBuffer.setLength(0)
+            if (baseChar == "." || baseChar == "!" || baseChar == "?") {
+                setShiftState(true)
+            }
         }
         scheduleAsyncPrediction(composingBuffer.toString())
     }
 
     private fun toggleShift() {
-        isShifted = !isShifted
-        
-        shiftText?.animate()?.scaleX(0.7f)?.scaleY(0.7f)?.alpha(0.5f)?.setDuration(80)?.withEndAction {
-            shiftText?.text = if (isShifted) "AA" else "Aa"
-            shiftText?.animate()?.scaleX(1f)?.scaleY(1f)?.alpha(1f)?.setDuration(80)?.start()
-        }?.start()
-        
-        updateKeyLabels()
+        setShiftState(!isShifted)
         playClickFeedback()
     }
 
@@ -913,8 +1194,9 @@ class StitchKeyboardService : InputMethodService() {
         val currentMap = if (isSymbolMode) idMapSymbols else idMapLetters
         alphabetKeys.clear()
         
-        for ((id, char) in currentMap) {
+        for ((id, defaultChar) in currentMap) {
             val keyView = keyViewMap[id] ?: continue
+            val char = getCharForId(id) ?: defaultChar
             val displayChar = if (isShifted && !isSymbolMode) char.uppercase() else char
             if (keyView.text != displayChar) {
                 keyView.text = displayChar
@@ -942,6 +1224,31 @@ class StitchKeyboardService : InputMethodService() {
     private fun handleBackspace() {
         val ic = currentInputConnection ?: return
         ghostTextManager.clearGhostText(ic)
+        justCommittedSpace = false
+        lastSpaceTime = 0L
+
+        val autoUndo = lastAutocorrection
+        if (autoUndo != null) {
+            lastAutocorrection = null
+            lastUndoneWord = autoUndo.originalWord
+
+            ic.beginBatchEdit()
+            localEditCount++
+            val deleteLen = autoUndo.correctedWord.length + 1
+            ic.deleteSurroundingText(deleteLen, 0)
+            ic.commitText(autoUndo.originalWord, 1)
+            ic.endBatchEdit()
+
+            composingBuffer.setLength(0)
+            composingBuffer.append(autoUndo.originalWord)
+            playClickFeedback()
+            spaceKeyView?.temporarilyPause(1000L)
+            scheduleAsyncPrediction(composingBuffer.toString())
+            return
+        }
+
+        lastAutocorrection = null
+        localEditCount++
         val selectedText = ic.getSelectedText(0)
         if (selectedText.isNullOrEmpty()) {
             ic.deleteSurroundingText(1, 0)
@@ -959,10 +1266,44 @@ class StitchKeyboardService : InputMethodService() {
         scheduleAsyncPrediction(composingBuffer.toString())
     }
 
+    private fun deleteWordBeforeCursor() {
+        val ic = currentInputConnection ?: return
+        localEditCount++
+        if (composingBuffer.isNotEmpty()) {
+            val len = composingBuffer.length
+            composingBuffer.setLength(0)
+            ic.deleteSurroundingText(len, 0)
+            scheduleAsyncPrediction("")
+            return
+        }
+        val text = ic.getTextBeforeCursor(50, 0)?.toString() ?: ""
+        if (text.isEmpty()) {
+            ic.deleteSurroundingText(1, 0)
+            return
+        }
+        var i = text.length - 1
+        while (i >= 0 && text[i].isWhitespace()) {
+            i--
+        }
+        while (i >= 0 && !text[i].isWhitespace()) {
+            i--
+        }
+        val deleteCount = text.length - 1 - i
+        if (deleteCount > 0) {
+            ic.deleteSurroundingText(deleteCount, 0)
+        } else {
+            ic.deleteSurroundingText(1, 0)
+        }
+        scheduleAsyncPrediction("")
+    }
+
     private fun handleEnter() {
+        lastAutocorrection = null
+        lastUndoneWord = null
         composingBuffer.setLength(0)
         clearPredictionsUi()
         val ic = currentInputConnection ?: return
+        localEditCount++
         val editorInfo = currentInputEditorInfo
         if (editorInfo != null) {
             val actionId = editorInfo.actionId
@@ -985,25 +1326,29 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun playClickFeedback() {
-        audioManager?.playSoundEffect(android.media.AudioManager.FX_KEYPRESS_STANDARD)
+        scope.launch(Dispatchers.Default) {
+            try {
+                audioManager?.playSoundEffect(android.media.AudioManager.FX_KEYPRESS_STANDARD)
+            } catch (_: Exception) {}
+        }
     }
 
     private fun showKeyPopup(keyView: View, char: String) {
         if (!::previewPopup.isInitialized || !::previewPopupText.isInitialized) return
         previewPopupText.text = char
 
-        keyView.getLocationInWindow(keyLocation)
-        keyboardRoot.getLocationInWindow(rootLocation)
-
-        val x = keyLocation[0] - rootLocation[0]
-        val y = keyLocation[1] - rootLocation[1]
+        val (x, y) = keyPositionCache.getOrPut(keyView.id) {
+            keyView.getLocationInWindow(keyLocation)
+            keyboardRoot.getLocationInWindow(rootLocation)
+            Pair((keyLocation[0] - rootLocation[0]).toFloat(), (keyLocation[1] - rootLocation[1]).toFloat())
+        }
 
         val density = resources.displayMetrics.density
         val popupWidth = if (previewPopup.width > 0) previewPopup.width else (54 * density).toInt()
         val popupHeight = if (previewPopup.height > 0) previewPopup.height else (60 * density).toInt()
 
-        previewPopup.translationX = x.toFloat() + (keyView.width - popupWidth) / 2f
-        previewPopup.translationY = y.toFloat() - popupHeight - (6 * density)
+        previewPopup.translationX = x + (keyView.width - popupWidth) / 2f
+        previewPopup.translationY = y - popupHeight - (6 * density)
 
         previewPopup.animate().cancel()
         previewPopup.alpha = 1f
@@ -1173,6 +1518,8 @@ class StitchKeyboardService : InputMethodService() {
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     if (!matches.isNullOrEmpty()) {
                         val text = matches[0]
+                        localEditCount++
+                        composingBuffer.setLength(0)
                         currentInputConnection?.commitText(text + " ", 1)
                         voiceText?.text = text
                     }
@@ -1230,7 +1577,44 @@ class StitchKeyboardService : InputMethodService() {
         speechRecognizer = null
     }
 
+    private fun showDomainPopup(keyView: View) {
+        val domains = listOf(".com", ".br", ".org", ".net", ".io")
+        val context = keyView.context
+        val container = android.widget.LinearLayout(context)
+        container.orientation = android.widget.LinearLayout.HORIZONTAL
+        container.background = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.bg_preview_popup)
+        container.setPadding(8, 8, 8, 8)
+
+        val popupWindow = android.widget.PopupWindow(container, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, false)
+        popupWindow.isTouchable = true
+        popupWindow.isOutsideTouchable = true
+        popupWindow.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+
+        for (domain in domains) {
+            val tv = android.widget.TextView(context)
+            tv.text = domain
+            tv.textSize = 15f
+            tv.setTextColor(android.graphics.Color.WHITE)
+            tv.setPadding(16, 12, 16, 12)
+            tv.setOnClickListener {
+                handleCharacterClick(domain)
+                popupWindow.dismiss()
+            }
+            container.addView(tv)
+        }
+
+        container.measure(android.view.View.MeasureSpec.UNSPECIFIED, android.view.View.MeasureSpec.UNSPECIFIED)
+        val location = IntArray(2)
+        keyView.getLocationInWindow(location)
+        val density = resources.displayMetrics.density
+        popupWindow.showAtLocation(keyView, android.view.Gravity.NO_GRAVITY, location[0] + (keyView.width / 2) - (container.measuredWidth / 2), location[1] - container.measuredHeight - (10 * density).toInt())
+    }
+
     private fun showAccentsPopup(keyView: View, char: String) {
+        if (char == ".") {
+            showDomainPopup(keyView)
+            return
+        }
         val accentsMap = mapOf(
             "a" to listOf("a", "á", "à", "ã", "â", "ä"),
             "e" to listOf("e", "é", "è", "ê", "ë"),

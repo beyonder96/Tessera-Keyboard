@@ -1,8 +1,16 @@
 package com.example.engine
 
+import android.content.Context
 import com.example.manager.LocalDictionaryManager
+import java.io.BufferedReader
+import java.io.InputStream
+import java.io.InputStreamReader
+import java.nio.charset.StandardCharsets
 
-class PredictionEngine(private val localDict: LocalDictionaryManager? = null) {
+class PredictionEngine(
+    private val localDict: LocalDictionaryManager? = null,
+    context: Context? = null
+) {
 
     private val trie = TrieDictionary()
 
@@ -42,11 +50,42 @@ class PredictionEngine(private val localDict: LocalDictionaryManager? = null) {
     }
 
     init {
+        loadDictionary(context)
         for (word in staticDictionary) {
-            trie.insert(word, frequency = 50)
+            trie.insert(word, frequency = 60)
         }
         localDict?.getWords()?.forEach { word ->
             trie.insert(word, frequency = 200)
+        }
+    }
+
+    private fun loadDictionary(context: Context?) {
+        var inputStream: InputStream? = null
+        try {
+            inputStream = context?.assets?.open("dictionary_pt_br.txt")
+                ?: javaClass.classLoader?.getResourceAsStream("assets/dictionary_pt_br.txt")
+                ?: javaClass.classLoader?.getResourceAsStream("dictionary_pt_br.txt")
+
+            if (inputStream != null) {
+                BufferedReader(InputStreamReader(inputStream, StandardCharsets.UTF_8)).useLines { lines ->
+                    for (line in lines) {
+                        val trimmed = line.trim()
+                        if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
+                        val spaceIdx = trimmed.indexOf(' ')
+                        if (spaceIdx > 0) {
+                            val word = trimmed.substring(0, spaceIdx)
+                            val freq = trimmed.substring(spaceIdx + 1).toIntOrNull() ?: 50
+                            trie.insert(word, freq)
+                        } else {
+                            trie.insert(trimmed, 50)
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Fallback safe: staticDictionary always guarantees coverage
+        } finally {
+            try { inputStream?.close() } catch (_: Exception) {}
         }
     }
 
@@ -59,10 +98,41 @@ class PredictionEngine(private val localDict: LocalDictionaryManager? = null) {
     }
 
     fun getPredictions(currentWord: String): List<String> {
-        if (currentWord.isBlank()) {
+        val clean = currentWord.trim()
+        if (clean.isBlank()) {
             return listOf("eu", "o", "que")
         }
-        return trie.findTopSuggestions(currentWord, maxCount = 3, excludeExact = true)
+        val norm = TrieDictionary.normalizeFast(clean)
+
+        val prefixSuggestions = trie.findTopSuggestions(clean, maxCount = 3, excludeExact = false)
+        val hasExactMatch = prefixSuggestions.any {
+            TrieDictionary.normalizeFast(it).length == norm.length
+        }
+
+        if (hasExactMatch) {
+            return prefixSuggestions
+        }
+
+        val fuzzySuggestions = trie.findFuzzySuggestions(clean, maxCount = 2)
+        if (fuzzySuggestions.isNotEmpty()) {
+            val result = mutableListOf<String>()
+            result.add(fuzzySuggestions[0])
+            if (!result.contains(clean)) {
+                result.add(clean)
+            }
+            if (fuzzySuggestions.size > 1 && !result.contains(fuzzySuggestions[1])) {
+                result.add(fuzzySuggestions[1])
+            }
+            for (p in prefixSuggestions) {
+                if (result.size >= 3) break
+                if (!result.contains(p)) {
+                    result.add(p)
+                }
+            }
+            return result.take(3)
+        }
+
+        return prefixSuggestions
     }
 
     fun getSwipePrediction(swipePattern: String): String? {

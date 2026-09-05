@@ -33,6 +33,17 @@ class TrieDictionary {
             }
             return sb.toString()
         }
+
+        fun matchCasing(source: String, target: String): String {
+            if (source.isEmpty() || target.isEmpty()) return target
+            if (source.length >= 2 && source.all { it.isUpperCase() }) {
+                return target.uppercase()
+            }
+            if (source.first().isUpperCase()) {
+                return target.replaceFirstChar { it.uppercase() }
+            }
+            return target
+        }
     }
 
     fun insert(word: String, frequency: Int = 1) {
@@ -62,8 +73,10 @@ class TrieDictionary {
         }
     }
 
-    fun findTopSuggestions(prefix: String, maxCount: Int = 3, excludeExact: Boolean = true): List<String> {
-        val normalizedPrefix = normalizeFast(prefix)
+    fun findTopSuggestions(prefix: String, maxCount: Int = 3, excludeExact: Boolean = false): List<String> {
+        val cleanPrefix = prefix.trim()
+        if (cleanPrefix.isEmpty()) return emptyList()
+        val normalizedPrefix = normalizeFast(cleanPrefix)
         if (normalizedPrefix.isEmpty()) return emptyList()
 
         var current = root
@@ -75,18 +88,104 @@ class TrieDictionary {
         }
 
         val candidates = mutableListOf<WordEntry>()
-        collectWords(current, candidates, maxCollect = 30)
+        collectWords(current, candidates, maxCollect = 50)
 
-        val cleanPrefix = prefix.trim().lowercase()
+        val cleanLower = cleanPrefix.lowercase()
+        val exactLen = normalizedPrefix.length
+
         return candidates
-            .filter { !excludeExact || !it.word.equals(cleanPrefix, ignoreCase = true) }
+            .filter { !excludeExact || !it.word.equals(cleanLower, ignoreCase = true) }
             .sortedWith(
-                compareByDescending<WordEntry> { it.frequency }
+                compareByDescending<WordEntry> { it.word.length == exactLen }
+                    .thenByDescending { it.frequency }
                     .thenBy { it.word.length }
             )
-            .map { it.word }
+            .map { matchCasing(cleanPrefix, it.word) }
             .distinct()
             .take(maxCount)
+    }
+
+    fun findExactWord(word: String): WordEntry? {
+        val normalized = normalizeFast(word)
+        if (normalized.isEmpty()) return null
+        var current = root
+        for (i in 0 until normalized.length) {
+            val c = normalized[i]
+            if (c !in 'a'..'z') return null
+            current = current.children[c - 'a'] ?: return null
+        }
+        return current.words?.maxByOrNull { it.frequency }
+    }
+
+    fun findFuzzySuggestions(word: String, maxCount: Int = 3): List<String> {
+        val clean = word.trim()
+        if (clean.length < 2) return emptyList()
+        val norm = normalizeFast(clean)
+        if (norm.length < 2) return emptyList()
+
+        val scoredCandidates = mutableMapOf<String, Float>()
+
+        // 1. Proximity Substitution: replace 1 character with adjacent QWERTY key
+        val chars = norm.toCharArray()
+        for (i in chars.indices) {
+            val original = chars[i]
+            val neighbors = KeyProximityMap.getNeighbors(original)
+            for (neighbor in neighbors) {
+                chars[i] = neighbor
+                val match = findExactWord(String(chars))
+                if (match != null) {
+                    val score = match.frequency * 0.95f
+                    val currentBest = scoredCandidates[match.word] ?: 0f
+                    if (score > currentBest) {
+                        scoredCandidates[match.word] = score
+                    }
+                }
+            }
+            chars[i] = original
+        }
+
+        // 2. Transposition of adjacent characters (e.g. "tduo" -> "tudo")
+        for (i in 0 until chars.size - 1) {
+            val c1 = chars[i]
+            val c2 = chars[i + 1]
+            chars[i] = c2
+            chars[i + 1] = c1
+            val match = findExactWord(String(chars))
+            if (match != null) {
+                val score = match.frequency * 0.90f
+                val currentBest = scoredCandidates[match.word] ?: 0f
+                if (score > currentBest) {
+                    scoredCandidates[match.word] = score
+                }
+            }
+            chars[i] = c1
+            chars[i + 1] = c2
+        }
+
+        // 3. Deletion of 1 accidentally inserted character (e.g. "tuudo" -> "tudo")
+        if (chars.size >= 4) {
+            for (i in chars.indices) {
+                val sb = StringBuilder(chars.size - 1)
+                for (j in chars.indices) {
+                    if (j != i) sb.append(chars[j])
+                }
+                val match = findExactWord(sb.toString())
+                if (match != null) {
+                    val score = match.frequency * 0.85f
+                    val currentBest = scoredCandidates[match.word] ?: 0f
+                    if (score > currentBest) {
+                        scoredCandidates[match.word] = score
+                    }
+                }
+            }
+        }
+
+        if (scoredCandidates.isEmpty()) return emptyList()
+
+        return scoredCandidates.entries
+            .sortedByDescending { it.value }
+            .take(maxCount)
+            .map { matchCasing(clean, it.key) }
     }
 
     private fun collectWords(node: TrieNode, result: MutableList<WordEntry>, maxCollect: Int) {
