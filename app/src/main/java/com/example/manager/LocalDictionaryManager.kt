@@ -15,7 +15,7 @@ class LocalDictionaryManager(context: Context) {
     }
 
     fun getWords(): Set<String> {
-        return inMemoryWords
+        return inMemoryWords.toSet()
     }
 
     fun learnWord(word: String) {
@@ -27,5 +27,17 @@ class LocalDictionaryManager(context: Context) {
                 prefs.edit().putStringSet(WORDS_KEY, HashSet(inMemoryWords)).apply()
             }
         }
+    }
+
+    fun removeWord(word: String) {
+        val cleanWord = word.trim().lowercase()
+        if (inMemoryWords.remove(cleanWord)) {
+            prefs.edit().putStringSet(WORDS_KEY, HashSet(inMemoryWords)).apply()
+        }
+    }
+
+    fun clearWords() {
+        inMemoryWords.clear()
+        prefs.edit().remove(WORDS_KEY).apply()
     }
 }

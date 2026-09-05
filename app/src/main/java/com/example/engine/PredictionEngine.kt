@@ -45,19 +45,57 @@ class PredictionEngine(
         "acredito", "acredita", "acreditamos", "acreditam", "obrigado", "obrigada", "favor", "por favor", "beleza", "tudo bem"
     )
 
+    private val abbreviationsMap = mapOf(
+        "vc" to "você",
+        "vcs" to "vocês",
+        "tb" to "também",
+        "tbm" to "também",
+        "pq" to "porque",
+        "oq" to "o que",
+        "blz" to "beleza",
+        "vlw" to "valeu",
+        "obg" to "obrigado",
+        "obgd" to "obrigado",
+        "obgda" to "obrigada",
+        "mto" to "muito",
+        "mt" to "muito",
+        "cmg" to "comigo",
+        "ctz" to "certeza",
+        "msg" to "mensagem",
+        "td" to "tudo",
+        "agr" to "agora",
+        "hj" to "hoje",
+        "dps" to "depois",
+        "qdo" to "quando",
+        "qto" to "quanto",
+        "pfv" to "por favor",
+        "pf" to "por favor",
+        "abs" to "abraços",
+        "fds" to "fim de semana",
+        "pdc" to "pode crer",
+        "flw" to "falou",
+        "sqn" to "só que não",
+        "cm" to "com",
+        "kd" to "cadê"
+    )
+
     private val normalizedStatic: List<Pair<String, String>> = staticDictionary.map {
         it to TrieDictionary.normalizeFast(it)
     }
 
-    private val predictionCache = object : LinkedHashMap<String, List<String>>(128, 0.75f, true) {
+    private val predictionCache = object : LinkedHashMap<String, List<String>>(512, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<String>>?): Boolean {
-            return size > 128
+            return size > 512
         }
     }
 
     init {
         for (word in staticDictionary) {
             trie.insert(word, frequency = 60)
+        }
+        for ((abbr, full) in abbreviationsMap) {
+            trie.insert(full, frequency = 250)
+            trie.insert(abbr, frequency = 220)
         }
         localDict?.getWords()?.forEach { word ->
             trie.insert(word, frequency = 200)
@@ -148,6 +186,15 @@ class PredictionEngine(
     }
 
     private fun computePredictions(clean: String): List<String> {
+        val lower = clean.lowercase()
+        val expansion = abbreviationsMap[lower]
+        if (expansion != null) {
+            val expandedWord = TrieDictionary.matchCasing(clean, expansion)
+            return listOf(expandedWord, clean)
+        }
+
+        if (Thread.currentThread().isInterrupted) return emptyList()
+
         val norm = TrieDictionary.normalizeFast(clean)
 
         val prefixSuggestions = trie.findTopSuggestions(clean, maxCount = 3, excludeExact = false)
@@ -158,6 +205,8 @@ class PredictionEngine(
         if (hasExactMatch) {
             return prefixSuggestions
         }
+
+        if (Thread.currentThread().isInterrupted) return prefixSuggestions
 
         val fuzzySuggestions = trie.findFuzzySuggestions(clean, maxCount = 2)
         if (fuzzySuggestions.isNotEmpty()) {

@@ -88,7 +88,7 @@ class TrieDictionary {
         }
 
         val candidates = mutableListOf<WordEntry>()
-        collectWords(current, candidates, maxCollect = 50)
+        collectWords(current, candidates, maxCollect = 25)
 
         val cleanLower = cleanPrefix.lowercase()
         val exactLen = normalizedPrefix.length
@@ -118,6 +118,7 @@ class TrieDictionary {
     }
 
     fun findFuzzySuggestions(word: String, maxCount: Int = 3): List<String> {
+        if (Thread.currentThread().isInterrupted) return emptyList()
         val clean = word.trim()
         if (clean.length < 2) return emptyList()
         val norm = normalizeFast(clean)
@@ -128,6 +129,7 @@ class TrieDictionary {
         // 1. Proximity Substitution: replace 1 character with adjacent QWERTY key
         val chars = norm.toCharArray()
         for (i in chars.indices) {
+            if (Thread.currentThread().isInterrupted) return emptyList()
             val original = chars[i]
             val neighbors = KeyProximityMap.getNeighbors(original)
             for (neighbor in neighbors) {

@@ -54,7 +54,9 @@ class StitchKeyboardService : InputMethodService() {
     private val rootLocation = IntArray(2)
     private var localEditCount = 0
     private val keyPositionCache = HashMap<Int, Pair<Float, Float>>()
-    private var spaceKeyView: com.example.ui.ShimmerTextView? = null
+    private var spaceKeyView: TextView? = null
+    private lateinit var numericRoot: View
+    private var isExtendedSymbolMode = false
     
     private data class LastAutocorrection(
         val originalWord: String,
@@ -124,6 +126,7 @@ class StitchKeyboardService : InputMethodService() {
             keyboardRoot = keyboardView.findViewById(R.id.keyboard_root)
             voiceRoot = keyboardView.findViewById(R.id.voice_ui_root)
             emojiRoot = keyboardView.findViewById(R.id.emoji_ui_root)
+            numericRoot = keyboardView.findViewById(R.id.numeric_keypad_root)
             dragPill = keyboardView.findViewById(R.id.drag_pill)
 
             // Key preview popup elements
@@ -151,6 +154,7 @@ class StitchKeyboardService : InputMethodService() {
             setupSuggestionBar(keyboardView)
             setupDragResizer(keyboardView)
             setupEmojiGrid(keyboardView)
+            setupNumericKeyboard(keyboardView)
 
             keyboardView.post {
                 prewarmKeyPositions()
@@ -196,11 +200,22 @@ class StitchKeyboardService : InputMethodService() {
         R.id.key_q to "1", R.id.key_w to "2", R.id.key_e to "3", R.id.key_r to "4",
         R.id.key_t to "5", R.id.key_y to "6", R.id.key_u to "7", R.id.key_i to "8",
         R.id.key_o to "9", R.id.key_p to "0",
-        R.id.key_a to "@", R.id.key_s to "#", R.id.key_d to "$", R.id.key_f to "_",
+        R.id.key_a to "@", R.id.key_s to "#", R.id.key_d to "$", R.id.key_f to "%",
         R.id.key_g to "&", R.id.key_h to "-", R.id.key_j to "+", R.id.key_k to "(",
         R.id.key_l to ")",
-        R.id.key_z to "*", R.id.key_x to "\"", R.id.key_c to "'", R.id.key_v to ":",
-        R.id.key_b to ";", R.id.key_n to "!", R.id.key_m to "?", R.id.key_comma to ",", R.id.key_period to "."
+        R.id.key_z to "/", R.id.key_x to "*", R.id.key_c to "\"", R.id.key_v to "'",
+        R.id.key_b to ":", R.id.key_n to ";", R.id.key_m to "!", R.id.key_comma to "?", R.id.key_period to "."
+    )
+
+    private val idMapExtendedSymbols = mapOf(
+        R.id.key_q to "~", R.id.key_w to "\\", R.id.key_e to "|", R.id.key_r to "^",
+        R.id.key_t to "=", R.id.key_y to "{", R.id.key_u to "}", R.id.key_i to "[",
+        R.id.key_o to "]", R.id.key_p to "°",
+        R.id.key_a to "<", R.id.key_s to ">", R.id.key_d to "_", R.id.key_f to "€",
+        R.id.key_g to "£", R.id.key_h to "¥", R.id.key_j to "•", R.id.key_k to "©",
+        R.id.key_l to "®",
+        R.id.key_z to "«", R.id.key_x to "»", R.id.key_c to "§", R.id.key_v to "`",
+        R.id.key_b to "~", R.id.key_n to "™", R.id.key_m to "¿", R.id.key_comma to ",", R.id.key_period to "."
     )
 
     override fun onUpdateSelection(
@@ -250,6 +265,14 @@ class StitchKeyboardService : InputMethodService() {
         return isPassword || noLearning
     }
 
+    private fun isNumericField(info: EditorInfo?): Boolean {
+        if (info == null) return false
+        val inputClass = info.inputType and EditorInfo.TYPE_MASK_CLASS
+        return inputClass == EditorInfo.TYPE_CLASS_NUMBER ||
+               inputClass == EditorInfo.TYPE_CLASS_PHONE ||
+               inputClass == EditorInfo.TYPE_CLASS_DATETIME
+    }
+
     private fun isEmailField(info: EditorInfo?): Boolean {
         if (info == null) return false
         val variation = info.inputType and EditorInfo.TYPE_MASK_VARIATION
@@ -265,7 +288,7 @@ class StitchKeyboardService : InputMethodService() {
 
     private fun getCharForId(id: Int): String? {
         if (isSymbolMode) {
-            return idMapSymbols[id]
+            return if (isExtendedSymbolMode) idMapExtendedSymbols[id] else idMapSymbols[id]
         }
         if (id == R.id.key_comma) {
             val editorInfo = currentInputEditorInfo
@@ -277,6 +300,9 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun shouldAutocorrect(info: EditorInfo?): Boolean {
+        val autoCorrectPref = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
+            .getBoolean("PREF_AUTOCORRECT", true)
+        if (!autoCorrectPref) return false
         if (info == null) return true
         if (isPrivateOrPassword(info)) return false
         val inputType = info.inputType
@@ -288,6 +314,9 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun shouldAutoCapitalize(info: EditorInfo?): Boolean {
+        val autoCapPref = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
+            .getBoolean("PREF_AUTO_CAP", true)
+        if (!autoCapPref) return false
         if (info == null) return false
         val inputType = info.inputType
         if ((inputType and EditorInfo.TYPE_MASK_CLASS) != EditorInfo.TYPE_CLASS_TEXT) return false
@@ -306,23 +335,23 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun updateEnterKeyAction(info: EditorInfo?) {
-        val iconView = enterIcon ?: keyboardRoot.findViewById<ImageView>(R.id.key_enter_icon) ?: return
-        if (info == null) {
-            iconView.setImageResource(R.drawable.ic_enter_line)
-            return
+        val iconView = enterIcon ?: (if (::keyboardRoot.isInitialized) keyboardRoot.findViewById<ImageView>(R.id.key_enter_icon) else null)
+        val numIconView = if (::numericRoot.isInitialized) numericRoot.findViewById<ImageView>(R.id.num_enter_icon) else null
+        val iconRes = if (info == null) {
+            R.drawable.ic_enter_line
+        } else {
+            val imeOptions = info.imeOptions
+            val action = imeOptions and EditorInfo.IME_MASK_ACTION
+            when (action) {
+                EditorInfo.IME_ACTION_SEARCH -> R.drawable.ic_search_line
+                EditorInfo.IME_ACTION_SEND -> R.drawable.ic_send_line
+                EditorInfo.IME_ACTION_GO, EditorInfo.IME_ACTION_NEXT -> R.drawable.ic_next_line
+                EditorInfo.IME_ACTION_DONE -> R.drawable.ic_done_line
+                else -> R.drawable.ic_enter_line
+            }
         }
-
-        val imeOptions = info.imeOptions
-        val action = imeOptions and EditorInfo.IME_MASK_ACTION
-
-        val iconRes = when (action) {
-            EditorInfo.IME_ACTION_SEARCH -> R.drawable.ic_search_line
-            EditorInfo.IME_ACTION_SEND -> R.drawable.ic_send_line
-            EditorInfo.IME_ACTION_GO, EditorInfo.IME_ACTION_NEXT -> R.drawable.ic_next_line
-            EditorInfo.IME_ACTION_DONE -> R.drawable.ic_done_line
-            else -> R.drawable.ic_enter_line
-        }
-        iconView.setImageResource(iconRes)
+        iconView?.setImageResource(iconRes)
+        numIconView?.setImageResource(iconRes)
     }
 
     private fun getClipboardText(): String? {
@@ -490,6 +519,9 @@ class StitchKeyboardService : InputMethodService() {
         lastClipboardText = null
         composingBuffer.setLength(0)
         clearPredictionsUi()
+        if (::numericRoot.isInitialized) {
+            numericRoot.visibility = View.GONE
+        }
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -561,10 +593,102 @@ class StitchKeyboardService : InputMethodService() {
             keyboardRoot.requestLayout()
         }
 
-        if (::keyboardRoot.isInitialized) {
+        if (::numericRoot.isInitialized && ::keyboardRoot.isInitialized) {
+            if (isNumericField(info)) {
+                numericRoot.visibility = View.VISIBLE
+                keyboardRoot.visibility = View.GONE
+                voiceRoot.visibility = View.GONE
+                emojiRoot.visibility = View.GONE
+                updateEnterKeyAction(info)
+                return
+            } else {
+                numericRoot.visibility = View.GONE
+                keyboardRoot.visibility = View.VISIBLE
+                voiceRoot.visibility = View.GONE
+                emojiRoot.visibility = View.GONE
+            }
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupNumericKeyboard(view: View) {
+        val numKeys = mapOf(
+            R.id.num_key_1 to "1", R.id.num_key_2 to "2", R.id.num_key_3 to "3",
+            R.id.num_key_4 to "4", R.id.num_key_5 to "5", R.id.num_key_6 to "6",
+            R.id.num_key_7 to "7", R.id.num_key_8 to "8", R.id.num_key_9 to "9",
+            R.id.num_key_0 to "0", R.id.num_key_plus to "+", R.id.num_key_comma to ",",
+            R.id.num_key_dot to ".",
+            R.id.num_sym_minus to "-", R.id.num_sym_slash to "/", R.id.num_sym_colon to ":",
+            R.id.num_sym_paren_open to "(", R.id.num_sym_paren_close to ")",
+            R.id.num_sym_dollar to "$", R.id.num_sym_percent to "%"
+        )
+
+        for ((id, char) in numKeys) {
+            val key = view.findViewById<TextView>(id) ?: continue
+            key.setOnTouchListener { v, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        triggerVibration()
+                        playClickFeedback()
+                        v.isPressed = true
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        v.isPressed = false
+                        localEditCount++
+                        currentInputConnection?.commitText(char, 1)
+                        true
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        v.isPressed = false
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }
+
+        val backspace = view.findViewById<View>(R.id.num_key_backspace)
+        val numBackspaceHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        var numBackspaceRunnable: Runnable? = null
+        backspace?.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    triggerVibration()
+                    playClickFeedback()
+                    handleBackspace()
+                    v.isPressed = true
+                    numBackspaceRunnable = object : Runnable {
+                        override fun run() {
+                            handleBackspace()
+                            triggerVibration()
+                            numBackspaceHandler.postDelayed(this, 50)
+                        }
+                    }
+                    numBackspaceHandler.postDelayed(numBackspaceRunnable!!, 350)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    numBackspaceRunnable?.let { numBackspaceHandler.removeCallbacks(it) }
+                    v.isPressed = false
+                    true
+                }
+                else -> false
+            }
+        }
+
+        val enter = view.findViewById<View>(R.id.num_key_enter)
+        enter?.setOnClickListener {
+            handleEnter()
+            triggerVibration()
+        }
+
+        val abcBtn = view.findViewById<View>(R.id.num_key_abc)
+        abcBtn?.setOnClickListener {
+            triggerVibration()
+            playClickFeedback()
+            numericRoot.visibility = View.GONE
             keyboardRoot.visibility = View.VISIBLE
-            voiceRoot.visibility = View.GONE
-            emojiRoot.visibility = View.GONE
         }
     }
 
@@ -906,7 +1030,7 @@ class StitchKeyboardService : InputMethodService() {
             }
         }
 
-        val spaceKey = view.findViewById<com.example.ui.ShimmerTextView>(R.id.key_space)
+        val spaceKey = view.findViewById<TextView>(R.id.key_space)
         spaceKeyView = spaceKey
         var spaceStartX = 0f
         var spaceStartY = 0f
@@ -958,7 +1082,9 @@ class StitchKeyboardService : InputMethodService() {
                         val centerCandidate = suggestion2?.text?.toString()?.trim() ?: ""
 
                         val now = android.os.SystemClock.uptimeMillis()
-                        if (now - lastSpaceTime < 350L && lastWord.isEmpty() && justCommittedSpace) {
+                        val doubleSpacePref = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
+                            .getBoolean("PREF_DOUBLE_SPACE_PERIOD", true)
+                        if (doubleSpacePref && now - lastSpaceTime < 350L && lastWord.isEmpty() && justCommittedSpace) {
                             ic?.beginBatchEdit()
                             localEditCount++
                             ic?.deleteSurroundingText(1, 0)
@@ -1062,6 +1188,9 @@ class StitchKeyboardService : InputMethodService() {
                 playClickFeedback()
                 triggerVibration()
                 isSymbolMode = !isSymbolMode
+                if (!isSymbolMode) {
+                    isExtendedSymbolMode = false
+                }
                 updateKeyLabels()
                 v.isPressed = true
                 true
@@ -1216,7 +1345,6 @@ class StitchKeyboardService : InputMethodService() {
                 setShiftState(true)
             }
             playClickFeedback()
-            spaceKeyView?.temporarilyPause(1000L)
             scheduleAsyncPrediction("")
             return
         }
@@ -1231,7 +1359,6 @@ class StitchKeyboardService : InputMethodService() {
         if (isShifted) {
             setShiftState(false, immediate = false)
         }
-        spaceKeyView?.temporarilyPause(1000L)
 
         // 2. Previsão desacoplada e cancelável via buffer local
         var isAllWord = true
@@ -1253,12 +1380,23 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun toggleShift() {
-        setShiftState(!isShifted, immediate = true)
-        playClickFeedback()
+        if (isSymbolMode) {
+            isExtendedSymbolMode = !isExtendedSymbolMode
+            updateKeyLabels()
+            playClickFeedback()
+            triggerVibration()
+        } else {
+            setShiftState(!isShifted, immediate = true)
+            playClickFeedback()
+        }
     }
 
     private fun updateKeyLabels() {
-        val currentMap = if (isSymbolMode) idMapSymbols else idMapLetters
+        val currentMap = if (isSymbolMode) {
+            if (isExtendedSymbolMode) idMapExtendedSymbols else idMapSymbols
+        } else {
+            idMapLetters
+        }
         alphabetKeys.clear()
         
         for ((id, defaultChar) in currentMap) {
@@ -1272,18 +1410,26 @@ class StitchKeyboardService : InputMethodService() {
         }
         
         val symbolKeyText = keyboardRoot.findViewById<TextView>(R.id.text_key_symbol)
-        val symbolLabel = if (isSymbolMode) "ABC" else "?123"
+        val symbolLabel = if (isSymbolMode) "ABC" else "123"
         if (symbolKeyText?.text != symbolLabel) {
             symbolKeyText?.text = symbolLabel
         }
 
         if (::shiftText.isInitialized) {
-            if (isShifted) {
-                val typedValue = android.util.TypedValue()
-                theme.resolveAttribute(R.attr.stitchGlowColor, typedValue, true)
-                shiftText.setTextColor(typedValue.data)
-            } else {
+            if (isSymbolMode) {
+                val label = if (isExtendedSymbolMode) "?123" else "=\\<"
+                if (shiftText.text != label) shiftText.text = label
                 shiftText.setTextColor(android.graphics.Color.WHITE)
+            } else {
+                val label = if (isShifted) "AA" else "Aa"
+                if (shiftText.text != label) shiftText.text = label
+                if (isShifted) {
+                    val typedValue = android.util.TypedValue()
+                    theme.resolveAttribute(R.attr.stitchGlowColor, typedValue, true)
+                    shiftText.setTextColor(typedValue.data)
+                } else {
+                    shiftText.setTextColor(android.graphics.Color.WHITE)
+                }
             }
         }
     }
@@ -1309,7 +1455,6 @@ class StitchKeyboardService : InputMethodService() {
             composingBuffer.setLength(0)
             composingBuffer.append(autoUndo.originalWord)
             playClickFeedback()
-            spaceKeyView?.temporarilyPause(1000L)
             scheduleAsyncPrediction(composingBuffer.toString())
             return
         }
@@ -1329,7 +1474,6 @@ class StitchKeyboardService : InputMethodService() {
             composingBuffer.setLength(0)
         }
         playClickFeedback()
-        spaceKeyView?.temporarilyPause(1000L)
         scheduleAsyncPrediction(composingBuffer.toString())
     }
 
@@ -1393,12 +1537,20 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun playClickFeedback() {
-        try {
-            audioManager?.playSoundEffect(android.media.AudioManager.FX_KEYPRESS_STANDARD)
-        } catch (_: Exception) {}
+        val soundPref = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
+            .getBoolean("PREF_SOUND_FEEDBACK", false)
+        if (!soundPref) return
+        mainHandler.post {
+            try {
+                audioManager?.playSoundEffect(android.media.AudioManager.FX_KEYPRESS_STANDARD)
+            } catch (_: Exception) {}
+        }
     }
 
     private fun showKeyPopup(keyView: View, char: String) {
+        val popupPref = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
+            .getBoolean("PREF_KEY_POPUP", true)
+        if (!popupPref) return
         if (!::previewPopup.isInitialized || !::previewPopupText.isInitialized) return
         previewPopupText.text = char
 
@@ -1428,6 +1580,9 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun triggerVibration() {
+        val hapticPref = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
+            .getBoolean("PREF_HAPTIC_FEEDBACK", true)
+        if (!hapticPref) return
         try {
             if (::keyboardRoot.isInitialized) {
                 keyboardRoot.performHapticFeedback(
@@ -1644,7 +1799,7 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun showDomainPopup(keyView: View) {
-        val domains = listOf(".com", ".br", ".org", ".net", ".io")
+        val domains = listOf("/", ".com", ".br", ".org", ".net", ".io")
         val context = keyView.context
         val container = android.widget.LinearLayout(context)
         container.orientation = android.widget.LinearLayout.HORIZONTAL
