@@ -45,6 +45,8 @@ import kotlinx.coroutines.cancel
 class StitchKeyboardService : InputMethodService() {
 
     private var isShifted = false
+    private var isCapsLock = false
+    private var lastShiftClickTime = 0L
     private lateinit var shiftText: TextView
     private val alphabetKeys = mutableMapOf<Int, String>()
     private val keyViewMap = mutableMapOf<Int, TextView>()
@@ -155,8 +157,12 @@ class StitchKeyboardService : InputMethodService() {
             setupDragResizer(keyboardView)
             setupEmojiGrid(keyboardView)
             setupNumericKeyboard(keyboardView)
+            val scalePref = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
+            cachedKeyboardScale = scalePref
+            applyKeyboardScale(scalePref)
 
             keyboardView.post {
+                applyKeyboardScale(scalePref)
                 prewarmKeyPositions()
             }
 
@@ -557,10 +563,12 @@ class StitchKeyboardService : InputMethodService() {
         }
 
         val autoCap = shouldAutoCapitalize(info)
+        isCapsLock = false
         isShifted = autoCap
         justCommittedSpace = false
         lastSpaceTime = 0L
         updateKeyLabels()
+        updateShiftVisuals()
         updateEnterKeyAction(info)
         lastClipboardText = getClipboardText()
         if (!lastClipboardText.isNullOrBlank()) {
@@ -570,28 +578,9 @@ class StitchKeyboardService : InputMethodService() {
         }
         scheduleAsyncPrediction(composingBuffer.toString())
 
-        val scale = cachedKeyboardScale
-        if (::keyboardRoot.isInitialized) {
-            val displayMetrics = resources.displayMetrics
-            val density = displayMetrics.density
-            val screenWidth = displayMetrics.widthPixels
-            val keyWidth = screenWidth / 10f
-
-            val rowsToScale = listOf(
-                R.id.key_q, R.id.key_a, R.id.key_z, R.id.key_space
-            )
-            for (id in rowsToScale) {
-                val key = keyboardRoot.findViewById<android.view.View>(id)
-                val row = key?.parent as? android.view.View
-                if (row != null) {
-                    val lp = row.layoutParams
-                    val baseHeightDp = if (id == R.id.key_space) 44f else (keyWidth / density)
-                    lp.height = (baseHeightDp * density * scale).toInt()
-                    row.layoutParams = lp
-                }
-            }
-            keyboardRoot.requestLayout()
-        }
+        val scalePref = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
+        cachedKeyboardScale = scalePref
+        applyKeyboardScale(scalePref)
 
         if (::numericRoot.isInitialized && ::keyboardRoot.isInitialized) {
             if (isNumericField(info)) {
@@ -727,6 +716,48 @@ class StitchKeyboardService : InputMethodService() {
         findAndBindEmojis(emojiRootLayout)
     }
 
+    private fun applyKeyboardScale(scale: Float) {
+        val density = resources.displayMetrics.density
+
+        if (::keyboardRoot.isInitialized) {
+            val rowsToScale = listOf(
+                R.id.key_q to 52f,
+                R.id.key_a to 52f,
+                R.id.key_z to 52f,
+                R.id.key_space to 48f
+            )
+            for ((id, baseDp) in rowsToScale) {
+                val key = keyboardRoot.findViewById<View>(id)
+                val row = key?.parent as? View
+                if (row != null) {
+                    val lp = row.layoutParams
+                    lp.height = (baseDp * density * scale).toInt()
+                    row.layoutParams = lp
+                }
+            }
+            keyboardRoot.requestLayout()
+        }
+
+        if (::numericRoot.isInitialized) {
+            val numRows = listOf(
+                R.id.num_key_1 to 54f,
+                R.id.num_key_4 to 54f,
+                R.id.num_key_7 to 54f,
+                R.id.num_key_abc to 54f
+            )
+            for ((id, baseDp) in numRows) {
+                val key = numericRoot.findViewById<View>(id)
+                val row = key?.parent as? View
+                if (row != null) {
+                    val lp = row.layoutParams
+                    lp.height = (baseDp * density * scale).toInt()
+                    row.layoutParams = lp
+                }
+            }
+            numericRoot.requestLayout()
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     private fun setupDragResizer(view: View) {
         val dragHandle = view.findViewById<View>(R.id.drag_handle_container)
@@ -749,26 +780,7 @@ class StitchKeyboardService : InputMethodService() {
                     var newScale = initialScale + scaleDelta
                     newScale = newScale.coerceIn(0.6f, 1.4f)
                     currentScale = newScale
-                    
-                    val rowsToScale = listOf(
-                        R.id.key_q, R.id.key_a, R.id.key_z, R.id.key_space
-                    )
-                    val displayMetrics = resources.displayMetrics
-                    val density = displayMetrics.density
-                    val screenWidth = displayMetrics.widthPixels
-                    val keyWidth = screenWidth / 10f
-
-                    for (id in rowsToScale) {
-                        val key = keyboardRoot.findViewById<android.view.View>(id)
-                        val row = key?.parent as? android.view.View
-                        if (row != null) {
-                            val lp = row.layoutParams
-                            val baseHeightDp = if (id == R.id.key_space) 44f else (keyWidth / density)
-                            lp.height = (baseHeightDp * density * newScale).toInt()
-                            row.layoutParams = lp
-                        }
-                    }
-                    keyboardRoot.requestLayout()
+                    applyKeyboardScale(newScale)
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -776,7 +788,9 @@ class StitchKeyboardService : InputMethodService() {
                     v.isPressed = false
                     keyPositionCache.clear()
                     cachedKeyboardScale = currentScale
-                    getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).edit().putFloat("KEYBOARD_SCALE", currentScale).apply()
+                    getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
+                        .edit().putFloat("KEYBOARD_SCALE", currentScale).apply()
+                    applyKeyboardScale(currentScale)
                     true
                 }
                 else -> false
@@ -953,13 +967,28 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun setupCommandKeys(view: View) {
-        val shiftKey = view.findViewById<FrameLayout>(R.id.key_shift_top)
-        shiftText = view.findViewById(R.id.text_shift_top)
-        shiftKey?.setOnTouchListener { v, event ->
+        val shiftKeyRow3 = view.findViewById<FrameLayout>(R.id.key_shift)
+        shiftKeyRow3?.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    toggleShift()
-                    triggerVibration()
+                    handleShiftClick()
+                    v.isPressed = true
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.isPressed = false
+                    true
+                }
+                else -> false
+            }
+        }
+
+        val shiftKeyTop = view.findViewById<FrameLayout>(R.id.key_shift_top)
+        shiftText = view.findViewById(R.id.text_shift_top)
+        shiftKeyTop?.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    handleShiftClick()
                     v.isPressed = true
                     true
                 }
@@ -1115,16 +1144,7 @@ class StitchKeyboardService : InputMethodService() {
                             ic?.commitText(centerCandidate + " ", 1)
                             ic?.endBatchEdit()
                             lastAutocorrection = LastAutocorrection(lastWord, centerCandidate)
-
-                            if (editorInfo == null || !isPrivateOrPassword(editorInfo)) {
-                                predictionEngine.learnWord(centerCandidate)
-                            }
                         } else {
-                            if (editorInfo == null || !isPrivateOrPassword(editorInfo)) {
-                                if (lastWord.isNotBlank() && lastWord.length in 2..30) {
-                                    predictionEngine.learnWord(lastWord)
-                                }
-                            }
                             localEditCount++
                             ic?.commitText(" ", 1)
                             lastAutocorrection = null
@@ -1283,10 +1303,6 @@ class StitchKeyboardService : InputMethodService() {
                 lastClipboardText = null
                 justCommittedSpace = true
                 composingBuffer.setLength(0)
-                val editorInfo = currentInputEditorInfo
-                if (editorInfo == null || !isPrivateOrPassword(editorInfo)) {
-                    predictionEngine.learnWord(selectedSuggestion)
-                }
                 playClickFeedback()
                 triggerVibration()
                 scheduleAsyncPrediction("")
@@ -1307,11 +1323,10 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun setShiftState(shifted: Boolean, immediate: Boolean = false) {
+        if (isCapsLock) return
         if (isShifted != shifted) {
             isShifted = shifted
-            if (::shiftText.isInitialized) {
-                shiftText.text = if (isShifted) "AA" else "Aa"
-            }
+            updateShiftVisuals()
             if (immediate) {
                 updateKeyLabels()
             } else {
@@ -1356,8 +1371,11 @@ class StitchKeyboardService : InputMethodService() {
         // 1. Ação imediata na UI
         ic.commitText(charToCommit, 1)
 
-        if (isShifted) {
-            setShiftState(false, immediate = false)
+        // Se NÃO estiver em Caps Lock, volta para minúscula após 1 caractere
+        if (isShifted && !isCapsLock) {
+            isShifted = false
+            updateShiftVisuals()
+            updateKeyLabels()
         }
 
         // 2. Previsão desacoplada e cancelável via buffer local
@@ -1379,15 +1397,84 @@ class StitchKeyboardService : InputMethodService() {
         scheduleAsyncPrediction(composingBuffer.toString())
     }
 
-    private fun toggleShift() {
+    private fun handleShiftClick() {
+        val now = android.os.SystemClock.uptimeMillis()
         if (isSymbolMode) {
             isExtendedSymbolMode = !isExtendedSymbolMode
             updateKeyLabels()
+            updateShiftVisuals()
             playClickFeedback()
             triggerVibration()
+            return
+        }
+
+        if (now - lastShiftClickTime < 350L) {
+            // Duplo toque detectado: ativa/desativa CAPS LOCK
+            if (isCapsLock) {
+                isCapsLock = false
+                isShifted = false
+            } else {
+                isCapsLock = true
+                isShifted = true
+            }
         } else {
-            setShiftState(!isShifted, immediate = true)
-            playClickFeedback()
+            // Toque simples
+            if (isCapsLock) {
+                isCapsLock = false
+                isShifted = false
+            } else {
+                isShifted = !isShifted
+            }
+        }
+        lastShiftClickTime = now
+        updateShiftVisuals()
+        updateKeyLabels()
+        playClickFeedback()
+        triggerVibration()
+    }
+
+    private fun updateShiftVisuals() {
+        if (!::keyboardRoot.isInitialized) return
+        val glowColor = try {
+            val tv = android.util.TypedValue()
+            theme.resolveAttribute(R.attr.stitchGlowColor, tv, true)
+            tv.data
+        } catch (_: Exception) {
+            android.graphics.Color.parseColor("#38BDF8")
+        }
+        val defaultTextColor = try {
+            val tv = android.util.TypedValue()
+            theme.resolveAttribute(R.attr.stitchTextColor, tv, true)
+            tv.data
+        } catch (_: Exception) {
+            android.graphics.Color.WHITE
+        }
+
+        // Tecla Shift da Linha 3
+        val shiftIcon = keyboardRoot.findViewById<android.widget.ImageView>(R.id.icon_shift)
+        val capsBar = keyboardRoot.findViewById<View>(R.id.shift_caps_lock_bar)
+
+        if (isCapsLock) {
+            shiftIcon?.setColorFilter(glowColor)
+            capsBar?.setBackgroundColor(glowColor)
+            capsBar?.visibility = View.VISIBLE
+        } else if (isShifted) {
+            shiftIcon?.setColorFilter(glowColor)
+            capsBar?.visibility = View.GONE
+        } else {
+            shiftIcon?.setColorFilter(defaultTextColor)
+            capsBar?.visibility = View.GONE
+        }
+
+        // Tecla Shift da Barra Superior
+        if (::shiftText.isInitialized) {
+            if (isSymbolMode) {
+                shiftText.text = if (isExtendedSymbolMode) "?123" else "=\\<"
+                shiftText.setTextColor(defaultTextColor)
+            } else {
+                shiftText.text = if (isCapsLock) "A▲" else if (isShifted) "AA" else "Aa"
+                shiftText.setTextColor(if (isShifted) glowColor else defaultTextColor)
+            }
         }
     }
 
@@ -1415,23 +1502,7 @@ class StitchKeyboardService : InputMethodService() {
             symbolKeyText?.text = symbolLabel
         }
 
-        if (::shiftText.isInitialized) {
-            if (isSymbolMode) {
-                val label = if (isExtendedSymbolMode) "?123" else "=\\<"
-                if (shiftText.text != label) shiftText.text = label
-                shiftText.setTextColor(android.graphics.Color.WHITE)
-            } else {
-                val label = if (isShifted) "AA" else "Aa"
-                if (shiftText.text != label) shiftText.text = label
-                if (isShifted) {
-                    val typedValue = android.util.TypedValue()
-                    theme.resolveAttribute(R.attr.stitchGlowColor, typedValue, true)
-                    shiftText.setTextColor(typedValue.data)
-                } else {
-                    shiftText.setTextColor(android.graphics.Color.WHITE)
-                }
-            }
-        }
+        updateShiftVisuals()
     }
 
     private fun handleBackspace() {

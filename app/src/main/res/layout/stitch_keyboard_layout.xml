@@ -62,7 +62,12 @@
     </LinearLayout>
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" android:weightSum="10" android:gravity="center" android:splitMotionEvents="true">
-        <Space android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+        <FrameLayout android:id="@+id/key_shift" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.5" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true">
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:orientation="vertical" android:gravity="center">
+                <ImageView android:id="@+id/icon_shift" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_shift" android:tint="?attr/stitchTextColor" android:contentDescription="Shift" />
+                <View android:id="@+id/shift_caps_lock_bar" android:layout_width="14dp" android:layout_height="2.5dp" android:layout_marginTop="2dp" android:background="?attr/stitchGlowColor" android:visibility="gone" />
+            </LinearLayout>
+        </FrameLayout>
         <TextView android:id="@+id/key_z" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="Z" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
         <TextView android:id="@+id/key_x" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="X" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
         <TextView android:id="@+id/key_c" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="C" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
@@ -73,7 +78,6 @@
         <FrameLayout android:id="@+id/key_backspace" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.5" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true">
             <ImageView android:layout_width="22dp" android:layout_height="22dp" android:layout_gravity="center" android:src="@drawable/ic_backspace" android:contentDescription="Delete Key" android:tint="?attr/stitchTextColor" />
         </FrameLayout>
-        <Space android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="0.5" />
     </LinearLayout>
     <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:weightSum="10" android:gravity="center_vertical" android:splitMotionEvents="true">
         <FrameLayout android:id="@+id/key_symbol" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.5" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true">

@@ -91,7 +91,7 @@ class PredictionEngine(
 
     init {
         for (word in staticDictionary) {
-            trie.insert(word, frequency = 60)
+            trie.insert(word, frequency = 240)
         }
         for ((abbr, full) in abbreviationsMap) {
             trie.insert(full, frequency = 250)
@@ -134,18 +134,30 @@ class PredictionEngine(
                 ?: javaClass.classLoader?.getResourceAsStream("dictionary_pt_br.txt")
 
             if (inputStream != null) {
-                BufferedReader(InputStreamReader(inputStream, StandardCharsets.UTF_8)).useLines { lines ->
-                    for (line in lines) {
+                BufferedReader(InputStreamReader(inputStream, StandardCharsets.UTF_8), 65536).use { reader ->
+                    val batch = ArrayList<Pair<String, Int>>(5000)
+                    var line: String? = reader.readLine()
+                    while (line != null) {
                         val trimmed = line.trim()
-                        if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
-                        val spaceIdx = trimmed.indexOf(' ')
-                        if (spaceIdx > 0) {
-                            val word = trimmed.substring(0, spaceIdx)
-                            val freq = trimmed.substring(spaceIdx + 1).toIntOrNull() ?: 50
-                            trie.insert(word, freq)
-                        } else {
-                            trie.insert(trimmed, 50)
+                        if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
+                            val spaceIdx = trimmed.indexOf(' ')
+                            if (spaceIdx > 0) {
+                                val word = trimmed.substring(0, spaceIdx)
+                                val freq = trimmed.substring(spaceIdx + 1).toIntOrNull() ?: 50
+                                batch.add(Pair(word, freq))
+                            } else {
+                                batch.add(Pair(trimmed, 50))
+                            }
+                            if (batch.size >= 5000) {
+                                trie.insertBatch(batch)
+                                batch.clear()
+                            }
                         }
+                        line = reader.readLine()
+                    }
+                    if (batch.isNotEmpty()) {
+                        trie.insertBatch(batch)
+                        batch.clear()
                     }
                 }
             }

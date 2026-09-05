@@ -44,6 +44,14 @@ class TrieDictionary {
             }
             return target
         }
+
+        fun hasAccents(w: String): Boolean {
+            for (i in 0 until w.length) {
+                val c = w[i]
+                if (c in "áéíóúãõâêîôûàçÁÉÍÓÚÃÕÂÊÎÔÛÀÇ") return true
+            }
+            return false
+        }
     }
 
     fun insert(word: String, frequency: Int = 1) = synchronized(this) {
@@ -73,6 +81,35 @@ class TrieDictionary {
         }
     }
 
+    fun insertBatch(entries: Iterable<Pair<String, Int>>) = synchronized(this) {
+        for ((word, freq) in entries) {
+            val clean = word.trim()
+            if (clean.isEmpty()) continue
+            var current = root
+            for (i in 0 until clean.length) {
+                val c = normalizeChar(clean[i])
+                if (c !in 'a'..'z') continue
+                val index = c - 'a'
+                var next = current.children[index]
+                if (next == null) {
+                    next = TrieNode()
+                    current.children[index] = next
+                }
+                current = next
+            }
+
+            val list = current.words ?: mutableListOf<WordEntry>().also { current.words = it }
+            val existing = list.find { it.word.equals(clean, ignoreCase = true) }
+            if (existing != null) {
+                if (freq > existing.frequency) {
+                    existing.frequency = freq
+                }
+            } else {
+                list.add(WordEntry(clean.lowercase(), freq))
+            }
+        }
+    }
+
     fun findTopSuggestions(prefix: String, maxCount: Int = 3, excludeExact: Boolean = false): List<String> = synchronized(this) {
         val cleanPrefix = prefix.trim()
         if (cleanPrefix.isEmpty()) return@synchronized emptyList()
@@ -88,7 +125,7 @@ class TrieDictionary {
         }
 
         val candidates = mutableListOf<WordEntry>()
-        collectWords(current, candidates, maxCollect = 25)
+        collectWords(current, candidates, maxCollect = 45)
 
         val cleanLower = cleanPrefix.lowercase()
         val exactLen = normalizedPrefix.length
@@ -97,6 +134,7 @@ class TrieDictionary {
             .filter { !excludeExact || !it.word.equals(cleanLower, ignoreCase = true) }
             .sortedWith(
                 compareByDescending<WordEntry> { it.word.length == exactLen }
+                    .thenByDescending { if (it.word.length == exactLen && hasAccents(it.word)) 1 else 0 }
                     .thenByDescending { it.frequency }
                     .thenBy { it.word.length }
             )
@@ -114,7 +152,10 @@ class TrieDictionary {
             if (c !in 'a'..'z') return@synchronized null
             current = current.children[c - 'a'] ?: return@synchronized null
         }
-        current.words?.maxByOrNull { it.frequency }
+        current.words?.sortedWith(
+            compareByDescending<WordEntry> { hasAccents(it.word) }
+                .thenByDescending { it.frequency }
+        )?.firstOrNull()
     }
 
     fun findFuzzySuggestions(word: String, maxCount: Int = 3): List<String> {
@@ -185,20 +226,27 @@ class TrieDictionary {
         if (scoredCandidates.isEmpty()) return emptyList()
 
         return scoredCandidates.entries
-            .sortedByDescending { it.value }
+            .sortedWith(
+                compareByDescending<Map.Entry<String, Float>> { it.value }
+                    .thenByDescending { hasAccents(it.key) }
+            )
             .take(maxCount)
             .map { matchCasing(clean, it.key) }
     }
 
-    private fun collectWords(node: TrieNode, result: MutableList<WordEntry>, maxCollect: Int) {
-        if (result.size >= maxCollect) return
-        node.words?.let {
-            result.addAll(it)
-        }
-        for (child in node.children) {
-            if (child != null) {
-                collectWords(child, result, maxCollect)
-                if (result.size >= maxCollect) break
+    private fun collectWords(startNode: TrieNode, result: MutableList<WordEntry>, maxCollect: Int) {
+        val queue = java.util.ArrayDeque<TrieNode>()
+        queue.add(startNode)
+        while (!queue.isEmpty() && result.size < maxCollect) {
+            val node = queue.removeFirst()
+            node.words?.let {
+                result.addAll(it)
+            }
+            if (result.size >= maxCollect) break
+            for (child in node.children) {
+                if (child != null) {
+                    queue.add(child)
+                }
             }
         }
     }

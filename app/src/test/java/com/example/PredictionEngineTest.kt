@@ -127,4 +127,29 @@ class PredictionEngineTest {
         val preds = testEngine.getPredictions("xyz")
         assertTrue(preds.contains("xyzw"))
     }
+
+    @Test
+    fun testBFSBranchingShortWordsFirst() {
+        val trie = TrieDictionary()
+        // Deep word on branch 'a'
+        trie.insert("coadunado", frequency = 50)
+        trie.insert("coadunamento", frequency = 50)
+        // Short natural words on branches 'm' and 'i'
+        trie.insert("como", frequency = 50)
+        trie.insert("coisa", frequency = 50)
+
+        val suggestions = trie.findTopSuggestions("co", maxCount = 3)
+        assertTrue(suggestions.contains("como"))
+        assertTrue(suggestions.contains("coisa"))
+    }
+
+    @Test
+    fun testAccentedWordPriorityOnExactLengthMatch() {
+        val testEngine = PredictionEngine()
+        val estao = testEngine.getPredictions("estao")
+        assertEquals("estão", estao.firstOrNull())
+
+        val ja = testEngine.getPredictions("ja")
+        assertEquals("já", ja.firstOrNull())
+    }
 }
