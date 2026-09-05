@@ -18,7 +18,7 @@ class PredictionEngine(
         // Pronomes e conectivos frequentes (alta prioridade)
         "eu", "você", "ele", "ela", "nós", "eles", "elas", "meu", "minha", "seu", "sua", "nosso", "nossa",
         "um", "uma", "uns", "umas", "o", "a", "os", "as", "que", "de", "do", "da", "dos", "das", "em", "no",
-        "na", "nos", "nas", "para", "com", "por", "como", "mas", "se", "ou", "não", "sim", "já", "ainda", "até",
+        "na", "nos", "nas", "para", "com", "por", "como", "mas", "se", "ou", "não", "sim", "já", "ainda", "até", "também", "aqui", "ali",
         "bem", "mal", "muito", "pouco", "tudo", "nada", "alguém", "ninguém", "qualquer", "cada", "mesmo", "outro",
         "outra", "onde", "quando", "quem", "qual", "quais", "porque", "porquê", "pois", "então", "assim", "apenas", "só",
         // Saudações e tempo
@@ -49,13 +49,42 @@ class PredictionEngine(
         it to TrieDictionary.normalizeFast(it)
     }
 
+    private val predictionCache = object : LinkedHashMap<String, List<String>>(128, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<String>>?): Boolean {
+            return size > 128
+        }
+    }
+
     init {
-        loadDictionary(context)
         for (word in staticDictionary) {
             trie.insert(word, frequency = 60)
         }
         localDict?.getWords()?.forEach { word ->
             trie.insert(word, frequency = 200)
+        }
+        prewarmPredictions()
+        if (context == null) {
+            loadDictionary(null)
+            prewarmPredictions()
+        } else {
+            loadDictionaryAsync(context)
+        }
+    }
+
+    private fun prewarmPredictions() {
+        for (c in 'a'..'z') {
+            val s = c.toString()
+            val preds = computePredictions(s)
+            synchronized(predictionCache) {
+                predictionCache[s] = preds
+            }
+        }
+    }
+
+    private fun loadDictionaryAsync(context: Context?) {
+        kotlin.concurrent.thread(name = "TesseraDictLoader", isDaemon = true) {
+            loadDictionary(context)
+            prewarmPredictions()
         }
     }
 
@@ -94,6 +123,10 @@ class PredictionEngine(
         if (clean.length in 2..30 && clean.all { it.isLetter() }) {
             localDict?.learnWord(clean)
             trie.insert(clean, frequency = 200)
+            synchronized(predictionCache) {
+                predictionCache.clear()
+            }
+            prewarmPredictions()
         }
     }
 
@@ -102,6 +135,19 @@ class PredictionEngine(
         if (clean.isBlank()) {
             return listOf("eu", "o", "que")
         }
+
+        synchronized(predictionCache) {
+            predictionCache[clean]
+        }?.let { return it }
+
+        val result = computePredictions(clean)
+        synchronized(predictionCache) {
+            predictionCache[clean] = result
+        }
+        return result
+    }
+
+    private fun computePredictions(clean: String): List<String> {
         val norm = TrieDictionary.normalizeFast(clean)
 
         val prefixSuggestions = trie.findTopSuggestions(clean, maxCount = 3, excludeExact = false)

@@ -46,9 +46,9 @@ class TrieDictionary {
         }
     }
 
-    fun insert(word: String, frequency: Int = 1) {
+    fun insert(word: String, frequency: Int = 1) = synchronized(this) {
         val clean = word.trim()
-        if (clean.isEmpty()) return
+        if (clean.isEmpty()) return@synchronized
         var current = root
         for (i in 0 until clean.length) {
             val c = normalizeChar(clean[i])
@@ -73,17 +73,17 @@ class TrieDictionary {
         }
     }
 
-    fun findTopSuggestions(prefix: String, maxCount: Int = 3, excludeExact: Boolean = false): List<String> {
+    fun findTopSuggestions(prefix: String, maxCount: Int = 3, excludeExact: Boolean = false): List<String> = synchronized(this) {
         val cleanPrefix = prefix.trim()
-        if (cleanPrefix.isEmpty()) return emptyList()
+        if (cleanPrefix.isEmpty()) return@synchronized emptyList()
         val normalizedPrefix = normalizeFast(cleanPrefix)
-        if (normalizedPrefix.isEmpty()) return emptyList()
+        if (normalizedPrefix.isEmpty()) return@synchronized emptyList()
 
         var current = root
         for (i in 0 until normalizedPrefix.length) {
             val c = normalizedPrefix[i]
-            if (c !in 'a'..'z') return emptyList()
-            val next = current.children[c - 'a'] ?: return emptyList()
+            if (c !in 'a'..'z') return@synchronized emptyList()
+            val next = current.children[c - 'a'] ?: return@synchronized emptyList()
             current = next
         }
 
@@ -93,7 +93,7 @@ class TrieDictionary {
         val cleanLower = cleanPrefix.lowercase()
         val exactLen = normalizedPrefix.length
 
-        return candidates
+        candidates
             .filter { !excludeExact || !it.word.equals(cleanLower, ignoreCase = true) }
             .sortedWith(
                 compareByDescending<WordEntry> { it.word.length == exactLen }
@@ -105,16 +105,16 @@ class TrieDictionary {
             .take(maxCount)
     }
 
-    fun findExactWord(word: String): WordEntry? {
+    fun findExactWord(word: String): WordEntry? = synchronized(this) {
         val normalized = normalizeFast(word)
-        if (normalized.isEmpty()) return null
+        if (normalized.isEmpty()) return@synchronized null
         var current = root
         for (i in 0 until normalized.length) {
             val c = normalized[i]
-            if (c !in 'a'..'z') return null
-            current = current.children[c - 'a'] ?: return null
+            if (c !in 'a'..'z') return@synchronized null
+            current = current.children[c - 'a'] ?: return@synchronized null
         }
-        return current.words?.maxByOrNull { it.frequency }
+        current.words?.maxByOrNull { it.frequency }
     }
 
     fun findFuzzySuggestions(word: String, maxCount: Int = 3): List<String> {

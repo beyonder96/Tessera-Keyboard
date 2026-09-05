@@ -80,6 +80,8 @@ class StitchKeyboardService : InputMethodService() {
     private var dragPill: android.view.View? = null
     private var enterIcon: android.widget.ImageView? = null
     private var lastClipboardText: String? = null
+    private var lastConsumedClip: String? = null
+    private var clipboardDismissRunnable: Runnable? = null
     private var predictionJob: Job? = null
     private var lastQueriedWord: String = ""
     private var cachedKeyboardScale: Float = 1.0f
@@ -150,6 +152,10 @@ class StitchKeyboardService : InputMethodService() {
             setupDragResizer(keyboardView)
             setupEmojiGrid(keyboardView)
 
+            keyboardView.post {
+                prewarmKeyPositions()
+            }
+
             return keyboardView
         } catch (e: Exception) {
             val errorView = TextView(this)
@@ -157,6 +163,18 @@ class StitchKeyboardService : InputMethodService() {
             errorView.setTextColor(android.graphics.Color.WHITE)
             errorView.setBackgroundColor(android.graphics.Color.RED)
             return errorView
+        }
+    }
+
+    private fun prewarmKeyPositions() {
+        if (!::keyboardRoot.isInitialized) return
+        keyboardRoot.getLocationInWindow(rootLocation)
+        for ((id, keyView) in keyViewMap) {
+            keyView.getLocationInWindow(keyLocation)
+            keyPositionCache[id] = Pair(
+                (keyLocation[0] - rootLocation[0]).toFloat(),
+                (keyLocation[1] - rootLocation[1]).toFloat()
+            )
         }
     }
 
@@ -311,10 +329,17 @@ class StitchKeyboardService : InputMethodService() {
         return try {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             if (clipboard != null && clipboard.hasPrimaryClip()) {
+                val desc = clipboard.primaryClipDescription
+                val clipTimestamp = desc?.timestamp ?: 0L
+                val now = System.currentTimeMillis()
+                // Ignora textos copiados há mais de 90 segundos (evita sugestão defasada)
+                if (clipTimestamp > 0L && (now - clipTimestamp) > 90_000L) {
+                    return null
+                }
                 val clip = clipboard.primaryClip
                 if (clip != null && clip.itemCount > 0) {
                     val text = clip.getItemAt(0)?.coerceToText(this)?.toString()?.trim()
-                    if (!text.isNullOrBlank() && text.length <= 500) {
+                    if (!text.isNullOrBlank() && text.length <= 500 && text != lastConsumedClip) {
                         text
                     } else null
                 } else null
@@ -325,6 +350,10 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun showClipboardPill(clipText: String) {
+        if (clipText == lastConsumedClip) {
+            hideClipboardPill()
+            return
+        }
         val pill = clipboardPill ?: return
         val info = currentInputEditorInfo
         val display = if (isPrivateOrPassword(info)) {
@@ -335,14 +364,32 @@ class StitchKeyboardService : InputMethodService() {
             "📋 $trimmed"
         }
         pill.text = display
+        pill.alpha = 1f
         pill.visibility = View.VISIBLE
         suggestionContainer?.visibility = View.INVISIBLE
         dragPill?.alpha = 0f
+
+        // Auto-dismiss em 6 segundos se o usuário não tocar no chip
+        clipboardDismissRunnable?.let { mainHandler.removeCallbacks(it) }
+        clipboardDismissRunnable = Runnable {
+            hideClipboardPill()
+            lastConsumedClip = clipText
+            lastClipboardText = null
+        }
+        mainHandler.postDelayed(clipboardDismissRunnable!!, 6000L)
     }
 
     private fun hideClipboardPill() {
-        clipboardPill?.visibility = View.GONE
-        suggestionContainer?.visibility = View.VISIBLE
+        clipboardDismissRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            clipboardDismissRunnable = null
+        }
+        if (clipboardPill?.visibility != View.GONE) {
+            clipboardPill?.visibility = View.GONE
+        }
+        if (suggestionContainer?.visibility != View.VISIBLE) {
+            suggestionContainer?.visibility = View.VISIBLE
+        }
         val hasSuggestions = (suggestion1?.text?.isNotEmpty() == true) ||
                 (suggestion2?.text?.isNotEmpty() == true) ||
                 (suggestion3?.text?.isNotEmpty() == true)
@@ -408,7 +455,7 @@ class StitchKeyboardService : InputMethodService() {
         updateSuggestionView(suggestion1, "")
         updateSuggestionView(suggestion2, "")
         updateSuggestionView(suggestion3, "")
-        if (!lastClipboardText.isNullOrBlank()) {
+        if (!lastClipboardText.isNullOrBlank() && lastClipboardText != lastConsumedClip && composingBuffer.isEmpty()) {
             showClipboardPill(lastClipboardText!!)
         } else {
             hideClipboardPill()
@@ -441,7 +488,6 @@ class StitchKeyboardService : InputMethodService() {
         lastAutocorrection = null
         lastUndoneWord = null
         lastClipboardText = null
-        keyPositionCache.clear()
         composingBuffer.setLength(0)
         clearPredictionsUi()
     }
@@ -449,6 +495,9 @@ class StitchKeyboardService : InputMethodService() {
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         keyPositionCache.clear()
+        if (::keyboardRoot.isInitialized) {
+            keyboardRoot.post { prewarmKeyPositions() }
+        }
     }
     
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -457,10 +506,13 @@ class StitchKeyboardService : InputMethodService() {
         localEditCount = 0
         lastAutocorrection = null
         lastUndoneWord = null
-        keyPositionCache.clear()
         ghostTextManager.onStartInput(info)
         lastQueriedWord = ""
         composingBuffer.setLength(0)
+
+        if (keyPositionCache.isEmpty() && ::keyboardRoot.isInitialized) {
+            keyboardRoot.post { prewarmKeyPositions() }
+        }
         
         getWindow()?.window?.let { win ->
             applyGlassmorphismBlur(win)
@@ -627,6 +679,8 @@ class StitchKeyboardService : InputMethodService() {
                         val currentChar = getCharForId(id) ?: return@setOnTouchListener false
                         val uppercaseChar = if (isShifted && !isSymbolMode) currentChar.uppercase() else currentChar
                         
+                        triggerVibration()
+                        playClickFeedback()
                         showKeyPopup(keyView, uppercaseChar)
                         v.isPressed = true
 
@@ -650,7 +704,6 @@ class StitchKeyboardService : InputMethodService() {
                             val currentChar = getCharForId(id)
                             if (currentChar != null) {
                                 handleCharacterClick(currentChar)
-                                triggerVibration()
                             }
                         }
                         true
@@ -1059,8 +1112,15 @@ class StitchKeyboardService : InputMethodService() {
                 ic.endBatchEdit()
                 triggerVibration()
                 playClickFeedback()
+                lastConsumedClip = clip
                 lastClipboardText = null
-                hideClipboardPill()
+                clipboardDismissRunnable?.let {
+                    mainHandler.removeCallbacks(it)
+                    clipboardDismissRunnable = null
+                }
+                clipboardPill?.animate()?.alpha(0f)?.setDuration(150)?.withEndAction {
+                    hideClipboardPill()
+                }?.start()
             }
         }
 
@@ -1117,13 +1177,21 @@ class StitchKeyboardService : InputMethodService() {
         }
     }
 
-    private fun setShiftState(shifted: Boolean) {
+    private fun setShiftState(shifted: Boolean, immediate: Boolean = false) {
         if (isShifted != shifted) {
             isShifted = shifted
             if (::shiftText.isInitialized) {
                 shiftText.text = if (isShifted) "AA" else "Aa"
             }
-            updateKeyLabels()
+            if (immediate) {
+                updateKeyLabels()
+            } else {
+                mainHandler.post {
+                    if (::keyboardRoot.isInitialized) {
+                        updateKeyLabels()
+                    }
+                }
+            }
         }
     }
 
@@ -1161,9 +1229,8 @@ class StitchKeyboardService : InputMethodService() {
         ic.commitText(charToCommit, 1)
 
         if (isShifted) {
-            setShiftState(false)
+            setShiftState(false, immediate = false)
         }
-        playClickFeedback()
         spaceKeyView?.temporarilyPause(1000L)
 
         // 2. Previsão desacoplada e cancelável via buffer local
@@ -1186,7 +1253,7 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun toggleShift() {
-        setShiftState(!isShifted)
+        setShiftState(!isShifted, immediate = true)
         playClickFeedback()
     }
 
@@ -1326,11 +1393,9 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun playClickFeedback() {
-        scope.launch(Dispatchers.Default) {
-            try {
-                audioManager?.playSoundEffect(android.media.AudioManager.FX_KEYPRESS_STANDARD)
-            } catch (_: Exception) {}
-        }
+        try {
+            audioManager?.playSoundEffect(android.media.AudioManager.FX_KEYPRESS_STANDARD)
+        } catch (_: Exception) {}
     }
 
     private fun showKeyPopup(keyView: View, char: String) {
@@ -1569,6 +1634,7 @@ class StitchKeyboardService : InputMethodService() {
     
     override fun onDestroy() {
         super.onDestroy()
+        clipboardDismissRunnable?.let { mainHandler.removeCallbacks(it) }
         predictionJob?.cancel()
         waveJob?.cancel()
         mainHandler.removeCallbacksAndMessages(null)

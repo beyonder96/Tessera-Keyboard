@@ -109,4 +109,22 @@ class PredictionEngineTest {
         val preds = testEngine.getPredictions("tduo")
         assertEquals("tudo", preds.firstOrNull())
     }
+
+    @Test
+    fun testPrewarmedSingleLetters() {
+        val testEngine = PredictionEngine()
+        for (c in 'a'..'z') {
+            val preds = testEngine.getPredictions(c.toString())
+            assertTrue(preds.isNotEmpty())
+        }
+    }
+
+    @Test
+    fun testCacheConsistencyAfterLearnWord() {
+        val testEngine = PredictionEngine()
+        testEngine.getPredictions("xyz")
+        testEngine.learnWord("xyzw")
+        val preds = testEngine.getPredictions("xyz")
+        assertTrue(preds.contains("xyzw"))
+    }
 }
