@@ -89,6 +89,13 @@ class StitchKeyboardService : InputMethodService() {
     private var predictionJob: Job? = null
     private var lastQueriedWord: String = ""
     private var cachedKeyboardScale: Float = 1.0f
+    private var prefHapticFeedback = true
+    private var prefSoundFeedback = false
+    private var prefKeyPopup = true
+    private var prefAutocorrect = true
+    private var prefAutoCapitalize = true
+    private var prefDoubleSpacePeriod = true
+    private var lastCommittedWord: String? = null
     
     // Wave animation bars
     private var speechRecognizer: SpeechRecognizer? = null
@@ -112,7 +119,18 @@ class StitchKeyboardService : InputMethodService() {
         vibrator = getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
         audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
         inputMethodManager = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+        refreshPreferences()
         cachedKeyboardScale = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
+    }
+
+    private fun refreshPreferences() {
+        val sp = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
+        prefHapticFeedback = sp.getBoolean("PREF_HAPTIC_FEEDBACK", true)
+        prefSoundFeedback = sp.getBoolean("PREF_SOUND_FEEDBACK", false)
+        prefKeyPopup = sp.getBoolean("PREF_KEY_POPUP", true)
+        prefAutocorrect = sp.getBoolean("PREF_AUTOCORRECT", true)
+        prefAutoCapitalize = sp.getBoolean("PREF_AUTO_CAP", true)
+        prefDoubleSpacePeriod = sp.getBoolean("PREF_DOUBLE_SPACE_PERIOD", true)
     }
 
     override fun onCreateInputView(): View {
@@ -306,9 +324,7 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun shouldAutocorrect(info: EditorInfo?): Boolean {
-        val autoCorrectPref = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
-            .getBoolean("PREF_AUTOCORRECT", true)
-        if (!autoCorrectPref) return false
+        if (!prefAutocorrect) return false
         if (info == null) return true
         if (isPrivateOrPassword(info)) return false
         val inputType = info.inputType
@@ -320,9 +336,7 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun shouldAutoCapitalize(info: EditorInfo?): Boolean {
-        val autoCapPref = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
-            .getBoolean("PREF_AUTO_CAP", true)
-        if (!autoCapPref) return false
+        if (!prefAutoCapitalize) return false
         if (info == null) return false
         val inputType = info.inputType
         if ((inputType and EditorInfo.TYPE_MASK_CLASS) != EditorInfo.TYPE_CLASS_TEXT) return false
@@ -431,7 +445,7 @@ class StitchKeyboardService : InputMethodService() {
         dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
     }
 
-    private fun scheduleAsyncPrediction(word: String) {
+    private fun scheduleAsyncPrediction(word: String, previousWord: String? = lastCommittedWord) {
         if (!::keyboardRoot.isInitialized) return
         val editorInfo = currentInputEditorInfo
         if (editorInfo != null && isPrivateOrPassword(editorInfo)) {
@@ -442,20 +456,41 @@ class StitchKeyboardService : InputMethodService() {
         if (word.isEmpty()) {
             predictionJob?.cancel()
             lastQueriedWord = ""
-            clearPredictionsUi()
+            if (!previousWord.isNullOrEmpty()) {
+                predictionJob = scope.launch(Dispatchers.Default) {
+                    val predictions = predictionEngine.getPredictions("", previousWord)
+                    val (left, center, right) = when (predictions.size) {
+                        0 -> Triple("", "", "")
+                        1 -> Triple("", predictions[0], "")
+                        2 -> Triple(predictions[1], predictions[0], "")
+                        else -> Triple(predictions[1], predictions[0], predictions[2])
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        updateSuggestionView(suggestion1, left)
+                        updateSuggestionView(suggestion2, center)
+                        updateSuggestionView(suggestion3, right)
+                        val hasSuggestions = center.isNotEmpty() || left.isNotEmpty() || right.isNotEmpty()
+                        dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
+                    }
+                }
+            } else {
+                clearPredictionsUi()
+            }
             return
         }
 
         hideClipboardPill()
 
-        if (word == lastQueriedWord && word.isNotEmpty()) {
+        val queryKey = if (!previousWord.isNullOrEmpty()) "$previousWord|$word" else word
+        if (queryKey == lastQueriedWord && word.isNotEmpty()) {
             return
         }
-        lastQueriedWord = word
+        lastQueriedWord = queryKey
 
         predictionJob?.cancel()
         predictionJob = scope.launch(Dispatchers.Default) {
-            val predictions = predictionEngine.getPredictions(word)
+            val predictions = predictionEngine.getPredictions(word, previousWord)
             val (left, center, right) = when (predictions.size) {
                 0 -> Triple("", "", "")
                 1 -> Triple("", predictions[0], "")
@@ -522,6 +557,7 @@ class StitchKeyboardService : InputMethodService() {
         localEditCount = 0
         lastAutocorrection = null
         lastUndoneWord = null
+        lastCommittedWord = null
         lastClipboardText = null
         composingBuffer.setLength(0)
         clearPredictionsUi()
@@ -541,9 +577,11 @@ class StitchKeyboardService : InputMethodService() {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         
+        refreshPreferences()
         localEditCount = 0
         lastAutocorrection = null
         lastUndoneWord = null
+        lastCommittedWord = null
         ghostTextManager.onStartInput(info)
         lastQueriedWord = ""
         composingBuffer.setLength(0)
@@ -1111,8 +1149,7 @@ class StitchKeyboardService : InputMethodService() {
                         val centerCandidate = suggestion2?.text?.toString()?.trim() ?: ""
 
                         val now = android.os.SystemClock.uptimeMillis()
-                        val doubleSpacePref = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
-                            .getBoolean("PREF_DOUBLE_SPACE_PERIOD", true)
+                        val doubleSpacePref = prefDoubleSpacePeriod
                         if (doubleSpacePref && now - lastSpaceTime < 350L && lastWord.isEmpty() && justCommittedSpace) {
                             ic?.beginBatchEdit()
                             localEditCount++
@@ -1123,6 +1160,7 @@ class StitchKeyboardService : InputMethodService() {
                             lastSpaceTime = 0L
                             justCommittedSpace = true
                             lastAutocorrection = null
+                            lastCommittedWord = null
                             playClickFeedback()
                             triggerVibration()
                             v.isPressed = false
@@ -1134,7 +1172,7 @@ class StitchKeyboardService : InputMethodService() {
                         val doAutocorrect = shouldAutocorrect(editorInfo) &&
                                 lastWord.length in 2..30 &&
                                 centerCandidate.isNotEmpty() &&
-                                !centerCandidate.equals(lastWord, ignoreCase = false) &&
+                                !centerCandidate.equals(lastWord, ignoreCase = true) &&
                                 lastWord != lastUndoneWord
 
                         if (doAutocorrect) {
@@ -1144,16 +1182,20 @@ class StitchKeyboardService : InputMethodService() {
                             ic?.commitText(centerCandidate + " ", 1)
                             ic?.endBatchEdit()
                             lastAutocorrection = LastAutocorrection(lastWord, centerCandidate)
+                            lastCommittedWord = centerCandidate
                         } else {
                             localEditCount++
                             ic?.commitText(" ", 1)
                             lastAutocorrection = null
+                            if (lastWord.isNotEmpty()) {
+                                lastCommittedWord = lastWord
+                            }
                         }
 
                         composingBuffer.setLength(0)
                         playClickFeedback()
                         triggerVibration()
-                        scheduleAsyncPrediction("")
+                        scheduleAsyncPrediction("", lastCommittedWord)
                     }
                     v.isPressed = false
                     true
@@ -1302,10 +1344,11 @@ class StitchKeyboardService : InputMethodService() {
                 lastUndoneWord = null
                 lastClipboardText = null
                 justCommittedSpace = true
+                lastCommittedWord = selectedSuggestion
                 composingBuffer.setLength(0)
                 playClickFeedback()
                 triggerVibration()
-                scheduleAsyncPrediction("")
+                scheduleAsyncPrediction("", lastCommittedWord)
             }
         }
 
@@ -1608,9 +1651,7 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun playClickFeedback() {
-        val soundPref = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
-            .getBoolean("PREF_SOUND_FEEDBACK", false)
-        if (!soundPref) return
+        if (!prefSoundFeedback) return
         mainHandler.post {
             try {
                 audioManager?.playSoundEffect(android.media.AudioManager.FX_KEYPRESS_STANDARD)
@@ -1619,9 +1660,7 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun showKeyPopup(keyView: View, char: String) {
-        val popupPref = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
-            .getBoolean("PREF_KEY_POPUP", true)
-        if (!popupPref) return
+        if (!prefKeyPopup) return
         if (!::previewPopup.isInitialized || !::previewPopupText.isInitialized) return
         previewPopupText.text = char
 
@@ -1638,22 +1677,18 @@ class StitchKeyboardService : InputMethodService() {
         previewPopup.translationX = x + (keyView.width - popupWidth) / 2f
         previewPopup.translationY = y - popupHeight - (6 * density)
 
-        previewPopup.animate().cancel()
         previewPopup.alpha = 1f
         previewPopup.visibility = View.VISIBLE
     }
 
     private fun hideKeyPopup() {
         if (::previewPopup.isInitialized) {
-            previewPopup.animate().cancel()
             previewPopup.visibility = View.GONE
         }
     }
 
     private fun triggerVibration() {
-        val hapticPref = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
-            .getBoolean("PREF_HAPTIC_FEEDBACK", true)
-        if (!hapticPref) return
+        if (!prefHapticFeedback) return
         try {
             if (::keyboardRoot.isInitialized) {
                 keyboardRoot.performHapticFeedback(

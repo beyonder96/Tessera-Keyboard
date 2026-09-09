@@ -7,13 +7,14 @@
 
 ---
 
-## ✨ Funcionalidades Principais (v0.0.14)
+## ✨ Funcionalidades Principais (v0.0.15)
 
-* ⚡ **Velocidade de Digitação Instantânea & Latência Zero:** Pré-aquecimento (*pre-warming*) das predições para todas as 26 letras do alfabeto latino, cache LRU de predições em memória, carregamento assíncrono do léxico e feedback tátil/sonoro imediato no `ACTION_DOWN` (latência percebida zero).
+* ⚡ **Velocidade de Digitação & Latência Otimizada:** Cache em memória de preferências de digitação (`SharedPreferences`), pré-aquecimento de predições para todas as 26 letras, eliminação de contenção de locks e feedback tátil/sonoro imediato.
+* 🎯 **Acentuação Correta & Sem Falsos Acentos:** Fim definitivo de acentos indevidos em monosílabos e palavras comuns (*que*, *de*, *do*, *no*, *para*, *passe*, *demonstra*, *na*). Mais de 3.500 entradas espúrias eliminadas do dicionário léxico PT-BR.
+* 🧠 **Busca por Proximidade QWERTY Multierro:** Algoritmo guiado na árvore Trie capaz de corrigir palavras com múltiplos deslizes de digitação simultâneos em teclas vizinhas (ex: `dkgitsndk` $\rightarrow$ `digitando`) em tempo sub-milissegundo (~0.1ms).
+* 💬 **Contexto por Bigramas em Tempo Real:** Motor de predição contextual que sugere a próxima palavra ao pressionar espaço (ex: *"muito"* $\rightarrow$ *"obrigado"*, *"bom"*, *"bem"*) e desempata homógrafos com base no termo anterior (ex: *"você ver"* vs *"ele vê"*).
 * 📋 **Gestão Inteligente de Clipboard (Colar):** O chip de colar é consumido e descartado imediatamente com fade suave, valida recência (ignora textos copiados há mais de 90s), possui *auto-dismiss* em 6 segundos e nunca reaparece indevidamente após colado.
-* 🚀 **Fluidez Mecânica Absoluta & Fim do Lag:** Digitação em 120fps com multi-touch (`splitMotionEvents`), eliminação de chamadas IPC síncronas bloqueantes (`localEditCount`) e desacoplamento da transição maiúscula/minúscula (Shift).
-* 📖 **Dicionário Expandido PT-BR & Auto-Acentuação:** Léxico embutido de 280.000+ termos frequentes. Palavras sem acento são corrigidas instantaneamente (`nao` $\rightarrow$ `não`, `voce` $\rightarrow$ `você`), preservando a caixa alta/baixa.
-* 🎯 **Matriz de Proximidade QWERTY & Autocorreção Fuzzy:** Correção automática de toques em teclas adjacentes (`rudo` $\rightarrow$ `tudo`) e transposição de letras com árvore Trie $O(k)$.
+* 🚀 **Fluidez Mecânica Absoluta & Fim do Lag:** Digitação fluida com multi-touch (`splitMotionEvents`), eliminação de chamadas IPC síncronas bloqueantes (`localEditCount`) e desacoplamento da transição maiúscula/minúscula (Shift).
 * 🔄 **Autocorreção no Espaço com Undo no Backspace:** Espaço corrige erros automaticamente; 1 toque no Backspace desfaz imediatamente a troca e respeita a escolha original do usuário.
 * ⚡ **Automações de Digitação:** Auto-capitalização no início de sentenças, duplo toque no espaço para inserir `". "` e anexação automática de pontuação colada à palavra precedente.
 * 🖐️ **Gestos de Produtividade:** Deslizar para a esquerda no Backspace apaga palavras inteiras; deslizar horizontalmente na barra de espaço movimenta o cursor suavemente.
@@ -29,8 +30,8 @@ Para usar o Tessera Keyboard no seu celular sem precisar compilar o código:
 
 1. Baixe a versão mais recente clicando diretamente nos botões abaixo:
 
-   [![Baixar APK Release](https://img.shields.io/badge/Baixar-APK_Release_v0.0.14-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/raw/main/apks/app-release-v0.0.14.apk)
-   [![Baixar APK Debug](https://img.shields.io/badge/Baixar-APK_Debug_v0.0.14-0095D5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/raw/main/apks/app-debug-v0.0.14.apk)
+   [![Baixar APK Release](https://img.shields.io/badge/Baixar-APK_Release_v0.0.15-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/raw/main/apks/app-release-v0.0.15.apk)
+   [![Baixar APK Debug](https://img.shields.io/badge/Baixar-APK_Debug_v0.0.15-0095D5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/raw/main/apks/app-debug-v0.0.15.apk)
 3. Instale o APK no seu dispositivo (talvez seja necessário habilitar a "Instalação de Fontes Desconhecidas" nas configurações do seu aparelho).
 4. Ao final da instalação, abra o aplicativo **Tessera** ou vá até as configurações do seu Android em `Sistema > Idiomas e entrada > Teclado na tela`.
 5. Ative o Tessera Keyboard e o defina como o teclado padrão.

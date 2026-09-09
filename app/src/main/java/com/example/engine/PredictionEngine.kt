@@ -21,19 +21,22 @@ class PredictionEngine(
         "na", "nos", "nas", "para", "com", "por", "como", "mas", "se", "ou", "não", "sim", "já", "ainda", "até", "também", "aqui", "ali",
         "bem", "mal", "muito", "pouco", "tudo", "nada", "alguém", "ninguém", "qualquer", "cada", "mesmo", "outro",
         "outra", "onde", "quando", "quem", "qual", "quais", "porque", "porquê", "pois", "então", "assim", "apenas", "só",
+        "este", "esta", "estes", "estas", "isto", "esse", "essa", "esses", "essas", "isso", "aquele", "aquela",
         // Saudações e tempo
         "bom", "dia", "boa", "tarde", "noite", "olá", "oi", "hoje", "amanhã", "ontem", "sempre", "nunca", "agora",
         "depois", "tempo", "ano", "anos", "mês", "semana", "hora", "horas", "vez", "vezes", "cedo",
-        // Substantivos comuns
+        // Substantivos e termos comuns
         "coisa", "casa", "lugar", "trabalho", "pessoa", "pessoas", "gente", "homem", "mulher", "criança",
         "amigo", "amiga", "amigos", "família", "nome", "mundo", "parte", "fim", "começo", "jeito", "caso",
         "forma", "exemplo", "ideia", "problema", "verdade", "certeza", "motivo", "razão", "caminho", "lado",
         "olho", "mão", "cabeça", "palavra", "água", "fogo", "terra", "ar", "sol", "lua", "cidade", "carro",
+        "teclado", "atraso", "camada", "correção", "ortográfica", "português", "brasil",
         // Verbos essenciais
-        "estou", "está", "estamos", "estão", "estava", "sou", "é", "somos", "são", "era", "fui", "foi", "fomos", "foram",
-        "vou", "vai", "vamos", "vão", "ia", "quero", "quer", "queremos", "querem", "queria", "tenho", "tem", "temos", "têm", "tinha",
-        "faço", "faz", "fazemos", "fazem", "fazia", "sei", "sabe", "sabemos", "sabem", "sabia", "posso", "pode", "podemos", "podem", "podia",
-        "vejo", "vê", "vemos", "vêm", "via", "acho", "acha", "achamos", "acham", "devo", "deve", "devemos", "devem",
+        "estar", "estou", "está", "estamos", "estão", "estava", "ser", "sou", "é", "somos", "são", "era", "fui", "foi", "fomos", "foram",
+        "ir", "vou", "vai", "vamos", "vão", "ia", "querer", "quero", "quer", "queremos", "querem", "queria", "ter", "tenho", "tem", "temos", "têm", "tinha",
+        "fazer", "faço", "faz", "fazemos", "fazem", "fazia", "saber", "sei", "sabe", "sabemos", "sabem", "sabia", "poder", "posso", "pode", "podemos", "podem", "podia",
+        "ver", "vejo", "vê", "vemos", "vêm", "via", "dar", "dizer", "passar", "demonstrar", "demonstra", "digitar", "digitando",
+        "acho", "acha", "achamos", "acham", "devo", "deve", "devemos", "devem",
         "falo", "fala", "falamos", "falam", "fico", "fica", "ficamos", "ficam", "deixo", "deixa", "deixamos", "deixam",
         "encontro", "encontra", "encontramos", "encontram", "levo", "leva", "levamos", "levam", "começo", "começa", "começamos", "começam",
         "penso", "pensa", "pensamos", "pensam", "escrevo", "escreve", "escrevemos", "escrevem", "jogo", "joga", "jogamos", "jogam",
@@ -180,24 +183,68 @@ class PredictionEngine(
         }
     }
 
-    fun getPredictions(currentWord: String): List<String> {
+    private val bigramNextWordMap = mapOf(
+        "o" to listOf("que", "dia", "tempo", "trabalho"),
+        "do" to listOf("brasil", "mundo", "dia", "tempo"),
+        "da" to listOf("casa", "manhã", "tarde", "noite"),
+        "no" to listOf("brasil", "mundo", "trabalho", "dia"),
+        "na" to listOf("casa", "verdade", "hora", "cidade"),
+        "para" to listOf("você", "fazer", "ver", "mim"),
+        "por" to listOf("favor", "isso", "exemplo", "enquanto"),
+        "muito" to listOf("obrigado", "obrigada", "bom", "bem"),
+        "boa" to listOf("tarde", "noite", "viagem", "sorte"),
+        "bom" to listOf("dia", "trabalho", "fim"),
+        "tudo" to listOf("bem", "bom", "certo"),
+        "você" to listOf("está", "vai", "quer", "pode", "sabe", "tem"),
+        "eu" to listOf("quero", "vou", "acho", "tenho", "posso", "estou"),
+        "não" to listOf("sei", "quero", "posso", "tem", "vai", "está"),
+        "com" to listOf("você", "certeza", "calma", "tempo")
+    )
+
+    private val contextAmbiguityBoost = mapOf(
+        "para" to "ver",
+        "você" to "ver",
+        "vai" to "ver",
+        "quer" to "ver",
+        "queria" to "ver",
+        "vamos" to "ver",
+        "posso" to "ver",
+        "ele" to "vê",
+        "ela" to "vê",
+        "quem" to "vê",
+        "copo" to "de",
+        "gosto" to "de",
+        "antes" to "de",
+        "depois" to "de"
+    )
+
+    fun getPredictions(currentWord: String, previousWord: String? = null): List<String> {
         val clean = currentWord.trim()
+        val cleanPrev = previousWord?.trim()?.lowercase()
         if (clean.isBlank()) {
+            if (!cleanPrev.isNullOrEmpty()) {
+                val nextWords = bigramNextWordMap[cleanPrev]
+                if (!nextWords.isNullOrEmpty()) {
+                    return nextWords.take(3)
+                }
+            }
             return listOf("eu", "o", "que")
         }
 
+        val cacheKey = if (!cleanPrev.isNullOrEmpty()) "$cleanPrev|$clean" else clean
+
         synchronized(predictionCache) {
-            predictionCache[clean]
+            predictionCache[cacheKey]
         }?.let { return it }
 
-        val result = computePredictions(clean)
+        val result = computePredictions(clean, cleanPrev)
         synchronized(predictionCache) {
-            predictionCache[clean] = result
+            predictionCache[cacheKey] = result
         }
         return result
     }
 
-    private fun computePredictions(clean: String): List<String> {
+    private fun computePredictions(clean: String, previousWord: String? = null): List<String> {
         val lower = clean.lowercase()
         val expansion = abbreviationsMap[lower]
         if (expansion != null) {
@@ -209,7 +256,22 @@ class PredictionEngine(
 
         val norm = TrieDictionary.normalizeFast(clean)
 
-        val prefixSuggestions = trie.findTopSuggestions(clean, maxCount = 3, excludeExact = false)
+        var prefixSuggestions = trie.findTopSuggestions(clean, maxCount = 5, excludeExact = false)
+
+        if (!previousWord.isNullOrEmpty() && prefixSuggestions.size > 1) {
+            val boostTarget = contextAmbiguityBoost[previousWord]
+            if (boostTarget != null) {
+                val idx = prefixSuggestions.indexOfFirst { it.equals(boostTarget, ignoreCase = true) }
+                if (idx > 0) {
+                    val reordered = prefixSuggestions.toMutableList()
+                    val target = reordered.removeAt(idx)
+                    reordered.add(0, target)
+                    prefixSuggestions = reordered
+                }
+            }
+        }
+        prefixSuggestions = prefixSuggestions.take(3)
+
         val hasExactMatch = prefixSuggestions.any {
             TrieDictionary.normalizeFast(it).length == norm.length
         }
@@ -220,15 +282,18 @@ class PredictionEngine(
 
         if (Thread.currentThread().isInterrupted) return prefixSuggestions
 
-        val fuzzySuggestions = trie.findFuzzySuggestions(clean, maxCount = 2)
+        val fuzzySuggestions = trie.findFuzzySuggestions(clean, maxCount = 3)
         if (fuzzySuggestions.isNotEmpty()) {
             val result = mutableListOf<String>()
             result.add(fuzzySuggestions[0])
             if (!result.contains(clean)) {
                 result.add(clean)
             }
-            if (fuzzySuggestions.size > 1 && !result.contains(fuzzySuggestions[1])) {
-                result.add(fuzzySuggestions[1])
+            for (i in 1 until fuzzySuggestions.size) {
+                if (result.size >= 3) break
+                if (!result.contains(fuzzySuggestions[i])) {
+                    result.add(fuzzySuggestions[i])
+                }
             }
             for (p in prefixSuggestions) {
                 if (result.size >= 3) break

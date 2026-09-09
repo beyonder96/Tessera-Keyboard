@@ -152,4 +152,37 @@ class PredictionEngineTest {
         val ja = testEngine.getPredictions("ja")
         assertEquals("já", ja.firstOrNull())
     }
+
+    @Test
+    fun testCommonWordsDoNotReceiveBogusAccents() {
+        val testEngine = PredictionEngine()
+        assertEquals("que", testEngine.getPredictions("que").firstOrNull())
+        assertEquals("de", testEngine.getPredictions("de").firstOrNull())
+        assertEquals("do", testEngine.getPredictions("do").firstOrNull())
+        assertEquals("no", testEngine.getPredictions("no").firstOrNull())
+        assertEquals("para", testEngine.getPredictions("para").firstOrNull())
+        assertEquals("passe", testEngine.getPredictions("passe").firstOrNull())
+        assertEquals("demonstra", testEngine.getPredictions("demonstra").firstOrNull())
+        assertEquals("na", testEngine.getPredictions("na").firstOrNull())
+    }
+
+    @Test
+    fun testMultiErrorProximityCorrectionDigitando() {
+        val testEngine = PredictionEngine()
+        val preds = testEngine.getPredictions("dkgitsndk")
+        assertEquals("digitando", preds.firstOrNull())
+    }
+
+    @Test
+    fun testContextualBigramPrediction() {
+        val testEngine = PredictionEngine()
+        val nextAfterMuito = testEngine.getPredictions("", previousWord = "muito")
+        assertTrue(nextAfterMuito.contains("obrigado") || nextAfterMuito.contains("bem"))
+
+        val verAfterVoce = testEngine.getPredictions("ve", previousWord = "você")
+        assertEquals("ver", verAfterVoce.firstOrNull())
+
+        val veAfterEle = testEngine.getPredictions("ve", previousWord = "ele")
+        assertEquals("vê", veAfterEle.firstOrNull())
+    }
 }

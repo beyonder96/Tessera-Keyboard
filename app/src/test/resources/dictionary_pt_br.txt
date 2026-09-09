@@ -473,7 +473,6 @@ bebê 105
 matou 105
 querido 105
 muita 105
-idéia 105
 saia 105
 muitos 105
 número 105
@@ -836,7 +835,6 @@ show 85
 abrir 85
 parabéns 85
 fome 85
-voce 85
 tiver 85
 ficando 85
 totalmente 85
@@ -1639,7 +1637,6 @@ marca 63
 dever 63
 cinema 63
 vêm 63
-nao 63
 relaxe 63
 hum 63
 livrar 63
@@ -1784,7 +1781,6 @@ dan 60
 calor 60
 devíamos 60
 maluco 60
-ê 60
 assistente 60
 contei 60
 vitória 60
@@ -2446,7 +2442,6 @@ jornais 50
 fizesse 50
 china 50
 sede 50
-á 50
 pesadelo 50
 beba 50
 pesado 50
@@ -2518,7 +2513,6 @@ divertindo 49
 digamos 49
 próprias 49
 assumir 49
-pára 49
 carga 49
 pouquinho 49
 vaca 49
@@ -2732,7 +2726,6 @@ ouviram 46
 disco 46
 desastre 46
 acreditam 46
-so 46
 batendo 46
 partida 46
 campeão 46
@@ -3461,7 +3454,6 @@ subindo 38
 cabelos 38
 beth 38
 ataques 38
-ó 38
 calar 38
 heroína 38
 albert 38
@@ -4773,7 +4765,6 @@ murphy 27
 caráter 27
 administração 27
 amou 27
-ja 27
 motores 27
 andem 27
 observar 27
@@ -4925,7 +4916,6 @@ alívio 26
 dezembro 26
 iríamos 26
 brinca 26
-ve 26
 necessidades 26
 piratas 26
 quietos 26
@@ -5557,7 +5547,6 @@ representante 21
 are 21
 vacas 21
 crescimento 21
-ã 21
 errou 21
 pressentimento 21
 lawrence 21
@@ -5691,7 +5680,6 @@ compensar 20
 robbie 20
 otário 20
 acreditaria 20
-alguem 20
 agradeça 20
 carruagem 20
 debate 20
@@ -5744,7 +5732,6 @@ reta 20
 some 20
 aquí 20
 sapo 20
-nã 20
 encantadora 20
 superiores 20
 comido 20
@@ -6025,7 +6012,6 @@ afaste 18
 sindicato 18
 entenderia 18
 ida 18
-â 18
 leilão 18
 bilhetes 18
 quinto 18
@@ -6974,7 +6960,6 @@ marina 12
 gostasse 12
 bota 12
 porter 12
-tambem 12
 significam 12
 precisasse 12
 culpados 12
