@@ -30,8 +30,8 @@ Para usar o Tessera Keyboard no seu celular sem precisar compilar o código:
 
 1. Baixe a versão mais recente clicando diretamente nos botões abaixo:
 
-   [![Baixar APK Release](https://img.shields.io/badge/Baixar-APK_Release_v0.0.15-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/raw/main/apks/app-release-v0.0.15.apk)
-   [![Baixar APK Debug](https://img.shields.io/badge/Baixar-APK_Debug_v0.0.15-0095D5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/raw/main/apks/app-debug-v0.0.15.apk)
+   [![Baixar APK Release](https://img.shields.io/badge/Baixar-APK_Release_v0.0.15-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/releases/download/v0.0.15/app-release-v0.0.15.apk)
+   [![Baixar APK Debug](https://img.shields.io/badge/Baixar-APK_Debug_v0.0.15-0095D5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/releases/download/v0.0.15/app-debug-v0.0.15.apk)
 3. Instale o APK no seu dispositivo (talvez seja necessário habilitar a "Instalação de Fontes Desconhecidas" nas configurações do seu aparelho).
 4. Ao final da instalação, abra o aplicativo **Tessera** ou vá até as configurações do seu Android em `Sistema > Idiomas e entrada > Teclado na tela`.
 5. Ative o Tessera Keyboard e o defina como o teclado padrão.
