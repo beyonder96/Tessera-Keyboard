@@ -82,6 +82,49 @@ class PredictionEngine(
         "kd" to "cadê"
     )
 
+    private val accentRestorationMap = mapOf(
+        "voce" to "você", "voces" to "vocês", "nao" to "não", "tambem" to "também",
+        "esta" to "está", "estao" to "estão", "ate" to "até", "ja" to "já", "so" to "só",
+        "sera" to "será", "serao" to "serão", "ola" to "olá", "agua" to "água",
+        "opcao" to "opção", "opcoes" to "opções", "acao" to "ação", "acoes" to "ações",
+        "situacao" to "situação", "situacoes" to "situações", "informacao" to "informação",
+        "informacoes" to "informações", "atencao" to "atenção", "questao" to "questão",
+        "questoes" to "questões", "relacao" to "relação", "relacoes" to "relações",
+        "razao" to "razão", "razoes" to "razões", "coracao" to "coração", "coracoes" to "corações",
+        "visao" to "visão", "visoes" to "visões", "padrao" to "padrão", "padroes" to "padrões",
+        "versao" to "versão", "versoes" to "versões", "solucao" to "solução", "solucoes" to "soluções",
+        "opiniao" to "opinião", "opinioes" to "opiniões", "producao" to "produção",
+        "criacao" to "criação", "funcao" to "função", "funcoes" to "funções",
+        "regiao" to "região", "regioes" to "regiões", "posicao" to "posição", "posicoes" to "posições",
+        "condicao" to "condição", "condicoes" to "condições", "educacao" to "educação",
+        "protecao" to "proteção", "construcao" to "construção", "comunicacao" to "comunicação",
+        "populacao" to "população", "geracao" to "geração", "geracoes" to "gerações",
+        "facil" to "fácil", "faceis" to "fáceis", "dificil" to "difícil", "dificeis" to "difíceis",
+        "util" to "útil", "uteis" to "úteis", "nivel" to "nível", "niveis" to "níveis",
+        "possivel" to "possível", "possiveis" to "possíveis", "impossivel" to "impossível",
+        "impossiveis" to "impossíveis", "responsavel" to "responsável", "responsaveis" to "responsáveis",
+        "incrivel" to "incrível", "incriveis" to "incríveis", "alem" to "além", "porem" to "porém",
+        "alguem" to "alguém", "ninguem" to "ninguém", "ultimo" to "último", "ultima" to "última",
+        "ultimos" to "últimos", "ultimas" to "últimas", "proximo" to "próximo", "proxima" to "próxima",
+        "proximos" to "próximos", "proximas" to "próximas", "rapido" to "rápido", "rapida" to "rápida",
+        "rapidos" to "rápidos", "rapidas" to "rápidas", "publico" to "público", "publica" to "pública",
+        "publicos" to "públicos", "publicas" to "públicas", "numero" to "número", "numeros" to "números",
+        "duvida" to "dúvida", "duvidas" to "dúvidas", "saude" to "saúde", "musica" to "música",
+        "musicas" to "músicas", "politica" to "política", "politicas" to "políticas", "historia" to "história",
+        "historias" to "histórias", "familia" to "família", "familias" to "famílias", "ciencia" to "ciência",
+        "ciencias" to "ciências", "inicio" to "início", "periodo" to "período", "periodos" to "períodos",
+        "analise" to "análise", "analises" to "análises", "pagina" to "página", "paginas" to "páginas",
+        "titulo" to "título", "titulos" to "títulos", "codigo" to "código", "codigos" to "códigos",
+        "unico" to "único", "unica" to "única", "unicos" to "únicos", "unicas" to "únicas",
+        "otimo" to "ótimo", "otima" to "ótima", "otimos" to "ótimos", "otimas" to "ótima",
+        "valido" to "válido", "valida" to "válida", "maximo" to "máximo", "maxima" to "máxima",
+        "minimo" to "mínimo", "minima" to "mínima", "pratico" to "prático", "pratica" to "prática",
+        "basico" to "básico", "basica" to "básica", "fisico" to "físico", "fisica" to "física",
+        "logico" to "lógico", "logica" to "lógica", "critico" to "crítico", "critica" to "crítica",
+        "medico" to "médico", "medica" to "médica", "necessario" to "necessário", "necessaria" to "necessária",
+        "proprio" to "próprio", "propria" to "própria", "gratis" to "grátis"
+    )
+
     private val normalizedStatic: List<Pair<String, String>> = staticDictionary.map {
         it to TrieDictionary.normalizeFast(it)
     }
@@ -95,6 +138,9 @@ class PredictionEngine(
     init {
         for (word in staticDictionary) {
             trie.insert(word, frequency = 240)
+        }
+        for (word in accentRestorationMap.values) {
+            trie.insert(word, frequency = 245)
         }
         for ((abbr, full) in abbreviationsMap) {
             trie.insert(full, frequency = 250)
@@ -184,21 +230,30 @@ class PredictionEngine(
     }
 
     private val bigramNextWordMap = mapOf(
-        "o" to listOf("que", "dia", "tempo", "trabalho"),
-        "do" to listOf("brasil", "mundo", "dia", "tempo"),
-        "da" to listOf("casa", "manhã", "tarde", "noite"),
-        "no" to listOf("brasil", "mundo", "trabalho", "dia"),
-        "na" to listOf("casa", "verdade", "hora", "cidade"),
-        "para" to listOf("você", "fazer", "ver", "mim"),
-        "por" to listOf("favor", "isso", "exemplo", "enquanto"),
-        "muito" to listOf("obrigado", "obrigada", "bom", "bem"),
-        "boa" to listOf("tarde", "noite", "viagem", "sorte"),
-        "bom" to listOf("dia", "trabalho", "fim"),
-        "tudo" to listOf("bem", "bom", "certo"),
+        "o" to listOf("que", "dia", "tempo", "trabalho", "seu", "mundo"),
+        "a" to listOf("gente", "sua", "mesma", "minha", "vida", "casa"),
+        "do" to listOf("brasil", "mundo", "dia", "tempo", "que", "ano"),
+        "da" to listOf("casa", "manhã", "tarde", "noite", "sua", "vida"),
+        "no" to listOf("brasil", "mundo", "trabalho", "dia", "seu", "fim"),
+        "na" to listOf("casa", "verdade", "hora", "cidade", "sua", "vida"),
+        "para" to listOf("você", "fazer", "ver", "mim", "o", "a"),
+        "por" to listOf("favor", "isso", "exemplo", "enquanto", "causa", "que"),
+        "muito" to listOf("obrigado", "obrigada", "bom", "bem", "mais", "tempo"),
+        "boa" to listOf("tarde", "noite", "viagem", "sorte", "ideia", "semana"),
+        "bom" to listOf("dia", "trabalho", "fim", "tempo", "demais", "ver"),
+        "tudo" to listOf("bem", "bom", "certo", "isso", "o", "que"),
         "você" to listOf("está", "vai", "quer", "pode", "sabe", "tem"),
         "eu" to listOf("quero", "vou", "acho", "tenho", "posso", "estou"),
         "não" to listOf("sei", "quero", "posso", "tem", "vai", "está"),
-        "com" to listOf("você", "certeza", "calma", "tempo")
+        "com" to listOf("você", "certeza", "calma", "tempo", "ele", "ela"),
+        "como" to listOf("você", "vai", "está", "fazer", "se", "isso"),
+        "mais" to listOf("uma", "um", "ou", "tarde", "tempo", "nada"),
+        "de" to listOf("acordo", "novo", "fato", "repente", "volta", "nada"),
+        "se" to listOf("você", "puder", "quiser", "der", "não", "for"),
+        "mas" to listOf("não", "eu", "se", "também", "o", "a"),
+        "além" to listOf("disso", "do", "da", "de"),
+        "sem" to listOf("dúvida", "problema", "certeza", "saber"),
+        "vamos" to listOf("fazer", "ver", "lá", "conversar", "marcar")
     )
 
     private val contextAmbiguityBoost = mapOf(
@@ -218,14 +273,21 @@ class PredictionEngine(
         "depois" to "de"
     )
 
+    fun learnBigram(w1: String, w2: String) {
+        localDict?.learnBigram(w1, w2)
+    }
+
     fun getPredictions(currentWord: String, previousWord: String? = null): List<String> {
         val clean = currentWord.trim()
         val cleanPrev = previousWord?.trim()?.lowercase()
         if (clean.isBlank()) {
             if (!cleanPrev.isNullOrEmpty()) {
-                val nextWords = bigramNextWordMap[cleanPrev]
-                if (!nextWords.isNullOrEmpty()) {
-                    return nextWords.take(3)
+                // 1. Tenta bigramas aprendidos do próprio usuário no LocalDictionary
+                val userNextWords = localDict?.getPredictedNextWords(cleanPrev) ?: emptyList()
+                val staticNextWords = bigramNextWordMap[cleanPrev] ?: emptyList()
+                val combined = (userNextWords + staticNextWords).distinct().take(3)
+                if (combined.isNotEmpty()) {
+                    return combined
                 }
             }
             return listOf("eu", "o", "que")
@@ -255,7 +317,15 @@ class PredictionEngine(
         if (Thread.currentThread().isInterrupted) return emptyList()
 
         val norm = TrieDictionary.normalizeFast(clean)
+        val result = mutableListOf<String>()
 
+        // 1. Camada de Restauração Imediata de Acentos (prioridade máxima)
+        val accentRestored = accentRestorationMap[lower]
+        if (accentRestored != null) {
+            result.add(TrieDictionary.matchCasing(clean, accentRestored))
+        }
+
+        // 2. Busca por Prefixo no Trie (até 5 candidatos)
         var prefixSuggestions = trie.findTopSuggestions(clean, maxCount = 5, excludeExact = false)
 
         if (!previousWord.isNullOrEmpty() && prefixSuggestions.size > 1) {
@@ -270,41 +340,48 @@ class PredictionEngine(
                 }
             }
         }
-        prefixSuggestions = prefixSuggestions.take(3)
 
-        val hasExactMatch = prefixSuggestions.any {
+        for (p in prefixSuggestions) {
+            if (result.size >= 3) break
+            if (!result.any { it.equals(p, ignoreCase = true) }) {
+                result.add(p)
+            }
+        }
+
+        val hasExactMatch = result.any {
             TrieDictionary.normalizeFast(it).length == norm.length
         }
 
-        if (hasExactMatch) {
-            return prefixSuggestions
+        if (hasExactMatch && result.isNotEmpty()) {
+            return result.take(3)
         }
 
-        if (Thread.currentThread().isInterrupted) return prefixSuggestions
+        if (Thread.currentThread().isInterrupted) return result.take(3)
 
+        // 3. Camada Fuzzy / QWERTY Proximity se não tiver match exato
         val fuzzySuggestions = trie.findFuzzySuggestions(clean, maxCount = 3)
         if (fuzzySuggestions.isNotEmpty()) {
-            val result = mutableListOf<String>()
-            result.add(fuzzySuggestions[0])
+            val fuzzyCandidate = fuzzySuggestions[0]
+            if (!result.any { it.equals(fuzzyCandidate, ignoreCase = true) }) {
+                result.add(0, fuzzyCandidate)
+            }
             if (!result.contains(clean)) {
                 result.add(clean)
             }
             for (i in 1 until fuzzySuggestions.size) {
                 if (result.size >= 3) break
-                if (!result.contains(fuzzySuggestions[i])) {
-                    result.add(fuzzySuggestions[i])
+                val fz = fuzzySuggestions[i]
+                if (!result.any { it.equals(fz, ignoreCase = true) }) {
+                    result.add(fz)
                 }
             }
-            for (p in prefixSuggestions) {
-                if (result.size >= 3) break
-                if (!result.contains(p)) {
-                    result.add(p)
-                }
-            }
-            return result.take(3)
         }
 
-        return prefixSuggestions
+        if (!result.contains(clean) && clean.length in 2..30) {
+            result.add(clean)
+        }
+
+        return result.take(3)
     }
 
     fun getSwipePrediction(swipePattern: String): String? {

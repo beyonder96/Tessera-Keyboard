@@ -18,10 +18,14 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.Manifest
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import androidx.core.view.inputmethod.EditorInfoCompat
+import androidx.core.view.inputmethod.InputConnectionCompat
+import androidx.core.view.inputmethod.InputContentInfoCompat
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -80,7 +84,16 @@ class StitchKeyboardService : InputMethodService() {
     private var suggestion1: android.widget.TextView? = null
     private var suggestion2: android.widget.TextView? = null
     private var suggestion3: android.widget.TextView? = null
-    private var clipboardPill: android.widget.TextView? = null
+    private data class ClipboardImage(
+        val uri: android.net.Uri,
+        val mimeType: String
+    )
+    private var lastClipboardImage: ClipboardImage? = null
+    private var lastConsumedImageUri: android.net.Uri? = null
+    private var clipboardContainer: LinearLayout? = null
+    private var clipboardTextPill: LinearLayout? = null
+    private var clipboardTextLabel: TextView? = null
+    private var clipboardImagePill: LinearLayout? = null
     private var dragPill: android.view.View? = null
     private var enterIcon: android.widget.ImageView? = null
     private var lastClipboardText: String? = null
@@ -398,34 +411,164 @@ class StitchKeyboardService : InputMethodService() {
         }
     }
 
-    private fun showClipboardPill(clipText: String) {
-        if (clipText == lastConsumedClip) {
+    private fun getClipboardImage(): ClipboardImage? {
+        return try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            if (clipboard != null && clipboard.hasPrimaryClip()) {
+                val desc = clipboard.primaryClipDescription
+                val clipTimestamp = desc?.timestamp ?: 0L
+                val now = System.currentTimeMillis()
+                // Ignora imagens copiadas há mais de 120 segundos
+                if (clipTimestamp > 0L && (now - clipTimestamp) > 120_000L) {
+                    return null
+                }
+                val clip = clipboard.primaryClip
+                if (clip != null && clip.itemCount > 0) {
+                    val item = clip.getItemAt(0)
+                    val uri = item?.uri
+                    if (uri != null && uri != lastConsumedImageUri) {
+                        var mimeType: String? = null
+                        if (desc != null) {
+                            for (i in 0 until desc.mimeTypeCount) {
+                                val t = desc.getMimeType(i)
+                                if (t.startsWith("image/")) {
+                                    mimeType = t
+                                    break
+                                }
+                            }
+                        }
+                        if (mimeType == null) {
+                            val resolvedType = contentResolver.getType(uri)
+                            if (resolvedType?.startsWith("image/") == true) {
+                                mimeType = resolvedType
+                            }
+                        }
+                        if (mimeType != null) {
+                            return ClipboardImage(uri, mimeType)
+                        }
+                    }
+                }
+            }
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun commitClipboardImage(image: ClipboardImage) {
+        val ic = currentInputConnection ?: return
+        val info = currentInputEditorInfo ?: return
+
+        val supportedMimes = EditorInfoCompat.getContentMimeTypes(info)
+        var isSupported = false
+        for (mime in supportedMimes) {
+            if (ClipDescription.compareMimeTypes(mime, image.mimeType)) {
+                isSupported = true
+                break
+            }
+        }
+
+        if (!isSupported) {
+            Toast.makeText(this, "Este aplicativo não aceita colar fotos diretamente", Toast.LENGTH_SHORT).show()
+            hideClipboardPill()
+            lastConsumedImageUri = image.uri
+            lastClipboardImage = null
+            return
+        }
+
+        val description = ClipDescription("Clipboard Image", arrayOf(image.mimeType))
+        val contentInfo = InputContentInfoCompat(
+            image.uri,
+            description,
+            null
+        )
+
+        var flags = 0
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+            flags = flags or InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION
+        }
+
+        try {
+            val committed = InputConnectionCompat.commitContent(
+                ic,
+                info,
+                contentInfo,
+                flags,
+                null
+            )
+            if (committed) {
+                triggerVibration()
+                playClickFeedback()
+                lastConsumedImageUri = image.uri
+                lastClipboardImage = null
+                hideClipboardPill()
+            } else {
+                Toast.makeText(this, "Não foi possível inserir a imagem", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Erro ao colar foto", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun checkAndShowClipboardSuggestions() {
+        val editorInfo = currentInputEditorInfo
+        if (editorInfo != null && isPrivateOrPassword(editorInfo)) {
             hideClipboardPill()
             return
         }
-        val pill = clipboardPill ?: return
-        val info = currentInputEditorInfo
-        val display = if (isPrivateOrPassword(info)) {
-            "📋 Colar"
-        } else {
-            val singleLine = clipText.replace("\n", " ").replace("\r", "")
-            val trimmed = if (singleLine.length > 22) singleLine.take(20) + "…" else singleLine
-            "📋 $trimmed"
+
+        lastClipboardText = getClipboardText()
+        lastClipboardImage = getClipboardImage()
+
+        val hasText = !lastClipboardText.isNullOrBlank() && lastClipboardText != lastConsumedClip
+        val hasImage = lastClipboardImage != null && lastClipboardImage?.uri != lastConsumedImageUri
+
+        if (!hasText && !hasImage) {
+            hideClipboardPill()
+            return
         }
-        pill.text = display
-        pill.alpha = 1f
-        pill.visibility = View.VISIBLE
+
+        val container = clipboardContainer ?: return
+
+        if (hasText) {
+            val clipText = lastClipboardText!!
+            val display = if (isPrivateOrPassword(editorInfo)) {
+                "Colar"
+            } else {
+                val singleLine = clipText.replace("\n", " ").replace("\r", "").trim()
+                val trimmed = if (singleLine.length > 20) singleLine.take(18) + "…" else singleLine
+                "Colar: $trimmed"
+            }
+            clipboardTextLabel?.text = display
+            clipboardTextPill?.visibility = View.VISIBLE
+        } else {
+            clipboardTextPill?.visibility = View.GONE
+        }
+
+        if (hasImage) {
+            clipboardImagePill?.visibility = View.VISIBLE
+        } else {
+            clipboardImagePill?.visibility = View.GONE
+        }
+
+        container.alpha = 1f
+        container.visibility = View.VISIBLE
         suggestionContainer?.visibility = View.INVISIBLE
         dragPill?.alpha = 0f
 
-        // Auto-dismiss em 6 segundos se o usuário não tocar no chip
         clipboardDismissRunnable?.let { mainHandler.removeCallbacks(it) }
         clipboardDismissRunnable = Runnable {
             hideClipboardPill()
-            lastConsumedClip = clipText
-            lastClipboardText = null
+            if (hasText) {
+                lastConsumedClip = lastClipboardText
+                lastClipboardText = null
+            }
+            if (hasImage) {
+                lastConsumedImageUri = lastClipboardImage?.uri
+                lastClipboardImage = null
+            }
         }
-        mainHandler.postDelayed(clipboardDismissRunnable!!, 6000L)
+        mainHandler.postDelayed(clipboardDismissRunnable!!, 7000L)
     }
 
     private fun hideClipboardPill() {
@@ -433,9 +576,11 @@ class StitchKeyboardService : InputMethodService() {
             mainHandler.removeCallbacks(it)
             clipboardDismissRunnable = null
         }
-        if (clipboardPill?.visibility != View.GONE) {
-            clipboardPill?.visibility = View.GONE
+        if (clipboardContainer?.visibility != View.GONE) {
+            clipboardContainer?.visibility = View.GONE
         }
+        clipboardTextPill?.visibility = View.GONE
+        clipboardImagePill?.visibility = View.GONE
         if (suggestionContainer?.visibility != View.VISIBLE) {
             suggestionContainer?.visibility = View.VISIBLE
         }
@@ -525,8 +670,8 @@ class StitchKeyboardService : InputMethodService() {
         updateSuggestionView(suggestion1, "")
         updateSuggestionView(suggestion2, "")
         updateSuggestionView(suggestion3, "")
-        if (!lastClipboardText.isNullOrBlank() && lastClipboardText != lastConsumedClip && composingBuffer.isEmpty()) {
-            showClipboardPill(lastClipboardText!!)
+        if (composingBuffer.isEmpty()) {
+            checkAndShowClipboardSuggestions()
         } else {
             hideClipboardPill()
             dragPill?.alpha = 0.5f
@@ -554,11 +699,14 @@ class StitchKeyboardService : InputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
+        isSymbolMode = false
+        isExtendedSymbolMode = false
         localEditCount = 0
         lastAutocorrection = null
         lastUndoneWord = null
         lastCommittedWord = null
         lastClipboardText = null
+        lastClipboardImage = null
         composingBuffer.setLength(0)
         clearPredictionsUi()
         if (::numericRoot.isInitialized) {
@@ -576,6 +724,10 @@ class StitchKeyboardService : InputMethodService() {
     
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        
+        // Garante que SEMPRE abre no modo alfabético (texto) e não de símbolos
+        isSymbolMode = false
+        isExtendedSymbolMode = false
         
         refreshPreferences()
         localEditCount = 0
@@ -608,12 +760,7 @@ class StitchKeyboardService : InputMethodService() {
         updateKeyLabels()
         updateShiftVisuals()
         updateEnterKeyAction(info)
-        lastClipboardText = getClipboardText()
-        if (!lastClipboardText.isNullOrBlank()) {
-            showClipboardPill(lastClipboardText!!)
-        } else {
-            hideClipboardPill()
-        }
+        checkAndShowClipboardSuggestions()
         scheduleAsyncPrediction(composingBuffer.toString())
 
         val scalePref = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
@@ -1182,12 +1329,22 @@ class StitchKeyboardService : InputMethodService() {
                             ic?.commitText(centerCandidate + " ", 1)
                             ic?.endBatchEdit()
                             lastAutocorrection = LastAutocorrection(lastWord, centerCandidate)
+                            
+                            // Aprende transição de bigrama e palavra dinamicamente
+                            if (lastCommittedWord != null && lastCommittedWord != centerCandidate) {
+                                predictionEngine.learnBigram(lastCommittedWord!!, centerCandidate)
+                            }
+                            predictionEngine.learnWord(centerCandidate)
                             lastCommittedWord = centerCandidate
                         } else {
                             localEditCount++
                             ic?.commitText(" ", 1)
                             lastAutocorrection = null
                             if (lastWord.isNotEmpty()) {
+                                if (lastCommittedWord != null && lastCommittedWord != lastWord) {
+                                    predictionEngine.learnBigram(lastCommittedWord!!, lastWord)
+                                }
+                                predictionEngine.learnWord(lastWord)
                                 lastCommittedWord = lastWord
                             }
                         }
@@ -1231,7 +1388,8 @@ class StitchKeyboardService : InputMethodService() {
             if (event.action == android.view.MotionEvent.ACTION_DOWN) {
                 playClickFeedback()
                 triggerVibration()
-                emojiRoot.layoutParams.height = keyboardRoot.height
+                val targetHeight = if (keyboardRoot.height > 0) keyboardRoot.height else (260 * resources.displayMetrics.density).toInt()
+                emojiRoot.layoutParams.height = targetHeight
                 keyboardRoot.visibility = android.view.View.GONE
                 emojiRoot.visibility = android.view.View.VISIBLE
                 v.isPressed = true
@@ -1290,10 +1448,13 @@ class StitchKeyboardService : InputMethodService() {
         suggestion2 = view.findViewById<TextView>(R.id.suggestion_2)
         suggestion3 = view.findViewById<TextView>(R.id.suggestion_3)
         suggestionContainer = view.findViewById<LinearLayout>(R.id.suggestion_container)
-        clipboardPill = view.findViewById<TextView>(R.id.clipboard_pill)
+        clipboardContainer = view.findViewById<LinearLayout>(R.id.clipboard_container)
+        clipboardTextPill = view.findViewById<LinearLayout>(R.id.clipboard_text_pill)
+        clipboardTextLabel = view.findViewById<TextView>(R.id.clipboard_text_label)
+        clipboardImagePill = view.findViewById<LinearLayout>(R.id.clipboard_image_pill)
         val plusBtn = view.findViewById<View>(R.id.key_settings_top)
 
-        clipboardPill?.setOnClickListener {
+        clipboardTextPill?.setOnClickListener {
             val clip = lastClipboardText
             if (!clip.isNullOrBlank()) {
                 val ic = currentInputConnection ?: return@setOnClickListener
@@ -1309,9 +1470,16 @@ class StitchKeyboardService : InputMethodService() {
                     mainHandler.removeCallbacks(it)
                     clipboardDismissRunnable = null
                 }
-                clipboardPill?.animate()?.alpha(0f)?.setDuration(150)?.withEndAction {
+                clipboardContainer?.animate()?.alpha(0f)?.setDuration(150)?.withEndAction {
                     hideClipboardPill()
                 }?.start()
+            }
+        }
+
+        clipboardImagePill?.setOnClickListener {
+            val img = lastClipboardImage
+            if (img != null) {
+                commitClipboardImage(img)
             }
         }
 
@@ -1340,9 +1508,16 @@ class StitchKeyboardService : InputMethodService() {
                 ic.commitText(selectedSuggestion + " ", 1)
                 ic.endBatchEdit()
                 
+                // Aprende transição de bigrama e palavra dinamicamente
+                if (lastCommittedWord != null && lastCommittedWord != selectedSuggestion) {
+                    predictionEngine.learnBigram(lastCommittedWord!!, selectedSuggestion)
+                }
+                predictionEngine.learnWord(selectedSuggestion)
+
                 lastAutocorrection = null
                 lastUndoneWord = null
                 lastClipboardText = null
+                lastClipboardImage = null
                 justCommittedSpace = true
                 lastCommittedWord = selectedSuggestion
                 composingBuffer.setLength(0)
@@ -1905,6 +2080,7 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun showDomainPopup(keyView: View) {
+        if (!keyView.isAttachedToWindow || keyView.windowToken == null) return
         val domains = listOf("/", ".com", ".br", ".org", ".net", ".io")
         val context = keyView.context
         val container = android.widget.LinearLayout(context)
@@ -1934,10 +2110,13 @@ class StitchKeyboardService : InputMethodService() {
         val location = IntArray(2)
         keyView.getLocationInWindow(location)
         val density = resources.displayMetrics.density
-        popupWindow.showAtLocation(keyView, android.view.Gravity.NO_GRAVITY, location[0] + (keyView.width / 2) - (container.measuredWidth / 2), location[1] - container.measuredHeight - (10 * density).toInt())
+        try {
+            popupWindow.showAtLocation(keyView, android.view.Gravity.NO_GRAVITY, location[0] + (keyView.width / 2) - (container.measuredWidth / 2), location[1] - container.measuredHeight - (10 * density).toInt())
+        } catch (_: Exception) {}
     }
 
     private fun showAccentsPopup(keyView: View, char: String) {
+        if (!keyView.isAttachedToWindow || keyView.windowToken == null) return
         if (char == ".") {
             showDomainPopup(keyView)
             return
@@ -1981,6 +2160,8 @@ class StitchKeyboardService : InputMethodService() {
         val location = IntArray(2)
         keyView.getLocationInWindow(location)
         val density = resources.displayMetrics.density
-        popupWindow.showAtLocation(keyView, android.view.Gravity.NO_GRAVITY, location[0] + (keyView.width / 2) - (container.measuredWidth / 2), location[1] - container.measuredHeight - (10 * density).toInt())
+        try {
+            popupWindow.showAtLocation(keyView, android.view.Gravity.NO_GRAVITY, location[0] + (keyView.width / 2) - (container.measuredWidth / 2), location[1] - container.measuredHeight - (10 * density).toInt())
+        } catch (_: Exception) {}
     }
 }

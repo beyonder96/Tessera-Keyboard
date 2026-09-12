@@ -184,5 +184,20 @@ class PredictionEngineTest {
 
         val veAfterEle = testEngine.getPredictions("ve", previousWord = "ele")
         assertEquals("vê", veAfterEle.firstOrNull())
+
+        val nextAfterBom = testEngine.getPredictions("", previousWord = "bom")
+        assertTrue(nextAfterBom.contains("dia"))
+
+        val nextAfterPor = testEngine.getPredictions("", previousWord = "por")
+        assertTrue(nextAfterPor.contains("favor"))
+    }
+
+    @Test
+    fun testModernAccentRestorations() {
+        val testEngine = PredictionEngine()
+        assertEquals("água", testEngine.getPredictions("agua").firstOrNull())
+        assertEquals("opção", testEngine.getPredictions("opcao").firstOrNull())
+        assertEquals("fácil", testEngine.getPredictions("facil").firstOrNull())
+        assertEquals("dúvida", testEngine.getPredictions("duvida").firstOrNull())
     }
 }
