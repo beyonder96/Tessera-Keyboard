@@ -54,7 +54,13 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.manager.LocalDictionaryManager
 import com.example.ui.theme.*
+import com.example.api.GroqClient
+import com.example.api.GroqChatRequest
+import com.example.api.GroqMessage
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -469,6 +475,11 @@ fun TesseraDashboardContent(
 
         // Seção: Inteligência Artificial (Groq Cloud)
         SectionCard(title = "Inteligência Artificial (Groq)") {
+            val context = LocalContext.current
+            val coroutineScope = rememberCoroutineScope()
+            var testStatus by remember { mutableStateOf<String?>(null) }
+            var isTesting by remember { mutableStateOf(false) }
+
             Text(
                 text = "Superpoderes com IA no Teclado",
                 style = MaterialTheme.typography.titleSmall,
@@ -476,18 +487,39 @@ fun TesseraDashboardContent(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Toque no botão da varinha mágica ✨ no teclado para reescrever, corrigir gramática ou autocompletar frases com latência ultrabaixa (~300ms) usando o Groq (Llama 3.1 8B Instant).",
+                text = "O Groq (Llama 3.1 8B Instant) corrige erros de digitação automaticamente no ESPAÇO, aprimora sugestões em tempo real e reescreve textos via ações rápidas.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Slate400
             )
             Spacer(modifier = Modifier.height(12.dp))
-            var keyInput by remember(groqApiKey) { mutableStateOf(groqApiKey) }
+
+            // Status Badge
+            val isKeyConfigured = groqApiKey.isNotBlank() && groqApiKey != "placeholder" && groqApiKey != "MY_GROQ_API_KEY"
+            Surface(
+                color = if (isKeyConfigured) Color(0xFF064E3B).copy(alpha = 0.5f) else Slate900,
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, if (isKeyConfigured) Color(0xFF10B981) else Slate800),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isKeyConfigured) "🟢 Chave ativa e pronta para uso no teclado" else "⚪ Nenhuma chave configurada ainda",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (isKeyConfigured) Color(0xFF34D399) else Slate400
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            var keyInput by remember(groqApiKey) { mutableStateOf(if (groqApiKey == "placeholder" || groqApiKey == "MY_GROQ_API_KEY") "" else groqApiKey) }
+
             OutlinedTextField(
                 value = keyInput,
-                onValueChange = {
-                    keyInput = it
-                    onGroqApiKeyChange(it.trim())
-                },
+                onValueChange = { keyInput = it },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("Cole sua chave da Groq (gsk_...)", color = Slate600) },
                 label = { Text("Chave da API da Groq") },
@@ -503,9 +535,131 @@ fun TesseraDashboardContent(
                     cursorColor = AccentSky
                 )
             )
+
+            if (keyInput.trim().startsWith("gsk_") && !isKeyConfigured) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "✨ Formato de chave Groq válido detectado! Clique em 'Salvar Chave' abaixo.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF34D399)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        val cleaned = keyInput.trim()
+                        onGroqApiKeyChange(cleaned)
+                        testStatus = "Chave salva com sucesso! ✅ Pronta para uso no teclado."
+                        Toast.makeText(context, "Chave da Groq salva com sucesso!", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentSky,
+                        contentColor = Slate950
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Salvar Chave", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        val cleaned = keyInput.trim()
+                        if (cleaned.isBlank()) {
+                            testStatus = "Cole uma chave primeiro para testar."
+                            return@OutlinedButton
+                        }
+                        isTesting = true
+                        testStatus = "Conectando ao Groq (Llama 3.1)..."
+                        coroutineScope.launch {
+                            try {
+                                val startTime = System.currentTimeMillis()
+                                val req = GroqChatRequest(
+                                    model = "llama-3.1-8b-instant",
+                                    messages = listOf(
+                                        GroqMessage(role = "user", content = "Diga apenas: OK")
+                                    ),
+                                    maxTokens = 10
+                                )
+                                val resp = withContext(Dispatchers.IO) {
+                                    GroqClient.service.chatCompletion("Bearer $cleaned", req)
+                                }
+                                val elapsed = System.currentTimeMillis() - startTime
+                                val reply = resp.choices?.firstOrNull()?.message?.content?.trim()
+                                if (!reply.isNullOrBlank()) {
+                                    onGroqApiKeyChange(cleaned)
+                                    testStatus = "✅ Conexão OK! Groq respondendo (${elapsed}ms)."
+                                    Toast.makeText(context, "Groq conectado com sucesso! (${elapsed}ms)", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    testStatus = "⚠️ Groq respondeu, mas retornou vazio."
+                                }
+                            } catch (e: Exception) {
+                                testStatus = "❌ Falha: ${e.localizedMessage ?: e.message}"
+                            } finally {
+                                isTesting = false
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Slate700),
+                    enabled = !isTesting,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        if (isTesting) "Testando..." else "Testar Conexão",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Slate300
+                    )
+                }
+            }
+
+            if (isKeyConfigured) {
+                Spacer(modifier = Modifier.height(6.dp))
+                TextButton(
+                    onClick = {
+                        keyInput = ""
+                        onGroqApiKeyChange("")
+                        testStatus = "Chave da Groq removida."
+                        Toast.makeText(context, "Chave da Groq removida.", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Remover chave do dispositivo", color = Color(0xFFF87171), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            testStatus?.let { status ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    color = if (status.startsWith("✅") || status.contains("sucesso")) Color(0xFF064E3B).copy(alpha = 0.35f)
+                            else if (status.startsWith("❌")) Color(0xFF7F1D1D).copy(alpha = 0.35f)
+                            else Slate900,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, if (status.startsWith("✅") || status.contains("sucesso")) Color(0xFF10B981)
+                                                 else if (status.startsWith("❌")) Color(0xFFEF4444)
+                                                 else Slate800),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = status,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(10.dp),
+                        color = if (status.startsWith("✅") || status.contains("sucesso")) Color(0xFF34D399)
+                               else if (status.startsWith("❌")) Color(0xFFF87171)
+                               else AccentSky
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Gratuito e sem cartão: obtenha sua chave em console.groq.com",
+                text = "Gratuito e sem cartão: obtenha em console.groq.com",
                 style = MaterialTheme.typography.labelSmall,
                 color = AccentSky
             )

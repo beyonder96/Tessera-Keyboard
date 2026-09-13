@@ -48,6 +48,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 class StitchKeyboardService : InputMethodService() {
 
@@ -104,6 +106,12 @@ class StitchKeyboardService : InputMethodService() {
     private var lastConsumedClip: String? = null
     private var clipboardDismissRunnable: Runnable? = null
     private var predictionJob: Job? = null
+    private var aiSuggestionJob: Job? = null
+    private val aiSuggestionCache = java.util.Collections.synchronizedMap(
+        object : java.util.LinkedHashMap<String, Triple<String, String, String>>(50, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Triple<String, String, String>>?): Boolean = size > 50
+        }
+    )
     private var lastQueriedWord: String = ""
     private var cachedKeyboardScale: Float = 1.0f
     private var prefHapticFeedback = true
@@ -602,6 +610,8 @@ class StitchKeyboardService : InputMethodService() {
             return
         }
 
+        aiSuggestionJob?.cancel()
+
         if (word.isEmpty()) {
             predictionJob?.cancel()
             lastQueriedWord = ""
@@ -623,6 +633,7 @@ class StitchKeyboardService : InputMethodService() {
                         dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
                     }
                 }
+                scheduleAiNextWordsEnhancement(previousWord)
             } else {
                 clearPredictionsUi()
             }
@@ -655,6 +666,152 @@ class StitchKeyboardService : InputMethodService() {
                 dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
             }
         }
+
+        if (word.length >= 2) {
+            scheduleAiTypoAndSuggestionEnhancement(word, previousWord)
+        }
+    }
+
+    private fun scheduleAiTypoAndSuggestionEnhancement(word: String, previousWord: String?) {
+        val apiKey = getGroqApiKey()
+        if (apiKey.isBlank() || apiKey == "MY_GROQ_API_KEY" || apiKey == "placeholder" || apiKey == "none") {
+            return
+        }
+
+        val ic = currentInputConnection ?: return
+        val textBefore = ic.getTextBeforeCursor(80, 0)?.toString()?.trim() ?: ""
+
+        val cacheKey = "$textBefore|$word"
+        val cached = aiSuggestionCache[cacheKey]
+        if (cached != null) {
+            applyAiSuggestionsIfMatching(word, cached.first, cached.second, cached.third)
+            return
+        }
+
+        aiSuggestionJob = scope.launch(Dispatchers.IO) {
+            delay(280)
+            if (!isActive) return@launch
+
+            val currentBuffer = withContext(Dispatchers.Main) { composingBuffer.toString() }
+            if (currentBuffer != word) return@launch
+
+            try {
+                val sysPrompt = "Você é o corretor ortográfico e preditor de um teclado inteligente em português do Brasil. Para a palavra atual sendo digitada e seu contexto, responda ESTRITAMENTE no formato:\nCORRECAO|SUGESTAO1|SUGESTAO2\nOnde CORRECAO é a palavra corrigida (corrija erros ortográficos, trocas de letras ou acentuação; se já estiver certa, repita-a), e SUGESTAO1 e SUGESTAO2 são duas continuações muito prováveis.\nExemplo para palavra 'esceção': exceção|de|da\nExemplo para palavra 'faser': fazer|isso|agora\nExemplo para palavra 'pobrema': problema|com|no\nExemplo para palavra 'vc': você|está|vai\nResponda APENAS as 3 palavras separadas por barra vertical '|', sem aspas, explicações ou pontuação extra."
+                val userPrompt = "Contexto anterior: \"$textBefore\"\nPalavra atual: \"$word\""
+
+                val req = GroqChatRequest(
+                    model = "llama-3.1-8b-instant",
+                    messages = listOf(
+                        GroqMessage(role = "system", content = sysPrompt),
+                        GroqMessage(role = "user", content = userPrompt)
+                    ),
+                    temperature = 0.1,
+                    maxTokens = 25
+                )
+
+                val resp = GroqClient.service.chatCompletion("Bearer $apiKey", req)
+                val raw = resp.choices?.firstOrNull()?.message?.content?.trim() ?: return@launch
+                val parts = raw.split("|").map { token ->
+                    token.trim().filter { c -> isWordChar(c) || c == ' ' }
+                }.filter { it.isNotEmpty() }
+
+                if (parts.isNotEmpty()) {
+                    val corrected = parts[0]
+                    val s1 = parts.getOrNull(1) ?: ""
+                    val s2 = parts.getOrNull(2) ?: ""
+                    aiSuggestionCache[cacheKey] = Triple(corrected, s1, s2)
+
+                    withContext(Dispatchers.Main) {
+                        applyAiSuggestionsIfMatching(word, corrected, s1, s2)
+                    }
+                }
+            } catch (_: Exception) {
+                // Silencioso
+            }
+        }
+    }
+
+    private fun scheduleAiNextWordsEnhancement(previousWord: String) {
+        val apiKey = getGroqApiKey()
+        if (apiKey.isBlank() || apiKey == "MY_GROQ_API_KEY" || apiKey == "placeholder" || apiKey == "none") {
+            return
+        }
+
+        val ic = currentInputConnection ?: return
+        val textBefore = ic.getTextBeforeCursor(80, 0)?.toString()?.trim() ?: ""
+
+        val cacheKey = "NEXT:$textBefore"
+        val cached = aiSuggestionCache[cacheKey]
+        if (cached != null) {
+            applyAiNextWordsIfEmpty(cached.first, cached.second, cached.third)
+            return
+        }
+
+        aiSuggestionJob = scope.launch(Dispatchers.IO) {
+            delay(320)
+            if (!isActive) return@launch
+
+            val currentBuffer = withContext(Dispatchers.Main) { composingBuffer.toString() }
+            if (currentBuffer.isNotEmpty()) return@launch
+
+            try {
+                val sysPrompt = "Você é o preditor de próximas palavras de um teclado em português do Brasil. Dado o texto digitado até agora, sugira as 3 palavras mais prováveis e naturais para continuar a frase.\nResponda ESTRITAMENTE no formato:\nPALAVRA1|PALAVRA2|PALAVRA3\nExemplo para 'Muito obrigado pela': atenção|ajuda|oportunidade\nResponda APENAS as 3 palavras separadas por barra vertical sem aspas ou notas."
+                val userPrompt = "Texto: \"$textBefore\""
+
+                val req = GroqChatRequest(
+                    model = "llama-3.1-8b-instant",
+                    messages = listOf(
+                        GroqMessage(role = "system", content = sysPrompt),
+                        GroqMessage(role = "user", content = userPrompt)
+                    ),
+                    temperature = 0.1,
+                    maxTokens = 25
+                )
+
+                val resp = GroqClient.service.chatCompletion("Bearer $apiKey", req)
+                val raw = resp.choices?.firstOrNull()?.message?.content?.trim() ?: return@launch
+                val parts = raw.split("|").map { token ->
+                    token.trim().filter { c -> isWordChar(c) || c == ' ' }
+                }.filter { it.isNotEmpty() }
+
+                if (parts.size >= 2) {
+                    val p1 = parts[0]
+                    val p2 = parts[1]
+                    val p3 = parts.getOrNull(2) ?: ""
+                    aiSuggestionCache[cacheKey] = Triple(p1, p2, p3)
+
+                    withContext(Dispatchers.Main) {
+                        applyAiNextWordsIfEmpty(p1, p2, p3)
+                    }
+                }
+            } catch (_: Exception) {
+                // Silencioso
+            }
+        }
+    }
+
+    private fun applyAiSuggestionsIfMatching(word: String, corrected: String, s1: String, s2: String) {
+        if (composingBuffer.toString() == word) {
+            if (corrected.isNotEmpty()) {
+                updateSuggestionView(suggestion2, corrected)
+            }
+            if (s1.isNotEmpty()) {
+                updateSuggestionView(suggestion1, s1)
+            }
+            if (s2.isNotEmpty()) {
+                updateSuggestionView(suggestion3, s2)
+            }
+            dragPill?.alpha = 0f
+        }
+    }
+
+    private fun applyAiNextWordsIfEmpty(p1: String, p2: String, p3: String) {
+        if (composingBuffer.isEmpty()) {
+            updateSuggestionView(suggestion1, p1)
+            updateSuggestionView(suggestion2, p2)
+            updateSuggestionView(suggestion3, p3)
+            dragPill?.alpha = 0f
+        }
     }
 
     private fun updateSuggestionView(tv: TextView?, text: String) {
@@ -670,6 +827,7 @@ class StitchKeyboardService : InputMethodService() {
 
     private fun clearPredictionsUi() {
         predictionJob?.cancel()
+        aiSuggestionJob?.cancel()
         lastQueriedWord = ""
         updateSuggestionView(suggestion1, "")
         updateSuggestionView(suggestion2, "")
@@ -742,6 +900,7 @@ class StitchKeyboardService : InputMethodService() {
         lastQueriedWord = ""
         composingBuffer.setLength(0)
         aiActionsContainer?.visibility = View.GONE
+        suggestionContainer?.visibility = View.VISIBLE
 
         if (keyPositionCache.isEmpty() && ::keyboardRoot.isInitialized) {
             keyboardRoot.post { prewarmKeyPositions() }
@@ -950,12 +1109,12 @@ class StitchKeyboardService : InputMethodService() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupDragResizer(view: View) {
-        val dragHandle = view.findViewById<View>(R.id.drag_handle_container)
+        val dragHandle = view.findViewById<View>(R.id.drag_pill) ?: return
         var initialY = 0f
         var initialScale = cachedKeyboardScale
         var currentScale = cachedKeyboardScale
         
-        dragHandle?.setOnTouchListener { v, event ->
+        dragHandle.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     initialY = event.rawY
@@ -1547,56 +1706,82 @@ class StitchKeyboardService : InputMethodService() {
         aiActionsContainer = view.findViewById(R.id.ai_actions_container)
         val aiKeyTop = view.findViewById<View>(R.id.key_ai_top)
 
-        aiKeyTop?.setOnClickListener {
-            playClickFeedback()
-            triggerVibration()
-            val aiContainer = aiActionsContainer ?: return@setOnClickListener
-            val isAiVisible = aiContainer.visibility == View.VISIBLE
-            if (isAiVisible) {
-                aiContainer.visibility = View.GONE
-                suggestionContainer?.visibility = View.VISIBLE
-            } else {
-                suggestionContainer?.visibility = View.GONE
-                clipboardContainer?.visibility = View.GONE
-                aiContainer.visibility = View.VISIBLE
+        aiKeyTop?.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.isPressed = true
+                    playClickFeedback()
+                    triggerVibration()
+                    val aiContainer = aiActionsContainer
+                    if (aiContainer != null) {
+                        val isAiVisible = aiContainer.visibility == View.VISIBLE
+                        if (isAiVisible) {
+                            aiContainer.visibility = View.GONE
+                            suggestionContainer?.visibility = View.VISIBLE
+                        } else {
+                            suggestionContainer?.visibility = View.GONE
+                            clipboardContainer?.visibility = View.GONE
+                            aiContainer.visibility = View.VISIBLE
+                            aiContainer.scrollTo(0, 0)
+                        }
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.isPressed = false
+                    true
+                }
+                else -> false
             }
         }
 
-        view.findViewById<View>(R.id.ai_btn_close)?.setOnClickListener {
-            playClickFeedback()
-            triggerVibration()
+        bindAiActionButton(view.findViewById(R.id.ai_btn_close)) {
             aiActionsContainer?.visibility = View.GONE
             suggestionContainer?.visibility = View.VISIBLE
         }
 
-        view.findViewById<View>(R.id.ai_btn_complete)?.setOnClickListener {
-            playClickFeedback()
-            triggerVibration()
+        bindAiActionButton(view.findViewById(R.id.ai_btn_complete)) {
             performGroqAiAction("complete")
         }
 
-        view.findViewById<View>(R.id.ai_btn_correct)?.setOnClickListener {
-            playClickFeedback()
-            triggerVibration()
+        bindAiActionButton(view.findViewById(R.id.ai_btn_correct)) {
             performGroqAiAction("correct")
         }
 
-        view.findViewById<View>(R.id.ai_btn_formal)?.setOnClickListener {
-            playClickFeedback()
-            triggerVibration()
+        bindAiActionButton(view.findViewById(R.id.ai_btn_formal)) {
             performGroqAiAction("formal")
         }
 
-        view.findViewById<View>(R.id.ai_btn_casual)?.setOnClickListener {
-            playClickFeedback()
-            triggerVibration()
+        bindAiActionButton(view.findViewById(R.id.ai_btn_casual)) {
             performGroqAiAction("casual")
         }
 
-        view.findViewById<View>(R.id.ai_btn_shorten)?.setOnClickListener {
-            playClickFeedback()
-            triggerVibration()
+        bindAiActionButton(view.findViewById(R.id.ai_btn_shorten)) {
             performGroqAiAction("shorten")
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun bindAiActionButton(btn: View?, action: () -> Unit) {
+        btn?.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.isPressed = true
+                    playClickFeedback()
+                    triggerVibration()
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    v.isPressed = false
+                    action()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    v.isPressed = false
+                    true
+                }
+                else -> false
+            }
         }
     }
 
@@ -1978,9 +2163,20 @@ class StitchKeyboardService : InputMethodService() {
 
     private fun performGroqAiAction(actionType: String) {
         val ic = currentInputConnection ?: return
-        val extractedText = ic.getTextBeforeCursor(1000, 0)?.toString() ?: ""
-        if (extractedText.isBlank()) {
-            Toast.makeText(this, "Digite algo primeiro...", Toast.LENGTH_SHORT).show()
+        val selectedText = ic.getSelectedText(0)?.toString()?.trim() ?: ""
+        val textBefore = ic.getTextBeforeCursor(1000, 0)?.toString() ?: ""
+        val textAfter = ic.getTextAfterCursor(500, 0)?.toString() ?: ""
+
+        val isSelection = selectedText.isNotBlank()
+        val rawInput = when {
+            isSelection -> selectedText
+            textBefore.isNotBlank() -> textBefore.trim()
+            textAfter.isNotBlank() -> textAfter.trim()
+            else -> ""
+        }
+
+        if (rawInput.isBlank()) {
+            Toast.makeText(this, "Digite algo primeiro no campo de texto...", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -1992,28 +2188,35 @@ class StitchKeyboardService : InputMethodService() {
 
         Toast.makeText(this, "⚡ Processando com Groq...", Toast.LENGTH_SHORT).show()
 
+        // Visual feedback na barra de sugestões
+        aiActionsContainer?.visibility = View.GONE
+        suggestionContainer?.visibility = View.VISIBLE
+        updateSuggestionView(suggestion1, "⏳")
+        updateSuggestionView(suggestion2, "⚡ Processando...")
+        updateSuggestionView(suggestion3, "⏳")
+
         val (systemPrompt, userPrompt) = when (actionType) {
             "complete" -> Pair(
-                "Você é um assistente de teclado preditivo e inteligente. Complete ou continue o texto a seguir em português de forma natural e fluida. Retorne APENAS a continuação ou frase completada, sem aspas, explicações ou comentários.",
-                extractedText
+                "Você é um assistente de escrita preditiva em português do Brasil. Continue ou complete o texto a seguir de forma fluida, coerente e concisa. Retorne ESTRITAMENTE APENAS a continuação (sem repetir o texto original se não for necessário), sem aspas ou notas explicativas.",
+                rawInput
             )
             "correct" -> Pair(
-                "Você é um corretor gramatical e ortográfico em português. Corrija a ortografia, concordância e pontuação do texto a seguir mantendo rigorosamente o significado. Retorne APENAS o texto corrigido, sem aspas, comentários ou explicações.",
-                extractedText
+                "Você é um revisor ortográfico e gramatical experiente de português do Brasil. Corrija rigorosamente todos os erros de ortografia, acentuação, concordância e pontuação do texto a seguir. Mantenha o sentido e estilo originais. Retorne ESTRITAMENTE APENAS o texto corrigido, sem aspas, comentários ou explicações.",
+                rawInput
             )
             "formal" -> Pair(
-                "Reescreva o texto a seguir em português em um tom profissional, educado e formal. Retorne APENAS o texto reescrito, sem aspas ou explicações adicionais.",
-                extractedText
+                "Reescreva o texto a seguir em português culto, elegante e formal, ideal para mensagens profissionais e e-mails. Retorne ESTRITAMENTE APENAS o texto reescrito, sem aspas ou notas adicionais.",
+                rawInput
             )
             "casual" -> Pair(
-                "Reescreva o texto a seguir em português em um tom amigável, leve e descontraído. Retorne APENAS o texto reescrito, sem aspas ou explicações adicionais.",
-                extractedText
+                "Reescreva o texto a seguir em tom amigável, leve e descontraído em português do Brasil. Retorne ESTRITAMENTE APENAS o texto reescrito, sem aspas ou notas adicionais.",
+                rawInput
             )
             "shorten" -> Pair(
-                "Resuma ou encurte o texto a seguir em português de forma concisa e direta, mantendo a ideia principal. Retorne APENAS o texto resumido, sem aspas ou explicações.",
-                extractedText
+                "Resuma o texto a seguir de forma concisa e direta em português do Brasil, preservando a ideia principal. Retorne ESTRITAMENTE APENAS o texto resumido, sem aspas ou explicações.",
+                rawInput
             )
-            else -> Pair("Melhore o texto a seguir.", extractedText)
+            else -> Pair("Melhore o texto a seguir.", rawInput)
         }
 
         scope.launch {
@@ -2024,7 +2227,7 @@ class StitchKeyboardService : InputMethodService() {
                         GroqMessage(role = "system", content = systemPrompt),
                         GroqMessage(role = "user", content = userPrompt)
                     ),
-                    temperature = 0.3,
+                    temperature = 0.2,
                     maxTokens = 512
                 )
 
@@ -2033,22 +2236,33 @@ class StitchKeyboardService : InputMethodService() {
                 }
 
                 val result = response.choices?.firstOrNull()?.message?.content?.trim() ?: ""
-                if (result.isNotBlank()) {
-                    triggerVibration()
-                    if (actionType == "complete") {
-                        val spacePrefix = if (!extractedText.endsWith(" ") && !result.startsWith(" ")) " " else ""
-                        ic.commitText(spacePrefix + result, 1)
+                withContext(Dispatchers.Main) {
+                    if (result.isNotBlank()) {
+                        triggerVibration()
+                        ic.beginBatchEdit()
+                        localEditCount++
+                        if (isSelection) {
+                            ic.commitText(result, 1)
+                        } else if (actionType == "complete") {
+                            val spacePrefix = if (!textBefore.endsWith(" ") && !result.startsWith(" ")) " " else ""
+                            ic.commitText(spacePrefix + result, 1)
+                        } else {
+                            ic.deleteSurroundingText(textBefore.length, 0)
+                            ic.commitText(result, 1)
+                        }
+                        ic.endBatchEdit()
+                        clearPredictionsUi()
+                        Toast.makeText(this@StitchKeyboardService, "✨ Aplicado com sucesso!", Toast.LENGTH_SHORT).show()
                     } else {
-                        ic.deleteSurroundingText(extractedText.length, 0)
-                        ic.commitText(result, 1)
+                        clearPredictionsUi()
+                        Toast.makeText(this@StitchKeyboardService, "Resposta vazia da Groq", Toast.LENGTH_SHORT).show()
                     }
-                    aiActionsContainer?.visibility = View.GONE
-                    suggestionContainer?.visibility = View.VISIBLE
-                } else {
-                    Toast.makeText(this@StitchKeyboardService, "Resposta vazia da Groq", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                Toast.makeText(this@StitchKeyboardService, "Erro Groq: ${e.localizedMessage ?: "Falha na conexão"}", Toast.LENGTH_LONG).show()
+                withContext(Dispatchers.Main) {
+                    clearPredictionsUi()
+                    Toast.makeText(this@StitchKeyboardService, "Erro Groq: ${e.localizedMessage ?: "Falha na conexão"}", Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
