@@ -135,6 +135,9 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
     var keyboardTheme by remember { mutableStateOf(prefs.getString("KEYBOARD_THEME", "Dark") ?: "Dark") }
     var keyboardScale by remember { mutableStateOf(prefs.getFloat("KEYBOARD_SCALE", 1.0f)) }
 
+    // Inteligência Artificial (Groq)
+    var groqApiKey by remember { mutableStateOf(prefs.getString("GROQ_API_KEY", "") ?: "") }
+
     // Dicionário pessoal
     var learnedWords by remember { mutableStateOf(dictManager.getWords().toList().sorted()) }
 
@@ -214,6 +217,11 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
                     keyboardScale = it
                     prefs.edit().putFloat("KEYBOARD_SCALE", it).apply()
                 },
+                groqApiKey = groqApiKey,
+                onGroqApiKeyChange = {
+                    groqApiKey = it
+                    prefs.edit().putString("GROQ_API_KEY", it).apply()
+                },
                 hasMicPermission = hasMicPermission,
                 onRequestMicPermission = {
                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -277,6 +285,8 @@ fun TesseraDashboardContent(
     onThemeChange: (String) -> Unit,
     keyboardScale: Float,
     onScaleChange: (Float) -> Unit,
+    groqApiKey: String,
+    onGroqApiKeyChange: (String) -> Unit,
     hasMicPermission: Boolean,
     onRequestMicPermission: () -> Unit,
     learnedWords: List<String>,
@@ -454,6 +464,50 @@ fun TesseraDashboardContent(
                     activeTrackColor = AccentSky,
                     inactiveTrackColor = Slate800
                 )
+            )
+        }
+
+        // Seção: Inteligência Artificial (Groq Cloud)
+        SectionCard(title = "Inteligência Artificial (Groq)") {
+            Text(
+                text = "Superpoderes com IA no Teclado",
+                style = MaterialTheme.typography.titleSmall,
+                color = Slate100
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Toque no botão da varinha mágica ✨ no teclado para reescrever, corrigir gramática ou autocompletar frases com latência ultrabaixa (~300ms) usando o Groq (Llama 3.1 8B Instant).",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Slate400
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            var keyInput by remember(groqApiKey) { mutableStateOf(groqApiKey) }
+            OutlinedTextField(
+                value = keyInput,
+                onValueChange = {
+                    keyInput = it
+                    onGroqApiKeyChange(it.trim())
+                },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Cole sua chave da Groq (gsk_...)", color = Slate600) },
+                label = { Text("Chave da API da Groq") },
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AccentSky,
+                    unfocusedBorderColor = Slate800,
+                    focusedTextColor = Slate100,
+                    unfocusedTextColor = Slate100,
+                    focusedLabelColor = AccentSky,
+                    unfocusedLabelColor = Slate400,
+                    cursorColor = AccentSky
+                )
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Gratuito e sem cartão: obtenha sua chave em console.groq.com",
+                style = MaterialTheme.typography.labelSmall,
+                color = AccentSky
             )
         }
 

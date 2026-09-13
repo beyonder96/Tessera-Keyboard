@@ -8,6 +8,16 @@
             <TextView android:id="@+id/suggestion_2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:textColor="?attr/stitchTextColor" android:textSize="16sp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackgroundBorderless" />
             <TextView android:id="@+id/suggestion_3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:textColor="?attr/stitchTextColor" android:textSize="16sp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackgroundBorderless" />
         </LinearLayout>
+        <HorizontalScrollView android:id="@+id/ai_actions_container" android:layout_width="match_parent" android:layout_height="match_parent" android:scrollbars="none" android:visibility="gone">
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center_vertical" android:paddingLeft="4dp" android:paddingRight="4dp">
+                <TextView android:id="@+id/ai_btn_complete" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="✨ Completar" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:fontFamily="sans-serif-medium" />
+                <TextView android:id="@+id/ai_btn_correct" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="📝 Corrigir" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:fontFamily="sans-serif-medium" />
+                <TextView android:id="@+id/ai_btn_formal" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="👔 Formal" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:fontFamily="sans-serif-medium" />
+                <TextView android:id="@+id/ai_btn_casual" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="😊 Descontraído" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:fontFamily="sans-serif-medium" />
+                <TextView android:id="@+id/ai_btn_shorten" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="✂️ Resumir" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:fontFamily="sans-serif-medium" />
+                <TextView android:id="@+id/ai_btn_close" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="✕" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:textStyle="bold" />
+            </LinearLayout>
+        </HorizontalScrollView>
         <LinearLayout android:id="@+id/clipboard_container" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:orientation="horizontal" android:visibility="gone">
             <LinearLayout android:id="@+id/clipboard_text_pill" android:layout_width="wrap_content" android:layout_height="28dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:paddingLeft="10dp" android:paddingRight="12dp" android:visibility="gone">
                 <ImageView android:id="@+id/clipboard_text_icon" android:layout_width="14dp" android:layout_height="14dp" android:layout_marginRight="6dp" android:src="@drawable/ic_paste_line" android:tint="?attr/stitchTextColor" android:contentDescription="Colar" />
@@ -19,10 +29,13 @@
             </LinearLayout>
         </LinearLayout>
         <TextView android:id="@+id/key_ia" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+        <FrameLayout android:id="@+id/key_shift_top" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone">
+            <TextView android:id="@+id/text_shift_top" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
+        </FrameLayout>
     </FrameLayout>    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="12dp">
-        <!-- 1: Shift Toggle -->
-        <FrameLayout android:id="@+id/key_shift_top" android:layout_width="0dp" android:layout_weight="1.2" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
-            <TextView android:id="@+id/text_shift_top" android:layout_width="match_parent" android:layout_height="match_parent" android:text="Aa" android:textColor="#FFFFFF" android:textSize="16sp" android:gravity="center" />
+        <!-- 1: AI Magic Wand Toggle (Varinha Mágica / Sparkles) -->
+        <FrameLayout android:id="@+id/key_ai_top" android:layout_width="0dp" android:layout_weight="1.2" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
+            <ImageView android:id="@+id/icon_ai_top" android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_sparkles" android:tint="?attr/stitchTextColor" android:contentDescription="Assistente IA" />
         </FrameLayout>
         
         <!-- 2: White Dot -->

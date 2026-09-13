@@ -9,6 +9,9 @@ import com.example.api.GenerateContentRequest
 import com.example.api.Content
 import com.example.api.Part
 import com.example.api.RetrofitClient
+import com.example.api.GroqChatRequest
+import com.example.api.GroqMessage
+import com.example.api.GroqClient
 import android.annotation.SuppressLint
 import android.inputmethodservice.InputMethodService
 import android.view.KeyEvent
@@ -81,6 +84,7 @@ class StitchKeyboardService : InputMethodService() {
     private lateinit var predictionEngine: com.example.engine.PredictionEngine
     private val ghostTextManager = com.example.manager.GhostTextManager()
     private var suggestionContainer: LinearLayout? = null
+    private var aiActionsContainer: View? = null
     private var suggestion1: android.widget.TextView? = null
     private var suggestion2: android.widget.TextView? = null
     private var suggestion3: android.widget.TextView? = null
@@ -581,7 +585,7 @@ class StitchKeyboardService : InputMethodService() {
         }
         clipboardTextPill?.visibility = View.GONE
         clipboardImagePill?.visibility = View.GONE
-        if (suggestionContainer?.visibility != View.VISIBLE) {
+        if (aiActionsContainer?.visibility != View.VISIBLE && suggestionContainer?.visibility != View.VISIBLE) {
             suggestionContainer?.visibility = View.VISIBLE
         }
         val hasSuggestions = (suggestion1?.text?.isNotEmpty() == true) ||
@@ -737,6 +741,7 @@ class StitchKeyboardService : InputMethodService() {
         ghostTextManager.onStartInput(info)
         lastQueriedWord = ""
         composingBuffer.setLength(0)
+        aiActionsContainer?.visibility = View.GONE
 
         if (keyPositionCache.isEmpty() && ::keyboardRoot.isInitialized) {
             keyboardRoot.post { prewarmKeyPositions() }
@@ -1538,6 +1543,61 @@ class StitchKeyboardService : InputMethodService() {
             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
         }
+
+        aiActionsContainer = view.findViewById(R.id.ai_actions_container)
+        val aiKeyTop = view.findViewById<View>(R.id.key_ai_top)
+
+        aiKeyTop?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            val aiContainer = aiActionsContainer ?: return@setOnClickListener
+            val isAiVisible = aiContainer.visibility == View.VISIBLE
+            if (isAiVisible) {
+                aiContainer.visibility = View.GONE
+                suggestionContainer?.visibility = View.VISIBLE
+            } else {
+                suggestionContainer?.visibility = View.GONE
+                clipboardContainer?.visibility = View.GONE
+                aiContainer.visibility = View.VISIBLE
+            }
+        }
+
+        view.findViewById<View>(R.id.ai_btn_close)?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            aiActionsContainer?.visibility = View.GONE
+            suggestionContainer?.visibility = View.VISIBLE
+        }
+
+        view.findViewById<View>(R.id.ai_btn_complete)?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            performGroqAiAction("complete")
+        }
+
+        view.findViewById<View>(R.id.ai_btn_correct)?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            performGroqAiAction("correct")
+        }
+
+        view.findViewById<View>(R.id.ai_btn_formal)?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            performGroqAiAction("formal")
+        }
+
+        view.findViewById<View>(R.id.ai_btn_casual)?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            performGroqAiAction("casual")
+        }
+
+        view.findViewById<View>(R.id.ai_btn_shorten)?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            performGroqAiAction("shorten")
+        }
     }
 
     private fun setShiftState(shifted: Boolean, immediate: Boolean = false) {
@@ -1903,79 +1963,92 @@ class StitchKeyboardService : InputMethodService() {
         }
     }
 
-    private fun predictWithGemini(view: View) {
+    private fun getGroqApiKey(): String {
+        val keyFromPrefs = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
+            .getString("GROQ_API_KEY", "")?.trim() ?: ""
+        if (keyFromPrefs.isNotBlank()) return keyFromPrefs
+        
+        return try {
+            val field = BuildConfig::class.java.getField("GROQ_API_KEY")
+            (field.get(null) as? String)?.trim() ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    private fun performGroqAiAction(actionType: String) {
         val ic = currentInputConnection ?: return
-        val textBefore = ic.getTextBeforeCursor(200, 0)?.toString() ?: ""
-        if (textBefore.isBlank()) {
+        val extractedText = ic.getTextBeforeCursor(1000, 0)?.toString() ?: ""
+        if (extractedText.isBlank()) {
             Toast.makeText(this, "Digite algo primeiro...", Toast.LENGTH_SHORT).show()
             return
         }
 
-        Toast.makeText(this, "Gerando previsões...", Toast.LENGTH_SHORT).show()
-
-        scope.launch {
-            try {
-                val apiKey = BuildConfig.GEMINI_API_KEY
-                if (apiKey.isBlank()) {
-                    Toast.makeText(this@StitchKeyboardService, "Chave API não configurada", Toast.LENGTH_SHORT).show()
-                    return@launch
-                }
-
-                val prompt = "Baseado no texto: '$textBefore'. Sugira 3 proximas palavras ou frases curtas de autocompletar e 1 emoji. Formato exato: 'sugestao1|sugestao2|sugestao3|emoji'."
-                val request = GenerateContentRequest(
-                    contents = listOf(Content(listOf(Part(prompt))))
-                )
-
-                val response = RetrofitClient.service.generateContent("gemini-3.1-flash-lite", apiKey, request)
-                val result = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
-                
-                val parts = result.trim().split("|")
-                if (parts.size >= 3) {
-                    view.findViewById<TextView>(R.id.suggestion_1)?.text = parts[0].trim()
-                    view.findViewById<TextView>(R.id.suggestion_2)?.text = parts[1].trim()
-                    view.findViewById<TextView>(R.id.suggestion_3)?.text = parts[2].trim()
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this@StitchKeyboardService, "Erro AI: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun rewriteText(tone: String) {
-        val ic = currentInputConnection ?: return
-        
-        val extractedText = ic.getTextBeforeCursor(500, 0)?.toString() ?: ""
-        if (extractedText.isBlank()) {
-            Toast.makeText(this, "Nada para reescrever", Toast.LENGTH_SHORT).show()
-            keyboardRoot.visibility = View.VISIBLE
+        val apiKey = getGroqApiKey()
+        if (apiKey.isBlank() || apiKey == "MY_GROQ_API_KEY" || apiKey == "placeholder" || apiKey == "none") {
+            Toast.makeText(this, "Configure sua chave Groq nas opções do Tessera", Toast.LENGTH_LONG).show()
             return
         }
 
-        Toast.makeText(this, "Reescrevendo...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "⚡ Processando com Groq...", Toast.LENGTH_SHORT).show()
+
+        val (systemPrompt, userPrompt) = when (actionType) {
+            "complete" -> Pair(
+                "Você é um assistente de teclado preditivo e inteligente. Complete ou continue o texto a seguir em português de forma natural e fluida. Retorne APENAS a continuação ou frase completada, sem aspas, explicações ou comentários.",
+                extractedText
+            )
+            "correct" -> Pair(
+                "Você é um corretor gramatical e ortográfico em português. Corrija a ortografia, concordância e pontuação do texto a seguir mantendo rigorosamente o significado. Retorne APENAS o texto corrigido, sem aspas, comentários ou explicações.",
+                extractedText
+            )
+            "formal" -> Pair(
+                "Reescreva o texto a seguir em português em um tom profissional, educado e formal. Retorne APENAS o texto reescrito, sem aspas ou explicações adicionais.",
+                extractedText
+            )
+            "casual" -> Pair(
+                "Reescreva o texto a seguir em português em um tom amigável, leve e descontraído. Retorne APENAS o texto reescrito, sem aspas ou explicações adicionais.",
+                extractedText
+            )
+            "shorten" -> Pair(
+                "Resuma ou encurte o texto a seguir em português de forma concisa e direta, mantendo a ideia principal. Retorne APENAS o texto resumido, sem aspas ou explicações.",
+                extractedText
+            )
+            else -> Pair("Melhore o texto a seguir.", extractedText)
+        }
 
         scope.launch {
             try {
-                val apiKey = BuildConfig.GEMINI_API_KEY
-                if (apiKey.isBlank()) {
-                    return@launch
-                }
-
-                val prompt = "Reescreva o seguinte texto em um tom $tone. Retorne apenas o texto reescrito: '$extractedText'"
-                val request = GenerateContentRequest(
-                    contents = listOf(Content(listOf(Part(prompt))))
+                val request = GroqChatRequest(
+                    model = "llama-3.1-8b-instant",
+                    messages = listOf(
+                        GroqMessage(role = "system", content = systemPrompt),
+                        GroqMessage(role = "user", content = userPrompt)
+                    ),
+                    temperature = 0.3,
+                    maxTokens = 512
                 )
 
-                val response = RetrofitClient.service.generateContent("gemini-3.1-pro-preview", apiKey, request)
-                val result = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
-                
+                val response = withContext(Dispatchers.IO) {
+                    GroqClient.service.chatCompletion("Bearer $apiKey", request)
+                }
+
+                val result = response.choices?.firstOrNull()?.message?.content?.trim() ?: ""
                 if (result.isNotBlank()) {
-                    ic.deleteSurroundingText(extractedText.length, 0)
-                    ic.commitText(result.trim(), 1)
+                    triggerVibration()
+                    if (actionType == "complete") {
+                        val spacePrefix = if (!extractedText.endsWith(" ") && !result.startsWith(" ")) " " else ""
+                        ic.commitText(spacePrefix + result, 1)
+                    } else {
+                        ic.deleteSurroundingText(extractedText.length, 0)
+                        ic.commitText(result, 1)
+                    }
+                    aiActionsContainer?.visibility = View.GONE
+                    suggestionContainer?.visibility = View.VISIBLE
+                } else {
+                    Toast.makeText(this@StitchKeyboardService, "Resposta vazia da Groq", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                Toast.makeText(this@StitchKeyboardService, "Erro AI", Toast.LENGTH_SHORT).show()
-            } finally {
-                keyboardRoot.visibility = View.VISIBLE
+                Toast.makeText(this@StitchKeyboardService, "Erro Groq: ${e.localizedMessage ?: "Falha na conexão"}", Toast.LENGTH_LONG).show()
             }
         }
     }
