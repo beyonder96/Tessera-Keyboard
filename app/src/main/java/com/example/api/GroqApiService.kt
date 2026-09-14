@@ -12,31 +12,31 @@ import java.util.concurrent.TimeUnit
 
 @JsonClass(generateAdapter = true)
 data class GroqChatRequest(
-    val model: String = "llama-3.1-8b-instant",
-    val messages: List<GroqMessage>,
-    val temperature: Double? = 0.5,
-    @param:Json(name = "max_tokens") val maxTokens: Int? = 512
+    @Json(name = "model") val model: String = "llama-3.1-8b-instant",
+    @Json(name = "messages") val messages: List<GroqMessage>,
+    @Json(name = "temperature") val temperature: Double? = 0.3,
+    @Json(name = "max_tokens") val maxTokens: Int? = 512
 )
 
 @JsonClass(generateAdapter = true)
 data class GroqMessage(
-    val role: String,
-    val content: String
+    @Json(name = "role") val role: String,
+    @Json(name = "content") val content: String
 )
 
 @JsonClass(generateAdapter = true)
 data class GroqChatResponse(
-    val choices: List<GroqChoice>? = null
+    @Json(name = "choices") val choices: List<GroqChoice>? = null
 )
 
 @JsonClass(generateAdapter = true)
 data class GroqChoice(
-    val message: GroqMessage? = null,
-    @param:Json(name = "finish_reason") val finishReason: String? = null
+    @Json(name = "message") val message: GroqMessage? = null,
+    @Json(name = "finish_reason") val finishReason: String? = null
 )
 
 interface GroqApiService {
-    @POST("openai/v1/chat/completions")
+    @POST("chat/completions")
     suspend fun chatCompletion(
         @Header("Authorization") authorization: String,
         @Body request: GroqChatRequest
@@ -44,12 +44,20 @@ interface GroqApiService {
 }
 
 object GroqClient {
-    private const val BASE_URL = "https://api.groq.com/"
+    private const val BASE_URL = "https://api.groq.com/openai/v1/"
 
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .header("User-Agent", "TesseraKeyboard/1.0")
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .build()
+            chain.proceed(request)
+        }
         .build()
 
     val service: GroqApiService by lazy {

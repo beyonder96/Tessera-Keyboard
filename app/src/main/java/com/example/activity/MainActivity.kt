@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
@@ -155,6 +156,23 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
         hasMicPermission = granted
     }
 
+    // Permissão de fotos/prints recentes (capturas de tela)
+    val screenshotPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Manifest.permission.READ_MEDIA_IMAGES
+    } else {
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+    var hasScreenshotPermission by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, screenshotPermission) == PackageManager.PERMISSION_GRANTED)
+    }
+    val screenshotPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        hasScreenshotPermission = granted
+        if (granted) {
+            Toast.makeText(context, "Permissão concedida! Prints aparecerão no teclado.", Toast.LENGTH_SHORT).show()
+        }
+    }
+    var suggestScreenshots by remember { mutableStateOf(prefs.getBoolean("PREF_SUGGEST_SCREENSHOTS", true)) }
+
     // Polling contínuo de status com delay suave
     LaunchedEffect(Unit) {
         delay(200) // Simula carregamento suave inicial (Loading State)
@@ -162,6 +180,8 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
         while (true) {
             isEnabled = isKeyboardEnabled(context)
             isSelected = isKeyboardSelected(context)
+            hasScreenshotPermission = ContextCompat.checkSelfPermission(context, screenshotPermission) == PackageManager.PERMISSION_GRANTED
+            hasMicPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
             delay(1000)
         }
     }
@@ -202,6 +222,15 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
                 onKeyPopupChange = {
                     keyPopup = it
                     prefs.edit().putBoolean("PREF_KEY_POPUP", it).apply()
+                },
+                suggestScreenshots = suggestScreenshots,
+                onSuggestScreenshotsChange = {
+                    suggestScreenshots = it
+                    prefs.edit().putBoolean("PREF_SUGGEST_SCREENSHOTS", it).apply()
+                },
+                hasScreenshotPermission = hasScreenshotPermission,
+                onRequestScreenshotPermission = {
+                    screenshotPermissionLauncher.launch(screenshotPermission)
                 },
                 hapticFeedback = hapticFeedback,
                 onHapticFeedbackChange = {
@@ -283,6 +312,10 @@ fun TesseraDashboardContent(
     onAutoCapChange: (Boolean) -> Unit,
     keyPopup: Boolean,
     onKeyPopupChange: (Boolean) -> Unit,
+    suggestScreenshots: Boolean,
+    onSuggestScreenshotsChange: (Boolean) -> Unit,
+    hasScreenshotPermission: Boolean,
+    onRequestScreenshotPermission: () -> Unit,
     hapticFeedback: Boolean,
     onHapticFeedbackChange: (Boolean) -> Unit,
     soundFeedback: Boolean,
@@ -355,6 +388,47 @@ fun TesseraDashboardContent(
                 checked = keyPopup,
                 onCheckedChange = onKeyPopupChange
             )
+            DividerLine()
+            SettingToggle(
+                title = "Colar prints recentes",
+                description = "Exibe botão 'Colar print' no teclado logo após tirar uma captura de tela (igual ao Gboard)",
+                checked = suggestScreenshots && hasScreenshotPermission,
+                onCheckedChange = { checked ->
+                    if (checked && !hasScreenshotPermission) {
+                        onRequestScreenshotPermission()
+                    }
+                    onSuggestScreenshotsChange(checked)
+                }
+            )
+            if (suggestScreenshots && !hasScreenshotPermission) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Permissão de fotos necessária para detectar prints",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = StateWarning,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = onRequestScreenshotPermission,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AccentSkyMuted,
+                            contentColor = AccentSky
+                        ),
+                        border = BorderStroke(1.dp, AccentSky.copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text("Permitir", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
         }
 
         // Seção: Feedback e Resposta Tátil
@@ -588,7 +662,17 @@ fun TesseraDashboardContent(
                                     maxTokens = 10
                                 )
                                 val resp = withContext(Dispatchers.IO) {
-                                    GroqClient.service.chatCompletion("Bearer $cleaned", req)
+                                    try {
+                                        GroqClient.service.chatCompletion("Bearer $cleaned", req)
+                                    } catch (httpEx: retrofit2.HttpException) {
+                                        if (httpEx.code() == 404) {
+                                            // Fallback para llama-3.3-70b-versatile se o modelo 8b retornar 404
+                                            val fallbackReq = req.copy(model = "llama-3.3-70b-versatile")
+                                            GroqClient.service.chatCompletion("Bearer $cleaned", fallbackReq)
+                                        } else {
+                                            throw httpEx
+                                        }
+                                    }
                                 }
                                 val elapsed = System.currentTimeMillis() - startTime
                                 val reply = resp.choices?.firstOrNull()?.message?.content?.trim()
@@ -600,7 +684,23 @@ fun TesseraDashboardContent(
                                     testStatus = "⚠️ Groq respondeu, mas retornou vazio."
                                 }
                             } catch (e: Exception) {
-                                testStatus = "❌ Falha: ${e.localizedMessage ?: e.message}"
+                                val errorDetails = if (e is retrofit2.HttpException) {
+                                    val code = e.code()
+                                    val rawBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
+                                    if (!rawBody.isNullOrBlank()) {
+                                        val match = """"message"\s*:\s*"([^"]+)"""".toRegex().find(rawBody)
+                                        if (match != null) {
+                                            "HTTP $code - ${match.groupValues[1]}"
+                                        } else {
+                                            "HTTP $code: $rawBody"
+                                        }
+                                    } else {
+                                        "HTTP $code"
+                                    }
+                                } else {
+                                    e.localizedMessage ?: e.message ?: "Falha na conexão"
+                                }
+                                testStatus = "❌ Falha: $errorDetails"
                             } finally {
                                 isTesting = false
                             }

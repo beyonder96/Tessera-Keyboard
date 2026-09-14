@@ -23,9 +23,13 @@ import android.view.inputmethod.InputMethodManager
 import android.Manifest
 import android.content.ClipDescription
 import android.content.ClipboardManager
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.ContentObserver
+import android.net.Uri
+import android.provider.MediaStore
 import androidx.core.view.inputmethod.EditorInfoCompat
 import androidx.core.view.inputmethod.InputConnectionCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
@@ -92,7 +96,8 @@ class StitchKeyboardService : InputMethodService() {
     private var suggestion3: android.widget.TextView? = null
     private data class ClipboardImage(
         val uri: android.net.Uri,
-        val mimeType: String
+        val mimeType: String,
+        val isScreenshot: Boolean = false
     )
     private var lastClipboardImage: ClipboardImage? = null
     private var lastConsumedImageUri: android.net.Uri? = null
@@ -100,6 +105,9 @@ class StitchKeyboardService : InputMethodService() {
     private var clipboardTextPill: LinearLayout? = null
     private var clipboardTextLabel: TextView? = null
     private var clipboardImagePill: LinearLayout? = null
+    private var clipboardImageLabel: TextView? = null
+    private var screenshotObserver: ContentObserver? = null
+    private var prefSuggestScreenshots = true
     private var dragPill: android.view.View? = null
     private var enterIcon: android.widget.ImageView? = null
     private var lastClipboardText: String? = null
@@ -156,6 +164,7 @@ class StitchKeyboardService : InputMethodService() {
         prefAutocorrect = sp.getBoolean("PREF_AUTOCORRECT", true)
         prefAutoCapitalize = sp.getBoolean("PREF_AUTO_CAP", true)
         prefDoubleSpacePeriod = sp.getBoolean("PREF_DOUBLE_SPACE_PERIOD", true)
+        prefSuggestScreenshots = sp.getBoolean("PREF_SUGGEST_SCREENSHOTS", true)
     }
 
     override fun onCreateInputView(): View {
@@ -467,6 +476,118 @@ class StitchKeyboardService : InputMethodService() {
         }
     }
 
+    private fun getRecentScreenshotImage(): ClipboardImage? {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            return null
+        }
+
+        val cutoffSeconds = (System.currentTimeMillis() / 1000L) - 180L // últimos 3 minutos
+        val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+
+        val projection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            arrayOf(
+                MediaStore.Images.Media._ID,
+                MediaStore.Images.Media.MIME_TYPE,
+                MediaStore.Images.Media.DATE_ADDED,
+                MediaStore.Images.Media.DISPLAY_NAME,
+                MediaStore.Images.Media.RELATIVE_PATH
+            )
+        } else {
+            arrayOf(
+                MediaStore.Images.Media._ID,
+                MediaStore.Images.Media.MIME_TYPE,
+                MediaStore.Images.Media.DATE_ADDED,
+                MediaStore.Images.Media.DATA
+            )
+        }
+
+        val selection = "${MediaStore.Images.Media.DATE_ADDED} >= ?"
+        val selectionArgs = arrayOf(cutoffSeconds.toString())
+        val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
+
+        try {
+            contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE)
+                val nameCol = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    cursor.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME)
+                } else -1
+                val pathCol = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    cursor.getColumnIndex(MediaStore.Images.Media.RELATIVE_PATH)
+                } else {
+                    cursor.getColumnIndex(MediaStore.Images.Media.DATA)
+                }
+
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idCol)
+                    val mime = cursor.getString(mimeCol) ?: "image/png"
+                    val name = if (nameCol >= 0) cursor.getString(nameCol) ?: "" else ""
+                    val path = if (pathCol >= 0) cursor.getString(pathCol) ?: "" else ""
+
+                    val isScreenshot = path.contains("screenshot", ignoreCase = true) ||
+                                      path.contains("captura", ignoreCase = true) ||
+                                      path.contains("print", ignoreCase = true) ||
+                                      name.contains("screenshot", ignoreCase = true) ||
+                                      name.contains("captura", ignoreCase = true) ||
+                                      name.contains("print", ignoreCase = true)
+
+                    if (isScreenshot) {
+                        val contentUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+                        if (contentUri != lastConsumedImageUri) {
+                            return ClipboardImage(contentUri, mime, isScreenshot = true)
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Silencioso se houver restrição
+        }
+        return null
+    }
+
+    private fun registerScreenshotObserver() {
+        if (screenshotObserver != null) return
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+        try {
+            screenshotObserver = object : ContentObserver(mainHandler) {
+                override fun onChange(selfChange: Boolean, uri: Uri?) {
+                    super.onChange(selfChange, uri)
+                    if (prefSuggestScreenshots && isInputViewShown) {
+                        mainHandler.postDelayed({
+                            checkAndShowClipboardSuggestions()
+                        }, 500L)
+                    }
+                }
+            }
+            contentResolver.registerContentObserver(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                true,
+                screenshotObserver!!
+            )
+        } catch (_: Exception) {}
+    }
+
+    private fun unregisterScreenshotObserver() {
+        screenshotObserver?.let {
+            try {
+                contentResolver.unregisterContentObserver(it)
+            } catch (_: Exception) {}
+            screenshotObserver = null
+        }
+    }
+
     private fun commitClipboardImage(image: ClipboardImage) {
         val ic = currentInputConnection ?: return
         val info = currentInputEditorInfo ?: return
@@ -474,7 +595,7 @@ class StitchKeyboardService : InputMethodService() {
         val supportedMimes = EditorInfoCompat.getContentMimeTypes(info)
         var isSupported = false
         for (mime in supportedMimes) {
-            if (ClipDescription.compareMimeTypes(mime, image.mimeType)) {
+            if (ClipDescription.compareMimeTypes(image.mimeType, mime)) {
                 isSupported = true
                 break
             }
@@ -488,7 +609,8 @@ class StitchKeyboardService : InputMethodService() {
             return
         }
 
-        val description = ClipDescription("Clipboard Image", arrayOf(image.mimeType))
+        val label = if (image.isScreenshot) "Captura de tela" else "Clipboard Image"
+        val description = ClipDescription(label, arrayOf(image.mimeType))
         val contentInfo = InputContentInfoCompat(
             image.uri,
             description,
@@ -530,7 +652,7 @@ class StitchKeyboardService : InputMethodService() {
         }
 
         lastClipboardText = getClipboardText()
-        lastClipboardImage = getClipboardImage()
+        lastClipboardImage = getClipboardImage() ?: if (prefSuggestScreenshots) getRecentScreenshotImage() else null
 
         val hasText = !lastClipboardText.isNullOrBlank() && lastClipboardText != lastConsumedClip
         val hasImage = lastClipboardImage != null && lastClipboardImage?.uri != lastConsumedImageUri
@@ -558,6 +680,8 @@ class StitchKeyboardService : InputMethodService() {
         }
 
         if (hasImage) {
+            val img = lastClipboardImage!!
+            clipboardImageLabel?.text = if (img.isScreenshot) "Colar print" else "Colar foto"
             clipboardImagePill?.visibility = View.VISIBLE
         } else {
             clipboardImagePill?.visibility = View.GONE
@@ -861,6 +985,7 @@ class StitchKeyboardService : InputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
+        unregisterScreenshotObserver()
         isSymbolMode = false
         isExtendedSymbolMode = false
         localEditCount = 0
@@ -892,6 +1017,7 @@ class StitchKeyboardService : InputMethodService() {
         isExtendedSymbolMode = false
         
         refreshPreferences()
+        registerScreenshotObserver()
         localEditCount = 0
         lastAutocorrection = null
         lastUndoneWord = null
@@ -1616,6 +1742,7 @@ class StitchKeyboardService : InputMethodService() {
         clipboardTextPill = view.findViewById<LinearLayout>(R.id.clipboard_text_pill)
         clipboardTextLabel = view.findViewById<TextView>(R.id.clipboard_text_label)
         clipboardImagePill = view.findViewById<LinearLayout>(R.id.clipboard_image_pill)
+        clipboardImageLabel = view.findViewById<TextView>(R.id.clipboard_image_label)
         val plusBtn = view.findViewById<View>(R.id.key_settings_top)
 
         clipboardTextPill?.setOnClickListener {
@@ -2357,6 +2484,7 @@ class StitchKeyboardService : InputMethodService() {
     
     override fun onDestroy() {
         super.onDestroy()
+        unregisterScreenshotObserver()
         clipboardDismissRunnable?.let { mainHandler.removeCallbacks(it) }
         predictionJob?.cancel()
         waveJob?.cancel()
