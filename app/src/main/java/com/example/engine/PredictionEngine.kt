@@ -384,25 +384,74 @@ class PredictionEngine(
         return result.take(3)
     }
 
-    fun getSwipePrediction(swipePattern: String): String? {
-        if (swipePattern.length < 2) return null
+    fun getSwipePredictions(swipePattern: String): List<String> {
+        if (swipePattern.length < 2) return emptyList()
         val lower = TrieDictionary.normalizeFast(swipePattern)
-        if (lower.isEmpty()) return null
+        if (lower.length < 2) return emptyList()
         val firstChar = lower.first()
         val lastChar = lower.last()
 
-        val matches = normalizedStatic.filter { (word, norm) ->
-            if (norm.isEmpty() || norm.first() != firstChar || norm.last() != lastChar) return@filter false
-            var wordIdx = 0
-            for (i in 0 until lower.length) {
-                val char = lower[i]
-                if (wordIdx < norm.length && char == norm[wordIdx]) {
-                    wordIdx++
+        val results = mutableListOf<String>()
+
+        // 1. Busca nos termos canônicos e estáticos de alta frequência
+        val candidates = normalizedStatic.filter { (word, norm) ->
+            if (norm.length < 2) return@filter false
+            if (norm.first() != firstChar || norm.last() != lastChar) return@filter false
+            
+            // Verifica subsequência
+            var pIdx = 0
+            for (i in 0 until norm.length) {
+                val c = norm[i]
+                while (pIdx < lower.length && lower[pIdx] != c) {
+                    pIdx++
                 }
+                if (pIdx >= lower.length) return@filter false
+                pIdx++
             }
-            wordIdx == norm.length
+            true
         }
 
-        return matches.sortedBy { it.first.length }.firstOrNull()?.first
+        // Ordena pela diferença de tamanho em relação ao padrão do swipe
+        val sortedCandidates = candidates.sortedWith(
+            compareBy(
+                { Math.abs(it.second.length - lower.length) },
+                { -it.first.length }
+            )
+        ).map { it.first }
+
+        results.addAll(sortedCandidates)
+
+        // 2. Se não encontrou no estático, busca na Trie pelo prefixo inicial
+        if (results.size < 3) {
+            val trieMatches = trie.findTopSuggestions(firstChar.toString(), maxCount = 25, excludeExact = false)
+            for (w in trieMatches) {
+                val norm = TrieDictionary.normalizeFast(w)
+                if (norm.length >= 2 && norm.first() == firstChar && norm.last() == lastChar) {
+                    var pIdx = 0
+                    var matched = true
+                    for (i in 0 until norm.length) {
+                        val c = norm[i]
+                        while (pIdx < lower.length && lower[pIdx] != c) {
+                            pIdx++
+                        }
+                        if (pIdx >= lower.length) {
+                            matched = false
+                            break
+                        }
+                        pIdx++
+                    }
+                    if (matched && !results.any { it.equals(w, ignoreCase = true) }) {
+                        results.add(w)
+                        if (results.size >= 3) break
+                    }
+                }
+            }
+        }
+
+        return results.take(3)
+    }
+
+    fun getSwipePrediction(swipePattern: String): String? {
+        return getSwipePredictions(swipePattern).firstOrNull()
     }
 }

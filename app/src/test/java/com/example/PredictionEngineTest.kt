@@ -200,4 +200,18 @@ class PredictionEngineTest {
         assertEquals("fácil", testEngine.getPredictions("facil").firstOrNull())
         assertEquals("dúvida", testEngine.getPredictions("duvida").firstOrNull())
     }
+
+    @Test
+    fun testSwipePredictions() {
+        val testEngine = PredictionEngine()
+        val predictions = testEngine.getSwipePredictions("obrigado")
+        assertTrue(predictions.contains("obrigado"))
+
+        val bomPredictions = testEngine.getSwipePredictions("bom")
+        assertTrue(bomPredictions.contains("bom"))
+
+        val vocePredictions = testEngine.getSwipePredictions("voce")
+        assertTrue(vocePredictions.contains("você") || vocePredictions.contains("voce"))
+    }
 }
+

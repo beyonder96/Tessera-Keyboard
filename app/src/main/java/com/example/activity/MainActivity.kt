@@ -133,9 +133,12 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
     var doubleSpacePeriod by remember { mutableStateOf(prefs.getBoolean("PREF_DOUBLE_SPACE_PERIOD", true)) }
     var autoCap by remember { mutableStateOf(prefs.getBoolean("PREF_AUTO_CAP", true)) }
     var keyPopup by remember { mutableStateOf(prefs.getBoolean("PREF_KEY_POPUP", true)) }
+    var numberRow by remember { mutableStateOf(prefs.getBoolean("PREF_NUMBER_ROW", false)) }
+    var glideTyping by remember { mutableStateOf(prefs.getBoolean("PREF_GLIDE_TYPING", true)) }
 
     // Preferências de Feedback
     var hapticFeedback by remember { mutableStateOf(prefs.getBoolean("PREF_HAPTIC_FEEDBACK", true)) }
+    var hapticDurationMs by remember { mutableStateOf(prefs.getInt("PREF_HAPTIC_DURATION_MS", 15)) }
     var soundFeedback by remember { mutableStateOf(prefs.getBoolean("PREF_SOUND_FEEDBACK", false)) }
 
     // Tema e Escala
@@ -223,6 +226,16 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
                     keyPopup = it
                     prefs.edit().putBoolean("PREF_KEY_POPUP", it).apply()
                 },
+                numberRow = numberRow,
+                onNumberRowChange = {
+                    numberRow = it
+                    prefs.edit().putBoolean("PREF_NUMBER_ROW", it).apply()
+                },
+                glideTyping = glideTyping,
+                onGlideTypingChange = {
+                    glideTyping = it
+                    prefs.edit().putBoolean("PREF_GLIDE_TYPING", it).apply()
+                },
                 suggestScreenshots = suggestScreenshots,
                 onSuggestScreenshotsChange = {
                     suggestScreenshots = it
@@ -236,6 +249,19 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
                 onHapticFeedbackChange = {
                     hapticFeedback = it
                     prefs.edit().putBoolean("PREF_HAPTIC_FEEDBACK", it).apply()
+                },
+                hapticDurationMs = hapticDurationMs,
+                onHapticDurationChange = { ms ->
+                    hapticDurationMs = ms
+                    prefs.edit().putInt("PREF_HAPTIC_DURATION_MS", ms).apply()
+                    try {
+                        val vib = context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            vib?.vibrate(android.os.VibrationEffect.createOneShot(ms.toLong(), android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                        } else {
+                            vib?.vibrate(ms.toLong())
+                        }
+                    } catch (_: Exception) {}
                 },
                 soundFeedback = soundFeedback,
                 onSoundFeedbackChange = {
@@ -312,12 +338,18 @@ fun TesseraDashboardContent(
     onAutoCapChange: (Boolean) -> Unit,
     keyPopup: Boolean,
     onKeyPopupChange: (Boolean) -> Unit,
+    numberRow: Boolean,
+    onNumberRowChange: (Boolean) -> Unit,
+    glideTyping: Boolean,
+    onGlideTypingChange: (Boolean) -> Unit,
     suggestScreenshots: Boolean,
     onSuggestScreenshotsChange: (Boolean) -> Unit,
     hasScreenshotPermission: Boolean,
     onRequestScreenshotPermission: () -> Unit,
     hapticFeedback: Boolean,
     onHapticFeedbackChange: (Boolean) -> Unit,
+    hapticDurationMs: Int,
+    onHapticDurationChange: (Int) -> Unit,
     soundFeedback: Boolean,
     onSoundFeedbackChange: (Boolean) -> Unit,
     keyboardTheme: String,
@@ -390,6 +422,20 @@ fun TesseraDashboardContent(
             )
             DividerLine()
             SettingToggle(
+                title = "Linha Numérica Superior",
+                description = "Linha fixa com números de 0 a 9 acima do teclado alfabético",
+                checked = numberRow,
+                onCheckedChange = onNumberRowChange
+            )
+            DividerLine()
+            SettingToggle(
+                title = "Digitação por Gestos (Glide Typing)",
+                description = "Deslize o dedo pelas letras para digitar palavras continuamente",
+                checked = glideTyping,
+                onCheckedChange = onGlideTypingChange
+            )
+            DividerLine()
+            SettingToggle(
                 title = "Colar prints recentes",
                 description = "Exibe botão 'Colar print' no teclado logo após tirar uma captura de tela (igual ao Gboard)",
                 checked = suggestScreenshots && hasScreenshotPermission,
@@ -439,6 +485,39 @@ fun TesseraDashboardContent(
                 checked = hapticFeedback,
                 onCheckedChange = onHapticFeedbackChange
             )
+            if (hapticFeedback) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Intensidade da Vibração",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Slate300
+                    )
+                    Text(
+                        text = "${hapticDurationMs}ms",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = AccentSky
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Slider(
+                    value = hapticDurationMs.toFloat(),
+                    onValueChange = { newValue ->
+                        onHapticDurationChange(newValue.toInt())
+                    },
+                    valueRange = 1f..50f,
+                    steps = 49,
+                    colors = SliderDefaults.colors(
+                        thumbColor = AccentSky,
+                        activeTrackColor = AccentSky,
+                        inactiveTrackColor = Slate800
+                    )
+                )
+            }
             DividerLine()
             SettingToggle(
                 title = "Som ao tocar",

@@ -44,19 +44,36 @@
             <View android:layout_width="10dp" android:layout_height="10dp" android:background="@drawable/bg_circle_white" android:layout_gravity="center" />
         </FrameLayout>
         
-        <!-- 3: Emoji Menu -->
+        <!-- 3: Clipboard History Menu -->
+        <FrameLayout android:id="@+id/key_clipboard_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
+            <ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:src="@drawable/ic_paste_line" android:tint="?attr/stitchTextColor" android:contentDescription="Área de Transferência" />
+        </FrameLayout>
+
+        <!-- 4: Emoji Menu -->
         <FrameLayout android:id="@+id/key_emoji_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
             <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_emoji_line" android:contentDescription="Emojis" />
         </FrameLayout>
 
-        <!-- 4: Settings Menu -->
+        <!-- 5: Settings Menu -->
         <FrameLayout android:id="@+id/key_settings_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true">
             <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_settings_line" android:contentDescription="Configurações" />
         </FrameLayout>
     </LinearLayout>
     <RelativeLayout android:layout_width="match_parent" android:layout_height="wrap_content">
     <LinearLayout android:id="@+id/keys_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:splitMotionEvents="true">
-    <LinearLayout android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" android:weightSum="10" android:gravity="center" android:splitMotionEvents="true">
+        <LinearLayout android:id="@+id/number_row_container" android:layout_width="match_parent" android:layout_height="44dp" android:orientation="horizontal" android:weightSum="10" android:gravity="center" android:visibility="gone" android:layout_marginBottom="4dp" android:splitMotionEvents="true">
+            <TextView android:id="@+id/num_row_1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="1" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
+            <TextView android:id="@+id/num_row_2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="2" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
+            <TextView android:id="@+id/num_row_3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="3" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
+            <TextView android:id="@+id/num_row_4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="4" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
+            <TextView android:id="@+id/num_row_5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="5" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
+            <TextView android:id="@+id/num_row_6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="6" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
+            <TextView android:id="@+id/num_row_7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="7" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
+            <TextView android:id="@+id/num_row_8" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="8" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
+            <TextView android:id="@+id/num_row_9" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="9" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
+            <TextView android:id="@+id/num_row_0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="0" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" android:weightSum="10" android:gravity="center" android:splitMotionEvents="true">
         <TextView android:id="@+id/key_q" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="Q" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
         <TextView android:id="@+id/key_w" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="W" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
         <TextView android:id="@+id/key_e" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="E" android:textColor="?attr/stitchTextColor" android:textSize="21sp" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif-light" />
@@ -115,6 +132,13 @@
 
     </LinearLayout>
 
+    <com.example.ui.widget.SwipeTrailView
+        android:id="@+id/swipe_trail_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_alignTop="@id/keys_container"
+        android:layout_alignBottom="@id/keys_container" />
+
 </RelativeLayout>
 
 </LinearLayout>
@@ -134,15 +158,27 @@
         <ImageButton android:id="@+id/btn_close_voice" android:layout_width="48dp" android:layout_height="48dp" android:background="@drawable/bg_command_pill" android:src="@drawable/ic_backspace" android:contentDescription="Cancelar" android:tint="?attr/stitchTextColor" android:padding="12dp" android:scaleType="fitCenter" />
     </LinearLayout>
     <LinearLayout android:id="@+id/emoji_ui_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@android:color/transparent" android:visibility="gone" android:padding="8dp">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="end|center_vertical" android:layout_marginBottom="8dp">
-            <TextView android:id="@+id/btn_close_emoji" android:layout_width="wrap_content" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:text="ABC" android:textColor="?attr/stitchTextColor" android:textSize="14sp" android:textStyle="bold" android:gravity="center" android:paddingHorizontal="16dp" android:clickable="true" android:focusable="true" />
+        <!-- Emoji Header with Search Bar and ABC Button -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
+            <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="34dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/bg_command_pill" android:paddingHorizontal="10dp" android:layout_marginRight="8dp">
+                <ImageView android:layout_width="15dp" android:layout_height="15dp" android:src="@drawable/ic_search_line" android:tint="?attr/stitchTextColor" android:alpha="0.6" android:layout_marginRight="6dp" />
+                <EditText android:id="@+id/emoji_search_input" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:background="@null" android:hint="Buscar emojis..." android:textColorHint="?attr/stitchTextColor" android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:singleLine="true" android:imeOptions="actionDone" />
+                <ImageView android:id="@+id/btn_clear_emoji_search" android:layout_width="16dp" android:layout_height="16dp" android:src="@drawable/ic_backspace" android:tint="?attr/stitchTextColor" android:alpha="0.6" android:visibility="gone" android:clickable="true" android:focusable="true" />
+            </LinearLayout>
+            <TextView android:id="@+id/btn_close_emoji" android:layout_width="wrap_content" android:layout_height="34dp" android:background="@drawable/bg_command_pill" android:text="ABC" android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:textStyle="bold" android:gravity="center" android:paddingHorizontal="14dp" android:clickable="true" android:focusable="true" />
         </LinearLayout>
         
+        <!-- Search Results View (dynamically shown when searching) -->
+        <ScrollView android:id="@+id/emoji_search_scroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scrollbars="none" android:visibility="gone">
+            <GridLayout android:id="@+id/emoji_search_results_grid" android:layout_width="match_parent" android:layout_height="wrap_content" android:columnCount="8" android:useDefaultMargins="true" />
+        </ScrollView>
+
+        <!-- Standard Categories List (shown when not searching) -->
         <ScrollView android:id="@+id/emoji_scroll_view" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scrollbars="none">
             <LinearLayout android:id="@+id/emoji_lists_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
         </ScrollView>
         
-        <HorizontalScrollView android:layout_width="match_parent" android:layout_height="44dp" android:layout_marginTop="8dp" android:scrollbars="none">
+        <HorizontalScrollView android:id="@+id/emoji_category_bar" android:layout_width="match_parent" android:layout_height="44dp" android:layout_marginTop="8dp" android:scrollbars="none">
             <LinearLayout android:layout_width="wrap_content" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center" android:background="@drawable/bg_command_pill" android:paddingHorizontal="4dp">
                 <TextView android:id="@+id/cat_smileys" android:layout_width="44dp" android:layout_height="match_parent" android:text="😀" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
                 <TextView android:id="@+id/cat_people" android:layout_width="44dp" android:layout_height="match_parent" android:text="👋" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
@@ -196,5 +232,21 @@
             <TextView android:id="@+id/num_key_dot" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="." android:textColor="?attr/stitchTextColor" android:textSize="24sp" android:fontFamily="sans-serif-light" android:gravity="center" android:background="@drawable/bg_key_circle" android:clickable="true" android:focusable="true" />
         </LinearLayout>
     </LinearLayout>
+    <LinearLayout android:id="@+id/clipboard_history_ui_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@drawable/bg_floating_keyboard" android:paddingLeft="8dp" android:paddingRight="8dp" android:paddingTop="12dp" android:paddingBottom="56dp" android:visibility="gone" android:clickable="true" android:focusable="true">
+        <!-- Top Toolbar -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
+            <ImageView android:layout_width="16dp" android:layout_height="16dp" android:src="@drawable/ic_paste_line" android:tint="?attr/stitchTextColor" android:layout_marginRight="6dp" />
+            <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Área de Transferência" android:textColor="?attr/stitchTextColor" android:textSize="14sp" android:fontFamily="sans-serif-medium" />
+            <TextView android:id="@+id/btn_clear_clipboard" android:layout_width="wrap_content" android:layout_height="30dp" android:background="@drawable/bg_command_pill" android:text="Limpar" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:gravity="center" android:paddingHorizontal="10dp" android:layout_marginRight="6dp" android:clickable="true" android:focusable="true" />
+            <TextView android:id="@+id/btn_close_clipboard" android:layout_width="wrap_content" android:layout_height="30dp" android:background="@drawable/bg_command_pill" android:text="ABC" android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:textStyle="bold" android:gravity="center" android:paddingHorizontal="14dp" android:clickable="true" android:focusable="true" />
+        </LinearLayout>
+
+        <TextView android:id="@+id/clipboard_empty_text" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Nenhum item copiado recentemente." android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:gravity="center" android:alpha="0.5" android:layout_marginTop="24dp" android:visibility="gone" />
+
+        <ScrollView android:id="@+id/clipboard_scroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scrollbars="none">
+            <LinearLayout android:id="@+id/clipboard_entries_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+        </ScrollView>
+    </LinearLayout>
+
 <LinearLayout android:id="@+id/key_preview_popup" android:layout_width="54dp" android:layout_height="60dp" android:orientation="vertical" android:background="@drawable/bg_preview_popup" android:gravity="center" android:visibility="gone"><TextView android:id="@+id/key_preview_text" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="?attr/stitchGlowColor" android:textSize="26sp" android:textStyle="normal" android:fontFamily="sans-serif-light" /></LinearLayout>
 </FrameLayout>

@@ -46,6 +46,17 @@ import android.view.ContextThemeWrapper
 import android.os.Vibrator
 import android.os.VibrationEffect
 import android.os.Build
+import android.graphics.Rect
+import android.view.Gravity
+import android.view.HapticFeedbackConstants
+import android.text.TextWatcher
+import android.text.Editable
+import android.widget.EditText
+import android.widget.ScrollView
+import android.widget.GridLayout
+import com.example.manager.ClipboardHistoryManager
+import com.example.ui.widget.SwipeTrailView
+import com.example.engine.EmojiDictionary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -123,6 +134,9 @@ class StitchKeyboardService : InputMethodService() {
     private var lastQueriedWord: String = ""
     private var cachedKeyboardScale: Float = 1.0f
     private var prefHapticFeedback = true
+    private var prefHapticDurationMs = 15
+    private var prefNumberRow = false
+    private var prefGlideTyping = true
     private var prefSoundFeedback = false
     private var prefKeyPopup = true
     private var prefAutocorrect = true
@@ -130,6 +144,13 @@ class StitchKeyboardService : InputMethodService() {
     private var prefDoubleSpacePeriod = true
     private var lastCommittedWord: String? = null
     
+    // Novas instâncias e views
+    private lateinit var clipboardHistoryManager: ClipboardHistoryManager
+    private lateinit var clipboardHistoryRoot: View
+    private var swipeTrailView: SwipeTrailView? = null
+    private var numberRowContainer: View? = null
+    private val keyBoundsMap = mutableMapOf<Char, Rect>()
+
     // Wave animation bars
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
@@ -149,6 +170,7 @@ class StitchKeyboardService : InputMethodService() {
         super.onCreate()
         localDict = com.example.manager.LocalDictionaryManager(this)
         predictionEngine = com.example.engine.PredictionEngine(localDict, this)
+        clipboardHistoryManager = ClipboardHistoryManager(this)
         vibrator = getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
         audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
         inputMethodManager = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
@@ -159,6 +181,9 @@ class StitchKeyboardService : InputMethodService() {
     private fun refreshPreferences() {
         val sp = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
         prefHapticFeedback = sp.getBoolean("PREF_HAPTIC_FEEDBACK", true)
+        prefHapticDurationMs = sp.getInt("PREF_HAPTIC_DURATION_MS", 15)
+        prefNumberRow = sp.getBoolean("PREF_NUMBER_ROW", false)
+        prefGlideTyping = sp.getBoolean("PREF_GLIDE_TYPING", true)
         prefSoundFeedback = sp.getBoolean("PREF_SOUND_FEEDBACK", false)
         prefKeyPopup = sp.getBoolean("PREF_KEY_POPUP", true)
         prefAutocorrect = sp.getBoolean("PREF_AUTOCORRECT", true)
@@ -188,6 +213,23 @@ class StitchKeyboardService : InputMethodService() {
             voiceText = keyboardView.findViewById(R.id.voice_text)
             previewPopupText = keyboardView.findViewById(R.id.key_preview_text)
 
+            clipboardHistoryRoot = keyboardView.findViewById(R.id.clipboard_history_ui_root)
+            swipeTrailView = keyboardView.findViewById(R.id.swipe_trail_view)
+            val typedGlow = android.util.TypedValue()
+            theme.resolveAttribute(R.attr.stitchGlowColor, typedGlow, true)
+            swipeTrailView?.setTrailColor(typedGlow.data)
+
+            keyboardView.findViewById<View>(R.id.btn_close_clipboard)?.setOnClickListener {
+                playClickFeedback()
+                hideClipboardHistory()
+            }
+            keyboardView.findViewById<View>(R.id.btn_clear_clipboard)?.setOnClickListener {
+                playClickFeedback()
+                triggerVibration()
+                clipboardHistoryManager.clearUnpinned()
+                renderClipboardHistory()
+            }
+
             keyboardView.findViewById<View>(R.id.btn_close_voice)?.setOnClickListener {
                 stopListening()
                 waveJob?.cancel()
@@ -203,6 +245,7 @@ class StitchKeyboardService : InputMethodService() {
             }
 
             setupKeys(keyboardView)
+            setupNumberRow(keyboardView)
             setupEmojiKeyboard(keyboardView)
             setupCommandKeys(keyboardView)
             setupSuggestionBar(keyboardView)
@@ -231,12 +274,191 @@ class StitchKeyboardService : InputMethodService() {
     private fun prewarmKeyPositions() {
         if (!::keyboardRoot.isInitialized) return
         keyboardRoot.getLocationInWindow(rootLocation)
+        keyBoundsMap.clear()
         for ((id, keyView) in keyViewMap) {
             keyView.getLocationInWindow(keyLocation)
             keyPositionCache[id] = Pair(
                 (keyLocation[0] - rootLocation[0]).toFloat(),
                 (keyLocation[1] - rootLocation[1]).toFloat()
             )
+            val char = getCharForId(id)?.firstOrNull()?.lowercaseChar()
+            if (char != null) {
+                val rect = Rect()
+                keyView.getGlobalVisibleRect(rect)
+                keyBoundsMap[char] = rect
+            }
+        }
+    }
+
+    private fun setupNumberRow(view: View) {
+        numberRowContainer = view.findViewById(R.id.number_row_container)
+        numberRowContainer?.visibility = if (prefNumberRow) View.VISIBLE else View.GONE
+
+        val numKeyIds = listOf(
+            R.id.num_row_1 to "1",
+            R.id.num_row_2 to "2",
+            R.id.num_row_3 to "3",
+            R.id.num_row_4 to "4",
+            R.id.num_row_5 to "5",
+            R.id.num_row_6 to "6",
+            R.id.num_row_7 to "7",
+            R.id.num_row_8 to "8",
+            R.id.num_row_9 to "9",
+            R.id.num_row_0 to "0"
+        )
+
+        for ((id, numStr) in numKeyIds) {
+            val keyView = view.findViewById<TextView>(id) ?: continue
+            keyView.setOnTouchListener { v, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        triggerVibration()
+                        playClickFeedback()
+                        showKeyPopup(keyView, numStr)
+                        v.isPressed = true
+                        true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        hideKeyPopup()
+                        v.isPressed = false
+                        if (event.action == MotionEvent.ACTION_UP) {
+                            val ic = currentInputConnection
+                            ic?.beginBatchEdit()
+                            localEditCount++
+                            composingBuffer.setLength(0)
+                            ic?.commitText(numStr, 1)
+                            ic?.endBatchEdit()
+                        }
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }
+    }
+
+    fun showClipboardHistory() {
+        if (!::clipboardHistoryRoot.isInitialized) return
+        val targetHeight = if (::keyboardRoot.isInitialized && keyboardRoot.height > 0) keyboardRoot.height else (260 * resources.displayMetrics.density).toInt()
+        clipboardHistoryRoot.layoutParams.height = targetHeight
+        keyboardRoot.visibility = View.GONE
+        emojiRoot.visibility = View.GONE
+        voiceRoot.visibility = View.GONE
+        numericRoot.visibility = View.GONE
+        clipboardHistoryRoot.visibility = View.VISIBLE
+        renderClipboardHistory()
+    }
+
+    fun hideClipboardHistory() {
+        if (!::clipboardHistoryRoot.isInitialized) return
+        clipboardHistoryRoot.visibility = View.GONE
+        keyboardRoot.visibility = View.VISIBLE
+    }
+
+    private fun renderClipboardHistory() {
+        if (!::clipboardHistoryRoot.isInitialized) return
+        val container = clipboardHistoryRoot.findViewById<LinearLayout>(R.id.clipboard_entries_container) ?: return
+        val emptyText = clipboardHistoryRoot.findViewById<TextView>(R.id.clipboard_empty_text)
+        container.removeAllViews()
+
+        val entries = clipboardHistoryManager.getEntries()
+        if (entries.isEmpty()) {
+            emptyText?.visibility = View.VISIBLE
+            return
+        }
+        emptyText?.visibility = View.GONE
+
+        val density = resources.displayMetrics.density
+
+        for (entry in entries) {
+            val itemLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                background = ContextCompat.getDrawable(this@StitchKeyboardService, R.drawable.bg_command_pill)
+                setPadding((12 * density).toInt(), (8 * density).toInt(), (8 * density).toInt(), (8 * density).toInt())
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, (4 * density).toInt(), 0, (4 * density).toInt())
+                }
+                layoutParams = lp
+                isClickable = true
+                isFocusable = true
+            }
+
+            val tvText = TextView(this).apply {
+                text = entry.text
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                textSize = 14f
+                val typedValue = android.util.TypedValue()
+                theme.resolveAttribute(R.attr.stitchTextColor, typedValue, true)
+                setTextColor(typedValue.data)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            itemLayout.addView(tvText)
+
+            itemLayout.setOnClickListener {
+                playClickFeedback()
+                triggerVibration()
+                val ic = currentInputConnection
+                ic?.beginBatchEdit()
+                localEditCount++
+                ic?.commitText(entry.text, 1)
+                ic?.endBatchEdit()
+                hideClipboardHistory()
+            }
+
+            // Pin / Unpin button
+            val btnPin = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams((32 * density).toInt(), (32 * density).toInt()).apply {
+                    leftMargin = (4 * density).toInt()
+                }
+                setPadding((6 * density).toInt(), (6 * density).toInt(), (6 * density).toInt(), (6 * density).toInt())
+                setImageResource(R.drawable.ic_pin_line)
+                val typedValue = android.util.TypedValue()
+                theme.resolveAttribute(R.attr.stitchTextColor, typedValue, true)
+                setColorFilter(typedValue.data)
+                alpha = if (entry.isPinned) 1.0f else 0.35f
+                contentDescription = if (entry.isPinned) "Desafixar" else "Fixar"
+                val rippleValue = android.util.TypedValue()
+                theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, rippleValue, true)
+                setBackgroundResource(rippleValue.resourceId)
+                setOnClickListener {
+                    playClickFeedback()
+                    triggerVibration()
+                    clipboardHistoryManager.togglePin(entry.id)
+                    renderClipboardHistory()
+                }
+            }
+            itemLayout.addView(btnPin)
+
+            // Delete button
+            val btnDelete = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams((32 * density).toInt(), (32 * density).toInt()).apply {
+                    leftMargin = (2 * density).toInt()
+                }
+                setPadding((6 * density).toInt(), (6 * density).toInt(), (6 * density).toInt(), (6 * density).toInt())
+                setImageResource(R.drawable.ic_trash_line)
+                val typedValue = android.util.TypedValue()
+                theme.resolveAttribute(R.attr.stitchTextColor, typedValue, true)
+                setColorFilter(typedValue.data)
+                alpha = 0.5f
+                contentDescription = "Excluir"
+                val rippleValue = android.util.TypedValue()
+                theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, rippleValue, true)
+                setBackgroundResource(rippleValue.resourceId)
+                setOnClickListener {
+                    playClickFeedback()
+                    triggerVibration()
+                    clipboardHistoryManager.deleteEntry(entry.id)
+                    renderClipboardHistory()
+                }
+            }
+            itemLayout.addView(btnDelete)
+
+            container.addView(itemLayout)
         }
     }
 
@@ -666,6 +888,9 @@ class StitchKeyboardService : InputMethodService() {
 
         if (hasText) {
             val clipText = lastClipboardText!!
+            if (editorInfo == null || !isPrivateOrPassword(editorInfo)) {
+                clipboardHistoryManager.addEntry(clipText)
+            }
             val display = if (isPrivateOrPassword(editorInfo)) {
                 "Colar"
             } else {
@@ -1015,8 +1240,23 @@ class StitchKeyboardService : InputMethodService() {
         // Garante que SEMPRE abre no modo alfabético (texto) e não de símbolos
         isSymbolMode = false
         isExtendedSymbolMode = false
+        if (::clipboardHistoryRoot.isInitialized) {
+            clipboardHistoryRoot.visibility = View.GONE
+        }
+        if (::emojiRoot.isInitialized) {
+            emojiRoot.visibility = View.GONE
+        }
+        if (::keyboardRoot.isInitialized) {
+            keyboardRoot.visibility = View.VISIBLE
+        }
         
         refreshPreferences()
+        numberRowContainer?.visibility = if (prefNumberRow) View.VISIBLE else View.GONE
+        if (::keyboardRoot.isInitialized) {
+            val typedGlow = android.util.TypedValue()
+            theme.resolveAttribute(R.attr.stitchGlowColor, typedGlow, true)
+            swipeTrailView?.setTrailColor(typedGlow.data)
+        }
         registerScreenshotObserver()
         localEditCount = 0
         lastAutocorrection = null
@@ -1028,7 +1268,7 @@ class StitchKeyboardService : InputMethodService() {
         aiActionsContainer?.visibility = View.GONE
         suggestionContainer?.visibility = View.VISIBLE
 
-        if (keyPositionCache.isEmpty() && ::keyboardRoot.isInitialized) {
+        if ((keyPositionCache.isEmpty() || keyBoundsMap.isEmpty()) && ::keyboardRoot.isInitialized) {
             keyboardRoot.post { prewarmKeyPositions() }
         }
         
@@ -1278,20 +1518,32 @@ class StitchKeyboardService : InputMethodService() {
         alphabetKeys.clear()
         keyViewMap.clear()
 
+        val keysContainer = view.findViewById<View>(R.id.keys_container)
+
         for ((id, _) in idMapLetters) {
             val keyView = view.findViewById<android.widget.TextView>(id) ?: continue
             keyViewMap[id] = keyView
             
             var isLongPress = false
             var longPressRunnable: Runnable? = null
+            var downRawX = 0f
+            var downRawY = 0f
+            var isSwipingGesture = false
+            val swipeVisitedChars = mutableListOf<Char>()
 
             keyView.setOnTouchListener { v, event ->
                 when (event.action) {
                     android.view.MotionEvent.ACTION_DOWN -> {
                         isLongPress = false
+                        isSwipingGesture = false
+                        downRawX = event.rawX
+                        downRawY = event.rawY
+                        swipeVisitedChars.clear()
+
                         val currentChar = getCharForId(id) ?: return@setOnTouchListener false
                         val uppercaseChar = if (isShifted && !isSymbolMode) currentChar.uppercase() else currentChar
-                        
+                        swipeVisitedChars.add(currentChar.first().lowercaseChar())
+
                         triggerVibration()
                         playClickFeedback()
                         showKeyPopup(keyView, uppercaseChar)
@@ -1308,18 +1560,77 @@ class StitchKeyboardService : InputMethodService() {
                         mainHandler.postDelayed(longPressRunnable!!, 350)
                         true
                     }
+                    android.view.MotionEvent.ACTION_MOVE -> {
+                        if (!prefGlideTyping || isSymbolMode) return@setOnTouchListener false
+                        val dx = event.rawX - downRawX
+                        val dy = event.rawY - downRawY
+                        val dist = Math.hypot(dx.toDouble(), dy.toDouble())
+                        val density = resources.displayMetrics.density
+                        if (dist > 18 * density && !isSwipingGesture) {
+                            isSwipingGesture = true
+                            longPressRunnable?.let { mainHandler.removeCallbacks(it) }
+                            hideKeyPopup()
+                            v.isPressed = false
+                        }
+                        if (isSwipingGesture) {
+                            val containerLoc = IntArray(2)
+                            keysContainer?.getLocationOnScreen(containerLoc)
+                            swipeTrailView?.addPoint(event.rawX - containerLoc[0], event.rawY - containerLoc[1])
+
+                            val rx = event.rawX.toInt()
+                            val ry = event.rawY.toInt()
+                            val touchedChar = keyBoundsMap.entries.firstOrNull { it.value.contains(rx, ry) }?.key
+                            if (touchedChar != null && (swipeVisitedChars.isEmpty() || swipeVisitedChars.last() != touchedChar)) {
+                                swipeVisitedChars.add(touchedChar)
+                                triggerVibration()
+                            }
+                            true
+                        } else {
+                            false
+                        }
+                    }
                     android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
                         longPressRunnable?.let { mainHandler.removeCallbacks(it) }
                         hideKeyPopup()
                         v.isPressed = false
                         
-                        if (event.action == android.view.MotionEvent.ACTION_UP && !isLongPress) {
+                        if (isSwipingGesture) {
+                            isSwipingGesture = false
+                            swipeTrailView?.clearTrail()
+                            if (swipeVisitedChars.size >= 2) {
+                                val pattern = swipeVisitedChars.joinToString("")
+                                val candidates = predictionEngine.getSwipePredictions(pattern)
+                                if (candidates.isNotEmpty()) {
+                                    val bestWord = if (isShifted) candidates[0].replaceFirstChar { it.uppercase() } else candidates[0]
+                                    val ic = currentInputConnection
+                                    ic?.beginBatchEdit()
+                                    localEditCount++
+                                    composingBuffer.setLength(0)
+                                    ic?.commitText(bestWord + " ", 1)
+                                    lastCommittedWord = candidates[0].lowercase()
+                                    ic?.endBatchEdit()
+                                    triggerVibration()
+                                    playClickFeedback()
+
+                                    if (candidates.size > 1) {
+                                        updateSuggestionView(suggestion1, candidates[0])
+                                        updateSuggestionView(suggestion2, candidates[1])
+                                        updateSuggestionView(suggestion3, if (candidates.size > 2) candidates[2] else "")
+                                    } else {
+                                        scheduleAsyncPrediction("", lastCommittedWord)
+                                    }
+                                }
+                            }
+                            true
+                        } else if (event.action == android.view.MotionEvent.ACTION_UP && !isLongPress) {
                             val currentChar = getCharForId(id)
                             if (currentChar != null) {
                                 handleCharacterClick(currentChar)
                             }
+                            true
+                        } else {
+                            true
                         }
-                        true
                     }
                     else -> false
                 }
@@ -1419,7 +1730,75 @@ class StitchKeyboardService : InputMethodService() {
             keyboardRoot.visibility = View.VISIBLE
         }
 
+        val searchInput = view.findViewById<EditText>(R.id.emoji_search_input)
+        val btnClearSearch = view.findViewById<View>(R.id.btn_clear_emoji_search)
+        val searchScroll = view.findViewById<ScrollView>(R.id.emoji_search_scroll)
+        val searchGrid = view.findViewById<GridLayout>(R.id.emoji_search_results_grid)
+        val categoryBar = view.findViewById<View>(R.id.emoji_category_bar)
         val scrollView = view.findViewById<android.widget.ScrollView>(R.id.emoji_scroll_view)
+
+        searchInput?.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val query = s?.toString()?.trim() ?: ""
+                if (query.isEmpty()) {
+                    btnClearSearch?.visibility = View.GONE
+                    searchScroll?.visibility = View.GONE
+                    scrollView?.visibility = View.VISIBLE
+                    categoryBar?.visibility = View.VISIBLE
+                } else {
+                    btnClearSearch?.visibility = View.VISIBLE
+                    scrollView?.visibility = View.GONE
+                    categoryBar?.visibility = View.GONE
+                    searchScroll?.visibility = View.VISIBLE
+
+                    searchGrid?.removeAllViews()
+                    val matches = EmojiDictionary.search(query)
+                    for (emoji in matches) {
+                        val tv = TextView(this@StitchKeyboardService)
+                        tv.text = emoji
+                        tv.textSize = 28f
+                        tv.gravity = Gravity.CENTER
+                        val params = GridLayout.LayoutParams()
+                        params.width = size
+                        params.height = size
+                        params.setMargins(4, 4, 4, 4)
+                        tv.layoutParams = params
+
+                        val typedValue = android.util.TypedValue()
+                        theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, typedValue, true)
+                        tv.setBackgroundResource(typedValue.resourceId)
+                        tv.isClickable = true
+                        tv.isFocusable = true
+                        tv.setOnTouchListener { v, event ->
+                            when (event.action) {
+                                MotionEvent.ACTION_DOWN -> {
+                                    playClickFeedback()
+                                    triggerVibration()
+                                    localEditCount++
+                                    composingBuffer.setLength(0)
+                                    currentInputConnection?.commitText(emoji, 1)
+                                    v.isPressed = true
+                                    true
+                                }
+                                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                                    v.isPressed = false
+                                    true
+                                }
+                                else -> false
+                            }
+                        }
+                        searchGrid?.addView(tv)
+                    }
+                }
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        btnClearSearch?.setOnClickListener {
+            searchInput?.setText("")
+        }
+
         fun scrollToCategory(catName: String) {
             val targetView = categoryViews.entries.find { it.key.contains(catName, ignoreCase = true) }?.value
             if (targetView != null && scrollView != null) {
@@ -1671,6 +2050,13 @@ class StitchKeyboardService : InputMethodService() {
                 }
                 else -> false
             }
+        }
+
+        val clipboardTopKey = view.findViewById<FrameLayout>(R.id.key_clipboard_top)
+        clipboardTopKey?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            showClipboardHistory()
         }
 
         val emojiKey = view.findViewById<FrameLayout>(R.id.key_emoji_top)
@@ -2235,16 +2621,25 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun triggerVibration() {
-        if (!prefHapticFeedback) return
+        if (!prefHapticFeedback || prefHapticDurationMs <= 0) return
         try {
-            if (::keyboardRoot.isInitialized) {
-                keyboardRoot.performHapticFeedback(
-                    android.view.HapticFeedbackConstants.KEYBOARD_TAP,
-                    android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val vib = vibrator ?: (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)
+                vib?.vibrate(
+                    VibrationEffect.createOneShot(
+                        prefHapticDurationMs.toLong().coerceIn(1L, 100L),
+                        VibrationEffect.DEFAULT_AMPLITUDE
+                    )
                 )
+            } else {
+                vibrator?.vibrate(prefHapticDurationMs.toLong().coerceIn(1L, 100L))
             }
-        } catch (e: Exception) {
-            // Safe fallback
+        } catch (_: Exception) {
+            try {
+                if (::keyboardRoot.isInitialized) {
+                    keyboardRoot.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                }
+            } catch (_: Exception) {}
         }
     }
 
