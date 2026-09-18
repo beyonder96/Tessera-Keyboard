@@ -27,6 +27,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -58,6 +59,10 @@ import com.example.ui.theme.*
 import com.example.api.GroqClient
 import com.example.api.GroqChatRequest
 import com.example.api.GroqMessage
+import com.example.api.RetrofitClient
+import com.example.api.GenerateContentRequest
+import com.example.api.Content
+import com.example.api.Part
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -144,6 +149,7 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
     // Tema e Escala
     var keyboardTheme by remember { mutableStateOf(prefs.getString("KEYBOARD_THEME", "Dark") ?: "Dark") }
     var keyboardScale by remember { mutableStateOf(prefs.getFloat("KEYBOARD_SCALE", 1.0f)) }
+    var popupStyle by remember { mutableStateOf(prefs.getString("PREF_POPUP_STYLE", "dark_glass") ?: "dark_glass") }
 
     // Inteligência Artificial (Groq)
     var groqApiKey by remember { mutableStateOf(prefs.getString("GROQ_API_KEY", "") ?: "") }
@@ -279,6 +285,11 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
                     keyboardScale = it
                     prefs.edit().putFloat("KEYBOARD_SCALE", it).apply()
                 },
+                popupStyle = popupStyle,
+                onPopupStyleChange = {
+                    popupStyle = it
+                    prefs.edit().putString("PREF_POPUP_STYLE", it).apply()
+                },
                 groqApiKey = groqApiKey,
                 onGroqApiKeyChange = {
                     groqApiKey = it
@@ -362,6 +373,8 @@ fun TesseraDashboardContent(
     onThemeChange: (String) -> Unit,
     keyboardScale: Float,
     onScaleChange: (Float) -> Unit,
+    popupStyle: String,
+    onPopupStyleChange: (String) -> Unit,
     groqApiKey: String,
     onGroqApiKeyChange: (String) -> Unit,
     aiModel: String,
@@ -632,10 +645,87 @@ fun TesseraDashboardContent(
                     inactiveTrackColor = Slate800
                 )
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+            DividerLine()
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Cor dos Popups (Teclas Flutuantes)",
+                style = MaterialTheme.typography.titleSmall,
+                color = Slate100
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Estilo dos balões ao tocar e dos menus de acentos:",
+                style = MaterialTheme.typography.bodySmall,
+                color = Slate400
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                PopupStyleOption(
+                    title = "Dark Glass",
+                    accentColor = Color(0xFF38BDF8),
+                    surfaceColor = Color(0xFF1E293B),
+                    isSelected = popupStyle == "dark_glass",
+                    onClick = { onPopupStyleChange("dark_glass") },
+                    modifier = Modifier.weight(1f)
+                )
+                PopupStyleOption(
+                    title = "Obsidian",
+                    accentColor = Color(0xFF94A3B8),
+                    surfaceColor = Color(0xFF0F172A),
+                    isSelected = popupStyle == "obsidian",
+                    onClick = { onPopupStyleChange("obsidian") },
+                    modifier = Modifier.weight(1f)
+                )
+                PopupStyleOption(
+                    title = "Neon Cyan",
+                    accentColor = Color(0xFF00E5FF),
+                    surfaceColor = Color(0xFF0B1E2E),
+                    isSelected = popupStyle == "neon_cyan",
+                    onClick = { onPopupStyleChange("neon_cyan") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                PopupStyleOption(
+                    title = "Emerald",
+                    accentColor = Color(0xFF10B981),
+                    surfaceColor = Color(0xFF09241B),
+                    isSelected = popupStyle == "emerald",
+                    onClick = { onPopupStyleChange("emerald") },
+                    modifier = Modifier.weight(1f)
+                )
+                PopupStyleOption(
+                    title = "Purple",
+                    accentColor = Color(0xFFA855F7),
+                    surfaceColor = Color(0xFF1E1035),
+                    isSelected = popupStyle == "purple",
+                    onClick = { onPopupStyleChange("purple") },
+                    modifier = Modifier.weight(1f)
+                )
+                PopupStyleOption(
+                    title = "Amber",
+                    accentColor = Color(0xFFF59E0B),
+                    surfaceColor = Color(0xFF29160B),
+                    isSelected = popupStyle == "amber",
+                    onClick = { onPopupStyleChange("amber") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
 
-        // Seção: Inteligência Artificial (Groq Cloud)
-        SectionCard(title = "Inteligência Artificial (Groq)") {
+        // Seção: Inteligência Artificial (Groq / Gemini)
+        SectionCard(title = "Inteligência Artificial (Groq / Gemini)") {
             val context = LocalContext.current
             val coroutineScope = rememberCoroutineScope()
             var testStatus by remember { mutableStateOf<String?>(null) }
@@ -648,7 +738,7 @@ fun TesseraDashboardContent(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "O Groq (Llama 3.1 8B Instant) corrige erros de digitação automaticamente no ESPAÇO, aprimora sugestões em tempo real e reescreve textos via ações rápidas.",
+                text = "A IA corrige e reescreve textos via ações rápidas no botão de varinha mágica. Suporta chaves gratuitas da Groq (gsk_...) e do Google Gemini (AIza...). Se nenhuma chave for inserida, o teclado utiliza correção inteligente local.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Slate400
             )
@@ -656,6 +746,7 @@ fun TesseraDashboardContent(
 
             // Status Badge
             val isKeyConfigured = groqApiKey.isNotBlank() && groqApiKey != "placeholder" && groqApiKey != "MY_GROQ_API_KEY"
+            val isGeminiSaved = groqApiKey.startsWith("AIza")
             Surface(
                 color = if (isKeyConfigured) Color(0xFF064E3B).copy(alpha = 0.5f) else Slate900,
                 shape = RoundedCornerShape(8.dp),
@@ -666,8 +757,13 @@ fun TesseraDashboardContent(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val badgeText = when {
+                        !isKeyConfigured -> "⚪ Nenhuma chave configurada ainda (correção local ativa)"
+                        isGeminiSaved -> "🟢 Chave Google Gemini ativa e pronta para uso"
+                        else -> "🟢 Chave Groq ($aiModel) ativa e pronta para uso"
+                    }
                     Text(
-                        text = if (isKeyConfigured) "🟢 Chave ativa e pronta para uso no teclado" else "⚪ Nenhuma chave configurada ainda",
+                        text = badgeText,
                         style = MaterialTheme.typography.labelMedium,
                         color = if (isKeyConfigured) Color(0xFF34D399) else Slate400
                     )
@@ -677,7 +773,7 @@ fun TesseraDashboardContent(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Modelo de IA:",
+                text = "Modelo da Groq (caso use chave Groq):",
                 style = MaterialTheme.typography.labelMedium,
                 color = Slate300
             )
@@ -738,10 +834,16 @@ fun TesseraDashboardContent(
 
             OutlinedTextField(
                 value = keyInput,
-                onValueChange = { keyInput = it },
+                onValueChange = {
+                    keyInput = it
+                    val trimmed = it.trim()
+                    if (trimmed.startsWith("gsk_") || trimmed.startsWith("AIza")) {
+                        onGroqApiKeyChange(trimmed)
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Cole sua chave da Groq (gsk_...)", color = Slate600) },
-                label = { Text("Chave da API da Groq") },
+                placeholder = { Text("Chave Groq (gsk_...) ou Gemini (AIza...)", color = Slate600) },
+                label = { Text("Chave da API de IA (Groq ou Gemini)") },
                 singleLine = true,
                 shape = RoundedCornerShape(8.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -755,10 +857,17 @@ fun TesseraDashboardContent(
                 )
             )
 
-            if (keyInput.trim().startsWith("gsk_") && !isKeyConfigured) {
+            if (keyInput.trim().startsWith("AIza")) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "✨ Formato de chave Groq válido detectado! Clique em 'Salvar Chave' abaixo.",
+                    text = "✨ Chave do Google Gemini detectada! Pronta para uso.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF34D399)
+                )
+            } else if (keyInput.trim().startsWith("gsk_")) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "✨ Chave da Groq Cloud detectada! Pronta para uso.",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color(0xFF34D399)
                 )
@@ -774,8 +883,9 @@ fun TesseraDashboardContent(
                     onClick = {
                         val cleaned = keyInput.trim()
                         onGroqApiKeyChange(cleaned)
-                        testStatus = "Chave salva com sucesso! ✅ Pronta para uso com $aiModel."
-                        Toast.makeText(context, "Chave da Groq salva com sucesso!", Toast.LENGTH_SHORT).show()
+                        val prov = if (cleaned.startsWith("AIza")) "Google Gemini" else "Groq"
+                        testStatus = "Chave salva com sucesso! ✅ Pronta para uso com $prov."
+                        Toast.makeText(context, "Chave salva com sucesso!", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = AccentSky,
@@ -794,39 +904,63 @@ fun TesseraDashboardContent(
                             testStatus = "Cole uma chave primeiro para testar."
                             return@OutlinedButton
                         }
+                        val isGemini = cleaned.startsWith("AIza") || aiModel.startsWith("gemini")
                         isTesting = true
-                        testStatus = "Conectando ao Groq ($aiModel)..."
+                        testStatus = if (isGemini) "Conectando ao Google Gemini..." else "Conectando ao Groq ($aiModel)..."
                         coroutineScope.launch {
                             try {
                                 val startTime = System.currentTimeMillis()
-                                val req = GroqChatRequest(
-                                    model = aiModel,
-                                    messages = listOf(
-                                        GroqMessage(role = "user", content = "Diga apenas: OK")
-                                    ),
-                                    maxTokens = 10
-                                )
-                                val resp = withContext(Dispatchers.IO) {
-                                    try {
-                                        GroqClient.service.chatCompletion("Bearer $cleaned", req)
-                                    } catch (httpEx: retrofit2.HttpException) {
-                                        if (httpEx.code() == 404 && aiModel == "llama-3.1-8b-instant") {
-                                            // Fallback para llama-3.3-70b-versatile se o modelo 8b retornar 404
-                                            val fallbackReq = req.copy(model = "llama-3.3-70b-versatile")
-                                            GroqClient.service.chatCompletion("Bearer $cleaned", fallbackReq)
-                                        } else {
-                                            throw httpEx
+                                if (isGemini) {
+                                    val req = GenerateContentRequest(
+                                        contents = listOf(Content(parts = listOf(Part(text = "Responda apenas: OK"))))
+                                    )
+                                    val resp = withContext(Dispatchers.IO) {
+                                        try {
+                                            RetrofitClient.service.generateContent("gemini-2.5-flash", cleaned, req)
+                                        } catch (ex: retrofit2.HttpException) {
+                                            if (ex.code() == 404) {
+                                                RetrofitClient.service.generateContent("gemini-1.5-flash", cleaned, req)
+                                            } else throw ex
                                         }
                                     }
-                                }
-                                val elapsed = System.currentTimeMillis() - startTime
-                                val reply = resp.choices?.firstOrNull()?.message?.content?.trim()
-                                if (!reply.isNullOrBlank()) {
-                                    onGroqApiKeyChange(cleaned)
-                                    testStatus = "✅ Conexão OK! Modelo ($aiModel) respondendo (${elapsed}ms)."
-                                    Toast.makeText(context, "Groq conectado com sucesso! (${elapsed}ms)", Toast.LENGTH_SHORT).show()
+                                    val elapsed = System.currentTimeMillis() - startTime
+                                    val reply = resp.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text?.trim()
+                                    if (!reply.isNullOrBlank()) {
+                                        onGroqApiKeyChange(cleaned)
+                                        testStatus = "✅ Conexão OK! Google Gemini respondendo (${elapsed}ms)."
+                                        Toast.makeText(context, "Gemini conectado com sucesso! (${elapsed}ms)", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        testStatus = "⚠️ Gemini respondeu, mas retornou vazio."
+                                    }
                                 } else {
-                                    testStatus = "⚠️ Groq respondeu, mas retornou vazio."
+                                    val req = GroqChatRequest(
+                                        model = aiModel,
+                                        messages = listOf(
+                                            GroqMessage(role = "user", content = "Diga apenas: OK")
+                                        ),
+                                        maxTokens = 10
+                                    )
+                                    val resp = withContext(Dispatchers.IO) {
+                                        try {
+                                            GroqClient.service.chatCompletion("Bearer $cleaned", req)
+                                        } catch (httpEx: retrofit2.HttpException) {
+                                            if (httpEx.code() == 404 && aiModel == "llama-3.1-8b-instant") {
+                                                val fallbackReq = req.copy(model = "llama-3.3-70b-versatile")
+                                                GroqClient.service.chatCompletion("Bearer $cleaned", fallbackReq)
+                                            } else {
+                                                throw httpEx
+                                            }
+                                        }
+                                    }
+                                    val elapsed = System.currentTimeMillis() - startTime
+                                    val reply = resp.choices?.firstOrNull()?.message?.content?.trim()
+                                    if (!reply.isNullOrBlank()) {
+                                        onGroqApiKeyChange(cleaned)
+                                        testStatus = "✅ Conexão OK! Modelo ($aiModel) respondendo (${elapsed}ms)."
+                                        Toast.makeText(context, "Groq conectado com sucesso! (${elapsed}ms)", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        testStatus = "⚠️ Groq respondeu, mas retornou vazio."
+                                    }
                                 }
                             } catch (e: Exception) {
                                 val errorDetails = if (e is retrofit2.HttpException) {
@@ -1146,6 +1280,46 @@ fun ThemeOptionButton(
             style = MaterialTheme.typography.labelMedium,
             color = textColor
         )
+    }
+}
+
+@Composable
+fun PopupStyleOption(
+    title: String,
+    accentColor: Color,
+    surfaceColor: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = if (isSelected) accentColor else Slate700
+    val bgColor = if (isSelected) accentColor.copy(alpha = 0.20f) else Slate850
+
+    Box(
+        modifier = modifier
+            .background(bgColor, RoundedCornerShape(8.dp))
+            .border(if (isSelected) 1.5.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .background(surfaceColor, CircleShape)
+                    .border(1.5.dp, accentColor, CircleShape)
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isSelected) Color.White else Slate300,
+                maxLines = 1
+            )
+        }
     }
 }
 

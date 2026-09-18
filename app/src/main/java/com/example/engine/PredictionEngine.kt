@@ -405,6 +405,31 @@ class PredictionEngine(
         return result.take(3)
     }
 
+    private fun matchesSwipeSubsequence(norm: String, lower: String): Boolean {
+        if (norm.length < 2 || lower.length < 2) return false
+        if (norm.first() != lower.first() || norm.last() != lower.last()) return false
+
+        var pIdx = 0
+        for (i in 0 until norm.length) {
+            val c = norm[i]
+            // Se for letra repetida consecutiva (ex: "carro", "isso", "passo"),
+            // tolera caso o usuário tenha passado apenas uma vez sobre a letra
+            if (i > 0 && c == norm[i - 1]) {
+                if (pIdx < lower.length && lower[pIdx] == c) {
+                    pIdx++
+                }
+                continue
+            }
+
+            while (pIdx < lower.length && lower[pIdx] != c) {
+                pIdx++
+            }
+            if (pIdx >= lower.length) return false
+            pIdx++
+        }
+        return true
+    }
+
     fun getSwipePredictions(swipePattern: String): List<String> {
         if (swipePattern.length < 2) return emptyList()
         val lower = TrieDictionary.normalizeFast(swipePattern)
@@ -415,24 +440,11 @@ class PredictionEngine(
         val results = mutableListOf<String>()
 
         // 1. Busca nos termos canônicos e estáticos de alta frequência
-        val candidates = normalizedStatic.filter { (word, norm) ->
-            if (norm.length < 2) return@filter false
-            if (norm.first() != firstChar || norm.last() != lastChar) return@filter false
-            
-            // Verifica subsequência
-            var pIdx = 0
-            for (i in 0 until norm.length) {
-                val c = norm[i]
-                while (pIdx < lower.length && lower[pIdx] != c) {
-                    pIdx++
-                }
-                if (pIdx >= lower.length) return@filter false
-                pIdx++
-            }
-            true
+        val candidates = normalizedStatic.filter { (_, norm) ->
+            matchesSwipeSubsequence(norm, lower)
         }
 
-        // Ordena pela diferença de tamanho em relação ao padrão do swipe
+        // Ordena pela diferença de tamanho em relação ao padrão do swipe e frequência de tamanho
         val sortedCandidates = candidates.sortedWith(
             compareBy(
                 { Math.abs(it.second.length - lower.length) },
@@ -444,27 +456,12 @@ class PredictionEngine(
 
         // 2. Se não encontrou no estático, busca na Trie pelo prefixo inicial
         if (results.size < 3) {
-            val trieMatches = trie.findTopSuggestions(firstChar.toString(), maxCount = 25, excludeExact = false)
+            val trieMatches = trie.findTopSuggestions(firstChar.toString(), maxCount = 35, excludeExact = false)
             for (w in trieMatches) {
                 val norm = TrieDictionary.normalizeFast(w)
-                if (norm.length >= 2 && norm.first() == firstChar && norm.last() == lastChar) {
-                    var pIdx = 0
-                    var matched = true
-                    for (i in 0 until norm.length) {
-                        val c = norm[i]
-                        while (pIdx < lower.length && lower[pIdx] != c) {
-                            pIdx++
-                        }
-                        if (pIdx >= lower.length) {
-                            matched = false
-                            break
-                        }
-                        pIdx++
-                    }
-                    if (matched && !results.any { it.equals(w, ignoreCase = true) }) {
-                        results.add(w)
-                        if (results.size >= 3) break
-                    }
+                if (matchesSwipeSubsequence(norm, lower) && !results.any { it.equals(w, ignoreCase = true) }) {
+                    results.add(w)
+                    if (results.size >= 3) break
                 }
             }
         }
@@ -474,5 +471,74 @@ class PredictionEngine(
 
     fun getSwipePrediction(swipePattern: String): String? {
         return getSwipePredictions(swipePattern).firstOrNull()
+    }
+
+    fun correctTextLocally(input: String): String {
+        if (input.isBlank()) return input
+
+        val tokens = mutableListOf<String>()
+        val currentToken = StringBuilder()
+        var isWord = false
+
+        for (ch in input) {
+            val charIsWord = ch.isLetter() || ch == '\''
+            if (currentToken.isEmpty()) {
+                currentToken.append(ch)
+                isWord = charIsWord
+            } else if (charIsWord == isWord) {
+                currentToken.append(ch)
+            } else {
+                tokens.add(currentToken.toString())
+                currentToken.setLength(0)
+                currentToken.append(ch)
+                isWord = charIsWord
+            }
+        }
+        if (currentToken.isNotEmpty()) {
+            tokens.add(currentToken.toString())
+        }
+
+        val result = StringBuilder()
+        var capitalizeNext = true
+
+        for (token in tokens) {
+            if (token.isNotEmpty() && token.first().isLetter()) {
+                val lowerToken = token.lowercase()
+
+                // 1. Abreviação (vc -> você, tbm -> também, etc.)
+                var corrected = abbreviationsMap[lowerToken]
+
+                // 2. Restauração de Acentuação
+                if (corrected == null) {
+                    corrected = accentRestorationMap[lowerToken]
+                }
+
+                // 3. Verificação no dicionário / predição se houver correspondência direta
+                if (corrected == null) {
+                    val predictions = getPredictions(lowerToken)
+                    val top = predictions.firstOrNull()
+                    if (top != null && TrieDictionary.normalizeFast(top) == TrieDictionary.normalizeFast(lowerToken)) {
+                        corrected = top
+                    }
+                }
+
+                val finalWord = corrected ?: token
+                val wordToAppend = when {
+                    capitalizeNext -> finalWord.replaceFirstChar { it.uppercase() }
+                    token.all { it.isUpperCase() } && token.length > 1 -> finalWord.uppercase()
+                    token.first().isUpperCase() -> finalWord.replaceFirstChar { it.uppercase() }
+                    else -> finalWord
+                }
+                result.append(wordToAppend)
+                capitalizeNext = false
+            } else {
+                result.append(token)
+                if (token.contains('.') || token.contains('!') || token.contains('?') || token.contains('\n')) {
+                    capitalizeNext = true
+                }
+            }
+        }
+
+        return result.toString()
     }
 }

@@ -46,6 +46,10 @@ import android.view.ContextThemeWrapper
 import android.os.Vibrator
 import android.os.VibrationEffect
 import android.os.Build
+import android.graphics.Color
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
+import android.graphics.Typeface
 import android.graphics.Rect
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -268,7 +272,6 @@ class StitchKeyboardService : InputMethodService() {
             setupCommandKeys(keyboardView)
             setupSuggestionBar(keyboardView)
             setupDragResizer(keyboardView)
-            setupEmojiGrid(keyboardView)
             setupNumericKeyboard(keyboardView)
             val scalePref = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
             cachedKeyboardScale = scalePref
@@ -293,6 +296,7 @@ class StitchKeyboardService : InputMethodService() {
         if (!::keyboardRoot.isInitialized) return
         keyboardRoot.getLocationInWindow(rootLocation)
         keyBoundsMap.clear()
+        val screenLoc = IntArray(2)
         for ((id, keyView) in keyViewMap) {
             keyView.getLocationInWindow(keyLocation)
             keyPositionCache[id] = Pair(
@@ -300,10 +304,14 @@ class StitchKeyboardService : InputMethodService() {
                 (keyLocation[1] - rootLocation[1]).toFloat()
             )
             val char = getCharForId(id)?.firstOrNull()?.lowercaseChar()
-            if (char != null) {
-                val rect = Rect()
-                keyView.getGlobalVisibleRect(rect)
-                keyBoundsMap[char] = rect
+            if (char != null && keyView.width > 0 && keyView.height > 0) {
+                keyView.getLocationOnScreen(screenLoc)
+                keyBoundsMap[char] = Rect(
+                    screenLoc[0],
+                    screenLoc[1],
+                    screenLoc[0] + keyView.width,
+                    screenLoc[1] + keyView.height
+                )
             }
         }
     }
@@ -1287,7 +1295,7 @@ class StitchKeyboardService : InputMethodService() {
         suggestionContainer?.visibility = View.VISIBLE
         updateAiToggleVisual(false)
 
-        if ((keyPositionCache.isEmpty() || keyBoundsMap.isEmpty()) && ::keyboardRoot.isInitialized) {
+        if (::keyboardRoot.isInitialized) {
             keyboardRoot.post { prewarmKeyPositions() }
         }
         
@@ -1417,38 +1425,6 @@ class StitchKeyboardService : InputMethodService() {
 
 
 
-    @SuppressLint("ClickableViewAccessibility")
-    private fun setupEmojiGrid(view: View) {
-        val emojiRootLayout = view.findViewById<android.view.ViewGroup>(R.id.emoji_ui_root) ?: return
-        
-        fun findAndBindEmojis(parent: android.view.ViewGroup) {
-            for (i in 0 until parent.childCount) {
-                val child = parent.getChildAt(i)
-                if (child is TextView && child.tag == "emoji") {
-                    child.setOnTouchListener { v, event ->
-                        when (event.action) {
-                            MotionEvent.ACTION_DOWN -> {
-                                val emojiText = child.text.toString()
-                                currentInputConnection?.commitText(emojiText, 1)
-                                triggerVibration()
-                                playClickFeedback()
-                                v.isPressed = true
-                                true
-                            }
-                            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                                v.isPressed = false
-                                true
-                            }
-                            else -> false
-                        }
-                    }
-                } else if (child is android.view.ViewGroup) {
-                    findAndBindEmojis(child)
-                }
-            }
-        }
-        findAndBindEmojis(emojiRootLayout)
-    }
 
     private fun applyKeyboardScale(scale: Float) {
         val density = resources.displayMetrics.density
@@ -1558,6 +1534,7 @@ class StitchKeyboardService : InputMethodService() {
                         downRawX = event.rawX
                         downRawY = event.rawY
                         swipeVisitedChars.clear()
+                        v.parent?.requestDisallowInterceptTouchEvent(true)
 
                         val currentChar = getCharForId(id) ?: return@setOnTouchListener false
                         val uppercaseChar = if (isShifted && !isSymbolMode) currentChar.uppercase() else currentChar
@@ -1599,6 +1576,20 @@ class StitchKeyboardService : InputMethodService() {
                             val rx = event.rawX.toInt()
                             val ry = event.rawY.toInt()
                             val touchedChar = keyBoundsMap.entries.firstOrNull { it.value.contains(rx, ry) }?.key
+                                ?: run {
+                                    val maxDistSq = (36 * density) * (36 * density)
+                                    keyBoundsMap.entries
+                                        .map { entry ->
+                                            val cx = entry.value.centerX()
+                                            val cy = entry.value.centerY()
+                                            val dSq = (cx - rx) * (cx - rx) + (cy - ry) * (cy - ry)
+                                            entry.key to dSq
+                                        }
+                                        .filter { it.second <= maxDistSq }
+                                        .minByOrNull { it.second }
+                                        ?.first
+                                }
+
                             if (touchedChar != null && (swipeVisitedChars.isEmpty() || swipeVisitedChars.last() != touchedChar)) {
                                 swipeVisitedChars.add(touchedChar)
                                 triggerVibration()
@@ -1684,7 +1675,11 @@ class StitchKeyboardService : InputMethodService() {
         val emojiListsContainer = view.findViewById<android.widget.LinearLayout>(R.id.emoji_lists_container)
         emojiListsContainer?.removeAllViews()
         val density = resources.displayMetrics.density
-        val size = (42 * density).toInt()
+        val displayWidth = resources.displayMetrics.widthPixels
+        val itemSize = (44 * density).toInt()
+        val columns = (displayWidth / itemSize).coerceIn(6, 8)
+        val childWidth = (displayWidth - (20 * density).toInt()) / columns
+        val childHeight = (46 * density).toInt()
         
         val categoryViews = mutableMapOf<String, android.view.View>()
 
@@ -1698,8 +1693,8 @@ class StitchKeyboardService : InputMethodService() {
             categoryViews[category] = titleView
 
             val grid = android.widget.GridLayout(this)
-            grid.columnCount = 8
-            grid.useDefaultMargins = true
+            grid.columnCount = columns
+            grid.useDefaultMargins = false
             emojiListsContainer?.addView(grid)
 
             for (emoji in categoryEmojis) {
@@ -1709,9 +1704,8 @@ class StitchKeyboardService : InputMethodService() {
                 tv.gravity = android.view.Gravity.CENTER
 
                 val params = android.widget.GridLayout.LayoutParams()
-                params.width = size
-                params.height = size
-                params.setMargins(4, 4, 4, 4)
+                params.width = childWidth
+                params.height = childHeight
                 tv.layoutParams = params
 
                 val typedValue = android.util.TypedValue()
@@ -1720,24 +1714,13 @@ class StitchKeyboardService : InputMethodService() {
                 tv.isClickable = true
                 tv.isFocusable = true
                 
-                tv.setOnTouchListener { v, event ->
-                    when (event.action) {
-                        android.view.MotionEvent.ACTION_DOWN -> {
-                            playClickFeedback()
-                            triggerVibration()
-                            localEditCount++
-                            composingBuffer.setLength(0)
-                            val ic = currentInputConnection
-                            ic?.commitText(emoji, 1)
-                            v.isPressed = true
-                            true
-                        }
-                        android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
-                            v.isPressed = false
-                            true
-                        }
-                        else -> false
-                    }
+                tv.setOnClickListener {
+                    playClickFeedback()
+                    triggerVibration()
+                    localEditCount++
+                    composingBuffer.setLength(0)
+                    val ic = currentInputConnection
+                    ic?.commitText(emoji, 1)
                 }
                 grid.addView(tv)
             }
@@ -1772,6 +1755,7 @@ class StitchKeyboardService : InputMethodService() {
                     searchScroll?.visibility = View.VISIBLE
 
                     searchGrid?.removeAllViews()
+                    searchGrid?.columnCount = columns
                     val matches = EmojiDictionary.search(query)
                     for (emoji in matches) {
                         val tv = TextView(this@StitchKeyboardService)
@@ -1779,9 +1763,8 @@ class StitchKeyboardService : InputMethodService() {
                         tv.textSize = 28f
                         tv.gravity = Gravity.CENTER
                         val params = GridLayout.LayoutParams()
-                        params.width = size
-                        params.height = size
-                        params.setMargins(4, 4, 4, 4)
+                        params.width = childWidth
+                        params.height = childHeight
                         tv.layoutParams = params
 
                         val typedValue = android.util.TypedValue()
@@ -1789,23 +1772,12 @@ class StitchKeyboardService : InputMethodService() {
                         tv.setBackgroundResource(typedValue.resourceId)
                         tv.isClickable = true
                         tv.isFocusable = true
-                        tv.setOnTouchListener { v, event ->
-                            when (event.action) {
-                                MotionEvent.ACTION_DOWN -> {
-                                    playClickFeedback()
-                                    triggerVibration()
-                                    localEditCount++
-                                    composingBuffer.setLength(0)
-                                    currentInputConnection?.commitText(emoji, 1)
-                                    v.isPressed = true
-                                    true
-                                }
-                                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                                    v.isPressed = false
-                                    true
-                                }
-                                else -> false
-                            }
+                        tv.setOnClickListener {
+                            playClickFeedback()
+                            triggerVibration()
+                            localEditCount++
+                            composingBuffer.setLength(0)
+                            currentInputConnection?.commitText(emoji, 1)
                         }
                         searchGrid?.addView(tv)
                     }
@@ -1946,30 +1918,30 @@ class StitchKeyboardService : InputMethodService() {
                     spaceStartY = event.rawY
                     isSpaceSwiping = false
                     lastCursorMoveX = spaceStartX
-                    
+                    v.parent?.requestDisallowInterceptTouchEvent(true)
+
                     triggerVibration()
                     v.isPressed = true
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val deltaX = event.rawX - spaceStartX
-                    
-                    if (!isSpaceSwiping && (kotlin.math.abs(deltaX) > 30f)) {
+                    val density = resources.displayMetrics.density
+
+                    if (!isSpaceSwiping && (kotlin.math.abs(deltaX) > 16 * density)) {
                         isSpaceSwiping = true
                     }
-                    
+
                     if (isSpaceSwiping) {
                         val moveDelta = event.rawX - lastCursorMoveX
-                        val threshold = 40f
-                        
-                        if (moveDelta > threshold) {
-                            currentInputConnection?.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_RIGHT))
-                            currentInputConnection?.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_DPAD_RIGHT))
+                        val step = 14 * density
+
+                        if (moveDelta > step) {
+                            sendDownUpKeyEvents(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
                             lastCursorMoveX = event.rawX
                             triggerVibration()
-                        } else if (moveDelta < -threshold) {
-                            currentInputConnection?.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_LEFT))
-                            currentInputConnection?.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_DPAD_LEFT))
+                        } else if (moveDelta < -step) {
+                            sendDownUpKeyEvents(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
                             lastCursorMoveX = event.rawX
                             triggerVibration()
                         }
@@ -2594,6 +2566,7 @@ class StitchKeyboardService : InputMethodService() {
         if (!prefKeyPopup) return
         if (!::previewPopup.isInitialized || !::previewPopupText.isInitialized) return
         previewPopupText.text = char
+        previewPopup.background = getPopupBackground(this)
 
         val (x, y) = keyPositionCache.getOrPut(keyView.id) {
             keyView.getLocationInWindow(keyLocation)
@@ -2605,7 +2578,12 @@ class StitchKeyboardService : InputMethodService() {
         val popupWidth = if (previewPopup.width > 0) previewPopup.width else (54 * density).toInt()
         val popupHeight = if (previewPopup.height > 0) previewPopup.height else (60 * density).toInt()
 
-        previewPopup.translationX = x + (keyView.width - popupWidth) / 2f
+        val rootWidth = if (::keyboardRoot.isInitialized && keyboardRoot.width > 0) keyboardRoot.width else resources.displayMetrics.widthPixels
+        val minX = 4 * density
+        val maxX = (rootWidth - popupWidth - (4 * density)).toFloat()
+        val targetX = (x + (keyView.width - popupWidth) / 2f).coerceIn(minX, maxX.coerceAtLeast(minX))
+
+        previewPopup.translationX = targetX
         previewPopup.translationY = y - popupHeight - (6 * density)
 
         previewPopup.alpha = 1f
@@ -2668,18 +2646,27 @@ class StitchKeyboardService : InputMethodService() {
         }
     }
 
-    private fun getGroqApiKey(): String {
-        val keyFromPrefs = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
-            .getString("GROQ_API_KEY", "")?.trim() ?: ""
-        if (keyFromPrefs.isNotBlank()) return keyFromPrefs
-        
-        return try {
+    private fun getAiApiKey(): String {
+        val sp = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
+        val groqPref = sp.getString("GROQ_API_KEY", "")?.trim() ?: ""
+        if (groqPref.isNotBlank()) return groqPref
+
+        val geminiPref = sp.getString("GEMINI_API_KEY", "")?.trim() ?: ""
+        if (geminiPref.isNotBlank()) return geminiPref
+
+        val groqBuild = try {
             val field = BuildConfig::class.java.getField("GROQ_API_KEY")
             (field.get(null) as? String)?.trim() ?: ""
-        } catch (e: Exception) {
-            ""
-        }
+        } catch (e: Exception) { "" }
+        if (groqBuild.isNotBlank()) return groqBuild
+
+        return try {
+            val field = BuildConfig::class.java.getField("GEMINI_API_KEY")
+            (field.get(null) as? String)?.trim() ?: ""
+        } catch (e: Exception) { "" }
     }
+
+    private fun getGroqApiKey(): String = getAiApiKey()
 
     private fun performGroqAiAction(actionType: String) {
         val ic = currentInputConnection ?: return
@@ -2703,9 +2690,30 @@ class StitchKeyboardService : InputMethodService() {
             return
         }
 
-        val apiKey = getGroqApiKey()
+        val apiKey = getAiApiKey()
         if (apiKey.isBlank() || apiKey == "MY_GROQ_API_KEY" || apiKey == "placeholder" || apiKey == "none") {
-            Toast.makeText(this, "Configure sua chave Groq nas opções do Tessera", Toast.LENGTH_LONG).show()
+            if (actionType == "correct") {
+                val corrected = predictionEngine.correctTextLocally(rawInput)
+                if (corrected != rawInput) {
+                    ic.beginBatchEdit()
+                    localEditCount++
+                    if (isSelection) {
+                        ic.commitText(corrected, 1)
+                    } else {
+                        ic.deleteSurroundingText(textBefore.length, textAfter.length)
+                        ic.commitText(corrected, 1)
+                    }
+                    ic.endBatchEdit()
+                    triggerVibration()
+                    Toast.makeText(this, "✨ Texto corrigido localmente! (Configure IA nas opções)", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Texto já parece correto! Configure a IA nas opções para reescrita avançada.", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                Toast.makeText(this, "Configure sua chave de IA (Groq ou Google Gemini) nas opções do Tessera", Toast.LENGTH_LONG).show()
+            }
+            aiActionsContainer?.visibility = View.GONE
+            suggestionContainer?.visibility = View.VISIBLE
             updateAiToggleVisual(false)
             return
         }
@@ -2713,7 +2721,9 @@ class StitchKeyboardService : InputMethodService() {
         val currentModel = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
             .getString("AI_MODEL", "llama-3.1-8b-instant") ?: "llama-3.1-8b-instant"
 
-        Toast.makeText(this, "⚡ Processando com IA ($currentModel)...", Toast.LENGTH_SHORT).show()
+        val isGemini = apiKey.startsWith("AIza") || currentModel.startsWith("gemini")
+        val modelLabel = if (isGemini) "Google Gemini" else currentModel
+        Toast.makeText(this, "⚡ Processando com IA ($modelLabel)...", Toast.LENGTH_SHORT).show()
 
         // Visual feedback na barra de sugestões
         aiActionsContainer?.visibility = View.GONE
@@ -2749,56 +2759,78 @@ class StitchKeyboardService : InputMethodService() {
 
         scope.launch {
             try {
-                val request = GroqChatRequest(
-                    model = currentModel,
-                    messages = listOf(
-                        GroqMessage(role = "system", content = systemPrompt),
-                        GroqMessage(role = "user", content = userPrompt)
-                    ),
-                    temperature = 0.2,
-                    maxTokens = 512
-                )
-
-                val response = withContext(Dispatchers.IO) {
-                    try {
-                        GroqClient.service.chatCompletion("Bearer $apiKey", request)
-                    } catch (httpEx: retrofit2.HttpException) {
-                        if (httpEx.code() == 404 && request.model == "llama-3.1-8b-instant") {
-                            val fallbackReq = request.copy(model = "llama-3.3-70b-versatile")
-                            GroqClient.service.chatCompletion("Bearer $apiKey", fallbackReq)
-                        } else {
-                            throw httpEx
+                val result = withContext(Dispatchers.IO) {
+                    if (isGemini) {
+                        val geminiModel = if (currentModel.startsWith("gemini")) currentModel else "gemini-2.5-flash"
+                        val req = GenerateContentRequest(
+                            contents = listOf(Content(parts = listOf(Part(text = "$systemPrompt\n\n$userPrompt"))))
+                        )
+                        val resp = try {
+                            RetrofitClient.service.generateContent(geminiModel, apiKey, req)
+                        } catch (httpEx: retrofit2.HttpException) {
+                            if (httpEx.code() == 404 && geminiModel == "gemini-2.5-flash") {
+                                RetrofitClient.service.generateContent("gemini-1.5-flash", apiKey, req)
+                            } else {
+                                throw httpEx
+                            }
                         }
+                        resp.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text?.trim() ?: ""
+                    } else {
+                        val request = GroqChatRequest(
+                            model = currentModel,
+                            messages = listOf(
+                                GroqMessage(role = "system", content = systemPrompt),
+                                GroqMessage(role = "user", content = userPrompt)
+                            ),
+                            temperature = 0.2,
+                            maxTokens = 512
+                        )
+                        val resp = try {
+                            GroqClient.service.chatCompletion("Bearer $apiKey", request)
+                        } catch (httpEx: retrofit2.HttpException) {
+                            if (httpEx.code() == 404 && request.model == "llama-3.1-8b-instant") {
+                                val fallbackReq = request.copy(model = "llama-3.3-70b-versatile")
+                                GroqClient.service.chatCompletion("Bearer $apiKey", fallbackReq)
+                            } else {
+                                throw httpEx
+                            }
+                        }
+                        resp.choices?.firstOrNull()?.message?.content?.trim() ?: ""
                     }
                 }
 
-                val result = response.choices?.firstOrNull()?.message?.content?.trim() ?: ""
                 withContext(Dispatchers.Main) {
+                    val activeIc = currentInputConnection ?: ic
                     if (result.isNotBlank()) {
                         triggerVibration()
-                        ic.beginBatchEdit()
+                        activeIc.beginBatchEdit()
                         localEditCount++
                         if (isSelection) {
-                            ic.commitText(result, 1)
+                            activeIc.commitText(result, 1)
                         } else if (actionType == "complete") {
                             val spacePrefix = if (!textBefore.endsWith(" ") && !result.startsWith(" ")) " " else ""
-                            ic.commitText(spacePrefix + result, 1)
+                            activeIc.commitText(spacePrefix + result, 1)
                         } else {
-                            ic.deleteSurroundingText(textBefore.length, 0)
-                            ic.commitText(result, 1)
+                            activeIc.deleteSurroundingText(textBefore.length, textAfter.length)
+                            activeIc.commitText(result, 1)
                         }
-                        ic.endBatchEdit()
+                        activeIc.endBatchEdit()
                         clearPredictionsUi()
                         Toast.makeText(this@StitchKeyboardService, "✨ Aplicado com sucesso!", Toast.LENGTH_SHORT).show()
                     } else {
                         clearPredictionsUi()
-                        Toast.makeText(this@StitchKeyboardService, "Resposta vazia da Groq", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@StitchKeyboardService, "Resposta vazia da IA", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     clearPredictionsUi()
-                    Toast.makeText(this@StitchKeyboardService, "Erro Groq: ${e.localizedMessage ?: "Falha na conexão"}", Toast.LENGTH_LONG).show()
+                    val msg = if (e is retrofit2.HttpException && e.code() == 401) {
+                        "Chave de IA não autorizada (HTTP 401). Verifique nas configurações."
+                    } else {
+                        "Erro na IA: ${e.localizedMessage ?: "Falha na conexão"}"
+                    }
+                    Toast.makeText(this@StitchKeyboardService, msg, Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -2904,39 +2936,110 @@ class StitchKeyboardService : InputMethodService() {
         speechRecognizer = null
     }
 
+    private fun getPopupBackground(context: Context): Drawable {
+        val prefs = context.getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
+        val style = prefs.getString("PREF_POPUP_STYLE", "dark_glass") ?: "dark_glass"
+        val gd = GradientDrawable()
+        gd.shape = GradientDrawable.RECTANGLE
+        val density = context.resources.displayMetrics.density
+        gd.cornerRadius = 16f * density
+
+        when (style) {
+            "obsidian" -> {
+                gd.setColor(Color.parseColor("#F20B0F19"))
+                gd.setStroke((1.5f * density).toInt(), Color.parseColor("#334155"))
+            }
+            "neon_cyan" -> {
+                gd.setColor(Color.parseColor("#E60B1E2E"))
+                gd.setStroke((1.5f * density).toInt(), Color.parseColor("#00E5FF"))
+            }
+            "emerald" -> {
+                gd.setColor(Color.parseColor("#E609241B"))
+                gd.setStroke((1.5f * density).toInt(), Color.parseColor("#10B981"))
+            }
+            "purple" -> {
+                gd.setColor(Color.parseColor("#E61E1035"))
+                gd.setStroke((1.5f * density).toInt(), Color.parseColor("#A855F7"))
+            }
+            "amber" -> {
+                gd.setColor(Color.parseColor("#E629160B"))
+                gd.setStroke((1.5f * density).toInt(), Color.parseColor("#F59E0B"))
+            }
+            else -> { // "dark_glass" default
+                gd.setColor(Color.parseColor("#E61E293B"))
+                gd.setStroke((1.5f * density).toInt(), Color.parseColor("#4038BDF8"))
+            }
+        }
+        return gd
+    }
+
     private fun showDomainPopup(keyView: View) {
         if (!keyView.isAttachedToWindow || keyView.windowToken == null) return
         val domains = listOf("/", ".com", ".br", ".org", ".net", ".io")
         val context = keyView.context
-        val container = android.widget.LinearLayout(context)
-        container.orientation = android.widget.LinearLayout.HORIZONTAL
-        container.background = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.bg_preview_popup)
-        container.setPadding(8, 8, 8, 8)
+        val density = resources.displayMetrics.density
+        val container = LinearLayout(context)
+        container.orientation = LinearLayout.HORIZONTAL
+        container.background = getPopupBackground(context)
+        val padH = (8 * density).toInt()
+        val padV = (6 * density).toInt()
+        container.setPadding(padH, padV, padH, padV)
 
         val popupWindow = android.widget.PopupWindow(container, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, false)
         popupWindow.isTouchable = true
         popupWindow.isOutsideTouchable = true
-        popupWindow.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            popupWindow.elevation = 16 * density
+        }
+        popupWindow.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+
+        val itemMargin = (4 * density).toInt()
+        val itemHeight = (48 * density).toInt()
 
         for (domain in domains) {
-            val tv = android.widget.TextView(context)
+            val tv = TextView(context)
             tv.text = domain
             tv.textSize = 15f
-            tv.setTextColor(android.graphics.Color.WHITE)
-            tv.setPadding(16, 12, 16, 12)
+            tv.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            tv.setTextColor(Color.WHITE)
+            tv.gravity = Gravity.CENTER
+            tv.setPadding((14 * density).toInt(), 0, (14 * density).toInt(), 0)
+            tv.setBackgroundResource(R.drawable.bg_popup_key_pill)
+            tv.isClickable = true
+            tv.isFocusable = true
+
+            val lp = LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.WRAP_CONTENT, itemHeight)
+            lp.setMargins(itemMargin, 0, itemMargin, 0)
+            tv.layoutParams = lp
+
             tv.setOnClickListener {
+                playClickFeedback()
+                triggerVibration()
                 handleCharacterClick(domain)
                 popupWindow.dismiss()
             }
             container.addView(tv)
         }
 
-        container.measure(android.view.View.MeasureSpec.UNSPECIFIED, android.view.View.MeasureSpec.UNSPECIFIED)
+        container.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val location = IntArray(2)
         keyView.getLocationInWindow(location)
-        val density = resources.displayMetrics.density
+
+        val screenWidth = resources.displayMetrics.widthPixels
+        val screenMargin = (8 * density).toInt()
+        val containerWidth = container.measuredWidth
+        val containerHeight = container.measuredHeight
+
+        var popupX = location[0] + (keyView.width / 2) - (containerWidth / 2)
+        if (popupX < screenMargin) {
+            popupX = screenMargin
+        } else if (popupX + containerWidth > screenWidth - screenMargin) {
+            popupX = (screenWidth - screenMargin - containerWidth).coerceAtLeast(screenMargin)
+        }
+        val popupY = location[1] - containerHeight - (10 * density).toInt()
+
         try {
-            popupWindow.showAtLocation(keyView, android.view.Gravity.NO_GRAVITY, location[0] + (keyView.width / 2) - (container.measuredWidth / 2), location[1] - container.measuredHeight - (10 * density).toInt())
+            popupWindow.showAtLocation(keyView, Gravity.NO_GRAVITY, popupX, popupY)
         } catch (_: Exception) {}
     }
 
@@ -2958,35 +3061,70 @@ class StitchKeyboardService : InputMethodService() {
         val accents = accentsMap[char.lowercase()] ?: return
         
         val context = keyView.context
-        val container = android.widget.LinearLayout(context)
-        container.orientation = android.widget.LinearLayout.HORIZONTAL
-        container.background = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.bg_preview_popup)
-        container.setPadding(8, 8, 8, 8)
+        val density = resources.displayMetrics.density
+        val container = LinearLayout(context)
+        container.orientation = LinearLayout.HORIZONTAL
+        container.background = getPopupBackground(context)
+        val padH = (8 * density).toInt()
+        val padV = (6 * density).toInt()
+        container.setPadding(padH, padV, padH, padV)
 
         val popupWindow = android.widget.PopupWindow(container, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, false)
         popupWindow.isTouchable = true
         popupWindow.isOutsideTouchable = true
-        popupWindow.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            popupWindow.elevation = 16 * density
+        }
+        popupWindow.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
         
+        val itemWidth = (46 * density).toInt()
+        val itemHeight = (54 * density).toInt()
+        val itemMargin = (4 * density).toInt()
+
         for (accent in accents) {
-            val tv = android.widget.TextView(context)
+            val tv = TextView(context)
             tv.text = if (isShifted && !isSymbolMode) accent.uppercase() else accent
             tv.textSize = 24f
-            tv.setTextColor(android.graphics.Color.WHITE)
-            tv.setPadding(24, 12, 24, 12)
+            tv.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            tv.setTextColor(Color.WHITE)
+            tv.gravity = Gravity.CENTER
+            tv.includeFontPadding = true
+            tv.setBackgroundResource(R.drawable.bg_popup_key_pill)
+            tv.isClickable = true
+            tv.isFocusable = true
+            
+            val lp = LinearLayout.LayoutParams(itemWidth, itemHeight)
+            lp.setMargins(itemMargin, 0, itemMargin, 0)
+            tv.layoutParams = lp
+
             tv.setOnClickListener {
+                playClickFeedback()
+                triggerVibration()
                 handleCharacterClick(tv.text.toString())
                 popupWindow.dismiss()
             }
             container.addView(tv)
         }
         
-        container.measure(android.view.View.MeasureSpec.UNSPECIFIED, android.view.View.MeasureSpec.UNSPECIFIED)
+        container.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val location = IntArray(2)
         keyView.getLocationInWindow(location)
-        val density = resources.displayMetrics.density
+
+        val screenWidth = resources.displayMetrics.widthPixels
+        val screenMargin = (8 * density).toInt()
+        val containerWidth = container.measuredWidth
+        val containerHeight = container.measuredHeight
+
+        var popupX = location[0] + (keyView.width / 2) - (containerWidth / 2)
+        if (popupX < screenMargin) {
+            popupX = screenMargin
+        } else if (popupX + containerWidth > screenWidth - screenMargin) {
+            popupX = (screenWidth - screenMargin - containerWidth).coerceAtLeast(screenMargin)
+        }
+        val popupY = location[1] - containerHeight - (10 * density).toInt()
+
         try {
-            popupWindow.showAtLocation(keyView, android.view.Gravity.NO_GRAVITY, location[0] + (keyView.width / 2) - (container.measuredWidth / 2), location[1] - container.measuredHeight - (10 * density).toInt())
+            popupWindow.showAtLocation(keyView, android.view.Gravity.NO_GRAVITY, popupX, popupY)
         } catch (_: Exception) {}
     }
 }

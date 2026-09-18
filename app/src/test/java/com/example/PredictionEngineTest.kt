@@ -212,6 +212,26 @@ class PredictionEngineTest {
 
         val vocePredictions = testEngine.getSwipePredictions("voce")
         assertTrue(vocePredictions.contains("você") || vocePredictions.contains("voce"))
+
+        // Teste de letras duplicadas no gesto (usuário passa apenas 1 vez pela tecla)
+        val carroPredictions = testEngine.getSwipePredictions("caro")
+        assertTrue(carroPredictions.contains("carro") || carroPredictions.contains("claro"))
+
+        val issoPredictions = testEngine.getSwipePredictions("iso")
+        assertTrue(issoPredictions.contains("isso"))
+    }
+
+    @Test
+    fun testCorrectTextLocally() {
+        val testEngine = PredictionEngine()
+        val input = "ola como vc ta hj? espero que esteja td bem"
+        val corrected = testEngine.correctTextLocally(input)
+        
+        // Verifica expansão de abreviações e restauração de maiúscula inicial
+        assertTrue(corrected.startsWith("Olá"))
+        assertTrue(corrected.contains("você"))
+        assertTrue(corrected.contains("hoje?"))
+        assertTrue(corrected.contains("tudo"))
     }
 }
 
