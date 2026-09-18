@@ -147,7 +147,7 @@ class PredictionEngine(
             trie.insert(abbr, frequency = 220)
         }
         localDict?.getWords()?.forEach { word ->
-            trie.insert(word, frequency = 200)
+            trie.insert(word, frequency = 250)
         }
         prewarmPredictions()
         if (context == null) {
@@ -217,10 +217,31 @@ class PredictionEngine(
         }
     }
 
+    fun insertManualWord(word: String) {
+        val clean = word.trim().lowercase()
+        if (clean.length in 2..30 && clean.all { it.isLetter() }) {
+            localDict?.addManualWord(clean)
+            trie.insert(clean, frequency = 250)
+            synchronized(predictionCache) {
+                predictionCache.clear()
+            }
+            prewarmPredictions()
+        }
+    }
+
+    fun removeManualWord(word: String) {
+        val clean = word.trim().lowercase()
+        localDict?.removeManualWord(clean)
+        synchronized(predictionCache) {
+            predictionCache.clear()
+        }
+        prewarmPredictions()
+    }
+
     fun learnWord(word: String) {
         val clean = word.trim().lowercase()
         if (clean.length in 2..30 && clean.all { it.isLetter() }) {
-            localDict?.learnWord(clean)
+            // Insere na árvore em memória na sessão sem persistir no dicionário manual do usuário
             trie.insert(clean, frequency = 200)
             synchronized(predictionCache) {
                 predictionCache.clear()

@@ -102,6 +102,24 @@ class StitchKeyboardService : InputMethodService() {
     private val ghostTextManager = com.example.manager.GhostTextManager()
     private var suggestionContainer: LinearLayout? = null
     private var aiActionsContainer: View? = null
+    private var aiKeyTopView: View? = null
+    private var aiIconTopView: ImageView? = null
+
+    private fun updateAiToggleVisual(active: Boolean) {
+        val key = aiKeyTopView ?: return
+        val icon = aiIconTopView
+        if (active) {
+            key.setBackgroundResource(R.drawable.bg_command_pill_active)
+            val typedGlow = android.util.TypedValue()
+            theme.resolveAttribute(R.attr.stitchGlowColor, typedGlow, true)
+            icon?.setColorFilter(typedGlow.data)
+        } else {
+            key.setBackgroundResource(R.drawable.bg_command_pill)
+            val typedText = android.util.TypedValue()
+            theme.resolveAttribute(R.attr.stitchTextColor, typedText, true)
+            icon?.setColorFilter(typedText.data)
+        }
+    }
     private var suggestion1: android.widget.TextView? = null
     private var suggestion2: android.widget.TextView? = null
     private var suggestion3: android.widget.TextView? = null
@@ -1267,6 +1285,7 @@ class StitchKeyboardService : InputMethodService() {
         composingBuffer.setLength(0)
         aiActionsContainer?.visibility = View.GONE
         suggestionContainer?.visibility = View.VISIBLE
+        updateAiToggleVisual(false)
 
         if ((keyPositionCache.isEmpty() || keyBoundsMap.isEmpty()) && ::keyboardRoot.isInitialized) {
             keyboardRoot.post { prewarmKeyPositions() }
@@ -2218,39 +2237,34 @@ class StitchKeyboardService : InputMethodService() {
 
         aiActionsContainer = view.findViewById(R.id.ai_actions_container)
         val aiKeyTop = view.findViewById<View>(R.id.key_ai_top)
+        val aiIconTop = view.findViewById<ImageView>(R.id.icon_ai_top)
+        aiKeyTopView = aiKeyTop
+        aiIconTopView = aiIconTop
 
-        aiKeyTop?.setOnTouchListener { v, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    v.isPressed = true
-                    playClickFeedback()
-                    triggerVibration()
-                    val aiContainer = aiActionsContainer
-                    if (aiContainer != null) {
-                        val isAiVisible = aiContainer.visibility == View.VISIBLE
-                        if (isAiVisible) {
-                            aiContainer.visibility = View.GONE
-                            suggestionContainer?.visibility = View.VISIBLE
-                        } else {
-                            suggestionContainer?.visibility = View.GONE
-                            clipboardContainer?.visibility = View.GONE
-                            aiContainer.visibility = View.VISIBLE
-                            aiContainer.scrollTo(0, 0)
-                        }
-                    }
-                    true
+        aiKeyTop?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            val aiContainer = aiActionsContainer
+            if (aiContainer != null) {
+                val isAiVisible = aiContainer.visibility == View.VISIBLE
+                if (isAiVisible) {
+                    aiContainer.visibility = View.GONE
+                    suggestionContainer?.visibility = View.VISIBLE
+                    updateAiToggleVisual(false)
+                } else {
+                    suggestionContainer?.visibility = View.GONE
+                    clipboardContainer?.visibility = View.GONE
+                    aiContainer.visibility = View.VISIBLE
+                    aiContainer.scrollTo(0, 0)
+                    updateAiToggleVisual(true)
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    v.isPressed = false
-                    true
-                }
-                else -> false
             }
         }
 
         bindAiActionButton(view.findViewById(R.id.ai_btn_close)) {
             aiActionsContainer?.visibility = View.GONE
             suggestionContainer?.visibility = View.VISIBLE
+            updateAiToggleVisual(false)
         }
 
         bindAiActionButton(view.findViewById(R.id.ai_btn_complete)) {
@@ -2274,27 +2288,11 @@ class StitchKeyboardService : InputMethodService() {
         }
     }
 
-    @SuppressLint("ClickableViewAccessibility")
     private fun bindAiActionButton(btn: View?, action: () -> Unit) {
-        btn?.setOnTouchListener { v, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    v.isPressed = true
-                    playClickFeedback()
-                    triggerVibration()
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    v.isPressed = false
-                    action()
-                    true
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    v.isPressed = false
-                    true
-                }
-                else -> false
-            }
+        btn?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            action()
         }
     }
 
@@ -2688,31 +2686,39 @@ class StitchKeyboardService : InputMethodService() {
         val selectedText = ic.getSelectedText(0)?.toString()?.trim() ?: ""
         val textBefore = ic.getTextBeforeCursor(1000, 0)?.toString() ?: ""
         val textAfter = ic.getTextAfterCursor(500, 0)?.toString() ?: ""
+        val bufferText = composingBuffer.toString().trim()
 
         val isSelection = selectedText.isNotBlank()
         val rawInput = when {
             isSelection -> selectedText
             textBefore.isNotBlank() -> textBefore.trim()
+            bufferText.isNotBlank() -> bufferText
             textAfter.isNotBlank() -> textAfter.trim()
             else -> ""
         }
 
         if (rawInput.isBlank()) {
             Toast.makeText(this, "Digite algo primeiro no campo de texto...", Toast.LENGTH_SHORT).show()
+            updateAiToggleVisual(false)
             return
         }
 
         val apiKey = getGroqApiKey()
         if (apiKey.isBlank() || apiKey == "MY_GROQ_API_KEY" || apiKey == "placeholder" || apiKey == "none") {
             Toast.makeText(this, "Configure sua chave Groq nas opções do Tessera", Toast.LENGTH_LONG).show()
+            updateAiToggleVisual(false)
             return
         }
 
-        Toast.makeText(this, "⚡ Processando com Groq...", Toast.LENGTH_SHORT).show()
+        val currentModel = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
+            .getString("AI_MODEL", "llama-3.1-8b-instant") ?: "llama-3.1-8b-instant"
+
+        Toast.makeText(this, "⚡ Processando com IA ($currentModel)...", Toast.LENGTH_SHORT).show()
 
         // Visual feedback na barra de sugestões
         aiActionsContainer?.visibility = View.GONE
         suggestionContainer?.visibility = View.VISIBLE
+        updateAiToggleVisual(false)
         updateSuggestionView(suggestion1, "⏳")
         updateSuggestionView(suggestion2, "⚡ Processando...")
         updateSuggestionView(suggestion3, "⏳")
@@ -2744,7 +2750,7 @@ class StitchKeyboardService : InputMethodService() {
         scope.launch {
             try {
                 val request = GroqChatRequest(
-                    model = "llama-3.1-8b-instant",
+                    model = currentModel,
                     messages = listOf(
                         GroqMessage(role = "system", content = systemPrompt),
                         GroqMessage(role = "user", content = userPrompt)
@@ -2754,7 +2760,16 @@ class StitchKeyboardService : InputMethodService() {
                 )
 
                 val response = withContext(Dispatchers.IO) {
-                    GroqClient.service.chatCompletion("Bearer $apiKey", request)
+                    try {
+                        GroqClient.service.chatCompletion("Bearer $apiKey", request)
+                    } catch (httpEx: retrofit2.HttpException) {
+                        if (httpEx.code() == 404 && request.model == "llama-3.1-8b-instant") {
+                            val fallbackReq = request.copy(model = "llama-3.3-70b-versatile")
+                            GroqClient.service.chatCompletion("Bearer $apiKey", fallbackReq)
+                        } else {
+                            throw httpEx
+                        }
+                    }
                 }
 
                 val result = response.choices?.firstOrNull()?.message?.content?.trim() ?: ""

@@ -147,9 +147,10 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
 
     // Inteligência Artificial (Groq)
     var groqApiKey by remember { mutableStateOf(prefs.getString("GROQ_API_KEY", "") ?: "") }
+    var aiModel by remember { mutableStateOf(prefs.getString("AI_MODEL", "llama-3.1-8b-instant") ?: "llama-3.1-8b-instant") }
 
-    // Dicionário pessoal
-    var learnedWords by remember { mutableStateOf(dictManager.getWords().toList().sorted()) }
+    // Dicionário pessoal (apenas palavras adicionadas manualmente)
+    var learnedWords by remember { mutableStateOf(dictManager.getManualWords().toList().sorted()) }
 
     // Permissão de microfone
     var hasMicPermission by remember {
@@ -283,21 +284,26 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
                     groqApiKey = it
                     prefs.edit().putString("GROQ_API_KEY", it).apply()
                 },
+                aiModel = aiModel,
+                onAiModelChange = {
+                    aiModel = it
+                    prefs.edit().putString("AI_MODEL", it).apply()
+                },
                 hasMicPermission = hasMicPermission,
                 onRequestMicPermission = {
                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 },
                 learnedWords = learnedWords,
                 onAddWord = { word ->
-                    dictManager.learnWord(word)
-                    learnedWords = dictManager.getWords().toList().sorted()
+                    dictManager.addManualWord(word)
+                    learnedWords = dictManager.getManualWords().toList().sorted()
                 },
                 onRemoveWord = { word ->
-                    dictManager.removeWord(word)
-                    learnedWords = dictManager.getWords().toList().sorted()
+                    dictManager.removeManualWord(word)
+                    learnedWords = dictManager.getManualWords().toList().sorted()
                 },
                 onClearWords = {
-                    dictManager.clearWords()
+                    dictManager.clearManualWords()
                     learnedWords = emptyList()
                 },
                 onEnableKeyboardClick = {
@@ -358,6 +364,8 @@ fun TesseraDashboardContent(
     onScaleChange: (Float) -> Unit,
     groqApiKey: String,
     onGroqApiKeyChange: (String) -> Unit,
+    aiModel: String,
+    onAiModelChange: (String) -> Unit,
     hasMicPermission: Boolean,
     onRequestMicPermission: () -> Unit,
     learnedWords: List<String>,
@@ -668,6 +676,64 @@ fun TesseraDashboardContent(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            Text(
+                text = "Modelo de IA:",
+                style = MaterialTheme.typography.labelMedium,
+                color = Slate300
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+
+            val models = listOf(
+                Triple("llama-3.1-8b-instant", "Llama 3.1 8B", "Ultra Rápido (~200ms)"),
+                Triple("llama-3.3-70b-versatile", "Llama 3.3 70B", "Mais Inteligente"),
+                Triple("gemma2-9b-it", "Gemma 2 9B", "Google Gemma"),
+                Triple("mixtral-8x7b-32768", "Mixtral 8x7B", "Contexto Amplo")
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                models.take(2).forEach { (modelId, name, tag) ->
+                    val isSelected = aiModel == modelId
+                    Surface(
+                        onClick = { onAiModelChange(modelId) },
+                        color = if (isSelected) AccentSky.copy(alpha = 0.15f) else Slate850,
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, if (isSelected) AccentSky else Slate800),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(name, style = MaterialTheme.typography.labelMedium, color = if (isSelected) AccentSky else Slate100, fontWeight = FontWeight.Bold)
+                            Text(tag, style = MaterialTheme.typography.labelSmall, color = if (isSelected) AccentSky.copy(alpha = 0.8f) else Slate400)
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                models.drop(2).forEach { (modelId, name, tag) ->
+                    val isSelected = aiModel == modelId
+                    Surface(
+                        onClick = { onAiModelChange(modelId) },
+                        color = if (isSelected) AccentSky.copy(alpha = 0.15f) else Slate850,
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, if (isSelected) AccentSky else Slate800),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(name, style = MaterialTheme.typography.labelMedium, color = if (isSelected) AccentSky else Slate100, fontWeight = FontWeight.Bold)
+                            Text(tag, style = MaterialTheme.typography.labelSmall, color = if (isSelected) AccentSky.copy(alpha = 0.8f) else Slate400)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             var keyInput by remember(groqApiKey) { mutableStateOf(if (groqApiKey == "placeholder" || groqApiKey == "MY_GROQ_API_KEY") "" else groqApiKey) }
 
             OutlinedTextField(
@@ -708,7 +774,7 @@ fun TesseraDashboardContent(
                     onClick = {
                         val cleaned = keyInput.trim()
                         onGroqApiKeyChange(cleaned)
-                        testStatus = "Chave salva com sucesso! ✅ Pronta para uso no teclado."
+                        testStatus = "Chave salva com sucesso! ✅ Pronta para uso com $aiModel."
                         Toast.makeText(context, "Chave da Groq salva com sucesso!", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -729,12 +795,12 @@ fun TesseraDashboardContent(
                             return@OutlinedButton
                         }
                         isTesting = true
-                        testStatus = "Conectando ao Groq (Llama 3.1)..."
+                        testStatus = "Conectando ao Groq ($aiModel)..."
                         coroutineScope.launch {
                             try {
                                 val startTime = System.currentTimeMillis()
                                 val req = GroqChatRequest(
-                                    model = "llama-3.1-8b-instant",
+                                    model = aiModel,
                                     messages = listOf(
                                         GroqMessage(role = "user", content = "Diga apenas: OK")
                                     ),
@@ -744,7 +810,7 @@ fun TesseraDashboardContent(
                                     try {
                                         GroqClient.service.chatCompletion("Bearer $cleaned", req)
                                     } catch (httpEx: retrofit2.HttpException) {
-                                        if (httpEx.code() == 404) {
+                                        if (httpEx.code() == 404 && aiModel == "llama-3.1-8b-instant") {
                                             // Fallback para llama-3.3-70b-versatile se o modelo 8b retornar 404
                                             val fallbackReq = req.copy(model = "llama-3.3-70b-versatile")
                                             GroqClient.service.chatCompletion("Bearer $cleaned", fallbackReq)
@@ -757,7 +823,7 @@ fun TesseraDashboardContent(
                                 val reply = resp.choices?.firstOrNull()?.message?.content?.trim()
                                 if (!reply.isNullOrBlank()) {
                                     onGroqApiKeyChange(cleaned)
-                                    testStatus = "✅ Conexão OK! Groq respondendo (${elapsed}ms)."
+                                    testStatus = "✅ Conexão OK! Modelo ($aiModel) respondendo (${elapsed}ms)."
                                     Toast.makeText(context, "Groq conectado com sucesso! (${elapsed}ms)", Toast.LENGTH_SHORT).show()
                                 } else {
                                     testStatus = "⚠️ Groq respondeu, mas retornou vazio."
@@ -1159,12 +1225,12 @@ fun DictionarySection(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = "Nenhuma palavra aprendida",
+                        text = "Nenhuma palavra adicionada",
                         style = MaterialTheme.typography.titleSmall,
                         color = Slate300
                     )
                     Text(
-                        text = "Palavras adicionadas ou aprendidas durante a digitação aparecerão aqui.",
+                        text = "Adicione termos, gírias ou nomes próprios usando o campo acima para que o teclado os reconheça e sugira com prioridade.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Slate400,
                         textAlign = TextAlign.Center
@@ -1178,7 +1244,7 @@ fun DictionarySection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${words.size} palavras aprendidas",
+                    text = "${words.size} palavras no dicionário manual",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Slate400
                 )

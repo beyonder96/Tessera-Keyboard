@@ -6,15 +6,18 @@ import java.util.concurrent.ConcurrentHashMap
 
 class LocalDictionaryManager(context: Context) {
     private val prefs = context.getSharedPreferences("LocalDictionary", Context.MODE_PRIVATE)
-    private val WORDS_KEY = "learned_words"
-    private val inMemoryWords = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
 
+    // Palavras adicionadas manualmente pelo usuário na interface de configurações
+    private val MANUAL_WORDS_KEY = "user_manual_words"
+    private val inMemoryManualWords = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+
+    // Bigramas para aprendizado de transições contextuais na digitação (ex: bom -> dia)
     private val BIGRAMS_KEY = "learned_bigrams"
     private val inMemoryBigrams = ConcurrentHashMap<String, ConcurrentHashMap<String, Int>>()
 
     init {
-        val saved = prefs.getStringSet(WORDS_KEY, emptySet()) ?: emptySet()
-        inMemoryWords.addAll(saved)
+        val savedManual = prefs.getStringSet(MANUAL_WORDS_KEY, emptySet()) ?: emptySet()
+        inMemoryManualWords.addAll(savedManual)
 
         val savedBigrams = prefs.getStringSet(BIGRAMS_KEY, emptySet()) ?: emptySet()
         for (item in savedBigrams) {
@@ -29,19 +32,59 @@ class LocalDictionaryManager(context: Context) {
         }
     }
 
-    fun getWords(): Set<String> {
-        return inMemoryWords.toSet()
+    /**
+     * Retorna exclusivamente as palavras adicionadas manualmente pelo usuário.
+     */
+    fun getManualWords(): Set<String> {
+        return inMemoryManualWords.toSet()
     }
 
-    fun learnWord(word: String) {
+    /**
+     * Adiciona manualmente uma palavra ao dicionário pessoal do usuário.
+     */
+    fun addManualWord(word: String): Boolean {
         val cleanWord = word.trim().lowercase()
-        // Ignora palavras inválidas, com números ou símbolos
         if (cleanWord.length in 2..30 && cleanWord.all { it.isLetter() }) {
-            if (inMemoryWords.add(cleanWord)) {
-                // Persiste de forma assíncrona sem bloquear
-                prefs.edit().putStringSet(WORDS_KEY, HashSet(inMemoryWords)).apply()
+            if (inMemoryManualWords.add(cleanWord)) {
+                prefs.edit().putStringSet(MANUAL_WORDS_KEY, HashSet(inMemoryManualWords)).apply()
+                return true
             }
         }
+        return false
+    }
+
+    /**
+     * Remove manualmente uma palavra do dicionário pessoal do usuário.
+     */
+    fun removeManualWord(word: String): Boolean {
+        val cleanWord = word.trim().lowercase()
+        if (inMemoryManualWords.remove(cleanWord)) {
+            prefs.edit().putStringSet(MANUAL_WORDS_KEY, HashSet(inMemoryManualWords)).apply()
+            return true
+        }
+        return false
+    }
+
+    /**
+     * Limpa todas as palavras do dicionário manual do usuário.
+     */
+    fun clearManualWords() {
+        inMemoryManualWords.clear()
+        prefs.edit().remove(MANUAL_WORDS_KEY).apply()
+    }
+
+    /**
+     * Compatibilidade: Retorna as palavras manuais para inserção na árvore de predição.
+     */
+    fun getWords(): Set<String> {
+        return inMemoryManualWords.toSet()
+    }
+
+    /**
+     * Palavras digitadas não poluem mais a lista persistente do usuário.
+     */
+    fun learnWord(word: String) {
+        // Intencionalmente não adiciona a inMemoryManualWords para evitar poluir o dicionário pessoal do usuário
     }
 
     fun learnBigram(w1: String, w2: String) {
@@ -82,15 +125,12 @@ class LocalDictionaryManager(context: Context) {
     }
 
     fun removeWord(word: String) {
-        val cleanWord = word.trim().lowercase()
-        if (inMemoryWords.remove(cleanWord)) {
-            prefs.edit().putStringSet(WORDS_KEY, HashSet(inMemoryWords)).apply()
-        }
+        removeManualWord(word)
     }
 
     fun clearWords() {
-        inMemoryWords.clear()
+        clearManualWords()
         inMemoryBigrams.clear()
-        prefs.edit().remove(WORDS_KEY).remove(BIGRAMS_KEY).apply()
+        prefs.edit().remove(BIGRAMS_KEY).remove("learned_words").apply()
     }
 }
