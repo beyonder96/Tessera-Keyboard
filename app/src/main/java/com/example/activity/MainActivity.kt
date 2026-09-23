@@ -55,6 +55,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.manager.LocalDictionaryManager
+import com.example.manager.SnippetManager
+import com.example.ui.widget.KeyboardLivePreview
 import com.example.ui.theme.*
 import com.example.api.GroqClient
 import com.example.api.GroqChatRequest
@@ -146,10 +148,16 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
     var hapticDurationMs by remember { mutableStateOf(prefs.getInt("PREF_HAPTIC_DURATION_MS", 15)) }
     var soundFeedback by remember { mutableStateOf(prefs.getBoolean("PREF_SOUND_FEEDBACK", false)) }
 
-    // Tema e Escala
+    // Tema, Formato, Trilha e Escala
     var keyboardTheme by remember { mutableStateOf(prefs.getString("KEYBOARD_THEME", "Dark") ?: "Dark") }
     var keyboardScale by remember { mutableStateOf(prefs.getFloat("KEYBOARD_SCALE", 1.0f)) }
     var popupStyle by remember { mutableStateOf(prefs.getString("PREF_POPUP_STYLE", "dark_glass") ?: "dark_glass") }
+    var keyShape by remember { mutableStateOf(prefs.getString("PREF_KEY_SHAPE", "squircle") ?: "squircle") }
+    var keyHints by remember { mutableStateOf(prefs.getBoolean("PREF_KEY_HINTS", true)) }
+    var glideTrailStyle by remember { mutableStateOf(prefs.getString("PREF_GLIDE_TRAIL_STYLE", "Theme") ?: "Theme") }
+    var translateTarget by remember { mutableStateOf(prefs.getString("PREF_TRANSLATE_TARGET", "Inglês") ?: "Inglês") }
+    val snippetManager = remember { SnippetManager(context) }
+    var snippets by remember { mutableStateOf(snippetManager.getSnippets()) }
 
     // Inteligência Artificial (Groq)
     var groqApiKey by remember { mutableStateOf(prefs.getString("GROQ_API_KEY", "") ?: "") }
@@ -290,6 +298,35 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
                     popupStyle = it
                     prefs.edit().putString("PREF_POPUP_STYLE", it).apply()
                 },
+                keyShape = keyShape,
+                onKeyShapeChange = {
+                    keyShape = it
+                    prefs.edit().putString("PREF_KEY_SHAPE", it).apply()
+                },
+                keyHints = keyHints,
+                onKeyHintsChange = {
+                    keyHints = it
+                    prefs.edit().putBoolean("PREF_KEY_HINTS", it).apply()
+                },
+                glideTrailStyle = glideTrailStyle,
+                onGlideTrailStyleChange = {
+                    glideTrailStyle = it
+                    prefs.edit().putString("PREF_GLIDE_TRAIL_STYLE", it).apply()
+                },
+                translateTarget = translateTarget,
+                onTranslateTargetChange = {
+                    translateTarget = it
+                    prefs.edit().putString("PREF_TRANSLATE_TARGET", it).apply()
+                },
+                snippets = snippets,
+                onAddSnippet = { shortcut, text ->
+                    snippetManager.addSnippet(shortcut, text)
+                    snippets = snippetManager.getSnippets()
+                },
+                onRemoveSnippet = { shortcut ->
+                    snippetManager.removeSnippet(shortcut)
+                    snippets = snippetManager.getSnippets()
+                },
                 groqApiKey = groqApiKey,
                 onGroqApiKeyChange = {
                     groqApiKey = it
@@ -375,6 +412,17 @@ fun TesseraDashboardContent(
     onScaleChange: (Float) -> Unit,
     popupStyle: String,
     onPopupStyleChange: (String) -> Unit,
+    keyShape: String,
+    onKeyShapeChange: (String) -> Unit,
+    keyHints: Boolean,
+    onKeyHintsChange: (Boolean) -> Unit,
+    glideTrailStyle: String,
+    onGlideTrailStyleChange: (String) -> Unit,
+    translateTarget: String,
+    onTranslateTargetChange: (String) -> Unit,
+    snippets: Map<String, String>,
+    onAddSnippet: (String, String) -> Unit,
+    onRemoveSnippet: (String) -> Unit,
     groqApiKey: String,
     onGroqApiKeyChange: (String) -> Unit,
     aiModel: String,
@@ -396,6 +444,15 @@ fun TesseraDashboardContent(
     ) {
         // Cabeçalho de Identidade
         TesseraHeader()
+
+        // Live Preview Interativo em Tempo Real
+        KeyboardLivePreview(
+            themeName = keyboardTheme,
+            keyShape = keyShape,
+            keyHints = keyHints,
+            scale = keyboardScale,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         // Card de Status do Teclado (com Error / Warning / Success states)
         KeyboardStatusCard(
@@ -454,6 +511,13 @@ fun TesseraDashboardContent(
                 description = "Deslize o dedo pelas letras para digitar palavras continuamente",
                 checked = glideTyping,
                 onCheckedChange = onGlideTypingChange
+            )
+            DividerLine()
+            SettingToggle(
+                title = "Sub-legendas nas Teclas (Key Hints)",
+                description = "Exibe símbolos e números no topo das teclas com digitação por toque longo",
+                checked = keyHints,
+                onCheckedChange = onKeyHintsChange
             )
             DividerLine()
             SettingToggle(
@@ -590,9 +654,15 @@ fun TesseraDashboardContent(
         // Seção: Aparência e Escala
         SectionCard(title = "Aparência e Escala") {
             Text(
-                text = "Estilo de Vidro",
+                text = "Tema Visual & Frosted Glass",
                 style = MaterialTheme.typography.titleSmall,
                 color = Slate100
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Suporte a desfoque de fundo em tempo real (Android 12+) e estilos modernos:",
+                style = MaterialTheme.typography.bodySmall,
+                color = Slate400
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -611,6 +681,117 @@ fun TesseraDashboardContent(
                     onClick = { onThemeChange("Light") },
                     modifier = Modifier.weight(1f)
                 )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ThemeOptionButton(
+                    title = "AMOLED Black",
+                    isSelected = keyboardTheme == "Amoled",
+                    onClick = { onThemeChange("Amoled") },
+                    modifier = Modifier.weight(1f)
+                )
+                ThemeOptionButton(
+                    title = "Cyberpunk",
+                    isSelected = keyboardTheme == "Cyberpunk",
+                    onClick = { onThemeChange("Cyberpunk") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ThemeOptionButton(
+                    title = "Nord Frost",
+                    isSelected = keyboardTheme == "Nord",
+                    onClick = { onThemeChange("Nord") },
+                    modifier = Modifier.weight(1f)
+                )
+                ThemeOptionButton(
+                    title = "Material You",
+                    isSelected = keyboardTheme == "Monet",
+                    onClick = { onThemeChange("Monet") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            DividerLine()
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Geometria das Teclas (Key Shape)",
+                style = MaterialTheme.typography.titleSmall,
+                color = Slate100
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Design dos cantos das teclas:",
+                style = MaterialTheme.typography.bodySmall,
+                color = Slate400
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ThemeOptionButton(
+                    title = "Squircle (Expressivo)",
+                    isSelected = keyShape == "squircle",
+                    onClick = { onKeyShapeChange("squircle") },
+                    modifier = Modifier.weight(1f)
+                )
+                ThemeOptionButton(
+                    title = "Pílula (Clássico)",
+                    isSelected = keyShape == "pill",
+                    onClick = { onKeyShapeChange("pill") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            DividerLine()
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Estilo do Rastro de Deslize (Glide Trail)",
+                style = MaterialTheme.typography.titleSmall,
+                color = Slate100
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Cor da linha dinâmica durante a digitação por gestos:",
+                style = MaterialTheme.typography.bodySmall,
+                color = Slate400
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            val trailOptions = listOf("Theme", "Cyan", "Magenta", "Amber", "White")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                trailOptions.forEach { opt ->
+                    val isSel = glideTrailStyle == opt
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(if (isSel) AccentSkyMuted else Slate850, RoundedCornerShape(8.dp))
+                            .border(1.dp, if (isSel) AccentSky else Slate700, RoundedCornerShape(8.dp))
+                            .clickable { onGlideTrailStyleChange(opt) }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (opt == "Theme") "Auto" else opt,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSel) AccentSky else Slate300
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1036,6 +1217,71 @@ fun TesseraDashboardContent(
                 }
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+            DividerLine()
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Idioma Alvo para Tradução Automática (🌐)",
+                style = MaterialTheme.typography.titleSmall,
+                color = Slate100
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Ao tocar em 'Traduzir' na barra de IA, o texto será convertido para:",
+                style = MaterialTheme.typography.bodySmall,
+                color = Slate400
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            val languages = listOf("Inglês", "Espanhol", "Francês", "Alemão", "Italiano", "Japonês")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                languages.take(3).forEach { lang ->
+                    val isSel = translateTarget == lang
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(if (isSel) AccentSkyMuted else Slate850, RoundedCornerShape(8.dp))
+                            .border(1.dp, if (isSel) AccentSky else Slate700, RoundedCornerShape(8.dp))
+                            .clickable { onTranslateTargetChange(lang) }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = lang,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSel) AccentSky else Slate300
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                languages.drop(3).forEach { lang ->
+                    val isSel = translateTarget == lang
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(if (isSel) AccentSkyMuted else Slate850, RoundedCornerShape(8.dp))
+                            .border(1.dp, if (isSel) AccentSky else Slate700, RoundedCornerShape(8.dp))
+                            .clickable { onTranslateTargetChange(lang) }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = lang,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSel) AccentSky else Slate300
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "Gratuito e sem cartão: obtenha em console.groq.com",
@@ -1043,6 +1289,13 @@ fun TesseraDashboardContent(
                 color = AccentSky
             )
         }
+
+        // Seção: Expansão de Texto & Snippets (!pix, !email, etc.)
+        SnippetsSection(
+            snippets = snippets,
+            onAddSnippet = onAddSnippet,
+            onRemoveSnippet = onRemoveSnippet
+        )
 
         // Seção: Dicionário Pessoal & Palavras Aprendidas (com Empty State obrigatório)
         DictionarySection(
@@ -1319,6 +1572,156 @@ fun PopupStyleOption(
                 color = if (isSelected) Color.White else Slate300,
                 maxLines = 1
             )
+        }
+    }
+}
+
+@Composable
+fun SnippetsSection(
+    snippets: Map<String, String>,
+    onAddSnippet: (String, String) -> Unit,
+    onRemoveSnippet: (String) -> Unit
+) {
+    var shortcutInput by remember { mutableStateOf("") }
+    var textInput by remember { mutableStateOf("") }
+
+    SectionCard(title = "Expansão de Texto & Snippets") {
+        Text(
+            text = "Atalhos rápidos expansíveis no teclado:",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Slate400
+        )
+        Text(
+            text = "Digite o atalho (ex: !pix) seguido de espaço ou clique na sugestão para colar o texto completo.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Slate400
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = shortcutInput,
+                onValueChange = { shortcutInput = it },
+                placeholder = { Text("!atalho", color = Slate600) },
+                label = { Text("Atalho") },
+                modifier = Modifier.weight(0.4f),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Slate100),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AccentSky,
+                    unfocusedBorderColor = Slate700,
+                    focusedContainerColor = Slate850,
+                    unfocusedContainerColor = Slate850
+                ),
+                shape = RoundedCornerShape(8.dp)
+            )
+
+            OutlinedTextField(
+                value = textInput,
+                onValueChange = { textInput = it },
+                placeholder = { Text("Texto...", color = Slate600) },
+                label = { Text("Conteúdo") },
+                modifier = Modifier.weight(0.6f),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Slate100),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = AccentSky,
+                    unfocusedBorderColor = Slate700,
+                    focusedContainerColor = Slate850,
+                    unfocusedContainerColor = Slate850
+                ),
+                shape = RoundedCornerShape(8.dp)
+            )
+
+            Button(
+                onClick = {
+                    val s = shortcutInput.trim()
+                    val t = textInput.trim()
+                    if (s.isNotEmpty() && t.isNotEmpty()) {
+                        val formattedShortcut = if (s.startsWith("!")) s else "!$s"
+                        onAddSnippet(formattedShortcut, t)
+                        shortcutInput = ""
+                        textInput = ""
+                    }
+                },
+                modifier = Modifier.height(56.dp),
+                enabled = shortcutInput.isNotBlank() && textInput.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AccentSky,
+                    contentColor = Slate950,
+                    disabledContainerColor = Slate800,
+                    disabledContentColor = Slate600
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Adicionar Snippet", modifier = Modifier.size(20.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (snippets.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Slate850, RoundedCornerShape(8.dp))
+                    .border(1.dp, Slate800, RoundedCornerShape(8.dp))
+                    .padding(20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Nenhum atalho cadastrado. Crie atalhos rápidos como !pix, !email ou !tel acima!",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Slate400,
+                    textAlign = TextAlign.Center
+                )
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                snippets.forEach { (shortcut, expansion) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Slate850, RoundedCornerShape(8.dp))
+                            .border(1.dp, Slate700, RoundedCornerShape(8.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = shortcut,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = AccentSky,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = expansion,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Slate300,
+                                maxLines = 2
+                            )
+                        }
+                        IconButton(
+                            onClick = { onRemoveSnippet(shortcut) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Excluir Snippet",
+                                tint = Slate400,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

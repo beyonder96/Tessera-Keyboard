@@ -25,4 +25,52 @@
         <item name="stitchAiBg">#33007777</item>
         <item name="stitchAiText">#FFFFFF</item>
     </style>
+
+    <style name="Theme.Tessera.Amoled" parent="Theme.MyApplication">
+        <item name="stitchBgColor">#F2000000</item> <!-- 95% Pure OLED black -->
+        <item name="stitchGlowColor">#38BDF8</item> <!-- Accent Sky glow -->
+        <item name="stitchKeyBgColor">#18181B</item> <!-- Dark zinc surface -->
+        <item name="stitchKeyBorderColor">#27272A</item>
+        <item name="stitchTextColor">#FFFFFF</item>
+        <item name="stitchTextInactiveColor">#71717A</item>
+        <item name="stitchGlassBgTranslucent">#27272A</item>
+        <item name="stitchAiBg">#2638BDF8</item>
+        <item name="stitchAiText">#38BDF8</item>
+    </style>
+
+    <style name="Theme.Tessera.Cyberpunk" parent="Theme.MyApplication">
+        <item name="stitchBgColor">#E6090414</item> <!-- Deep neon purple/dark void -->
+        <item name="stitchGlowColor">#FF007F</item> <!-- Neon Pink / Magenta -->
+        <item name="stitchKeyBgColor">#1A00F5FF</item> <!-- Electric Cyan 10% -->
+        <item name="stitchKeyBorderColor">#4DFF007F</item>
+        <item name="stitchTextColor">#00F5FF</item> <!-- Neon Cyan text -->
+        <item name="stitchTextInactiveColor">#8000F5FF</item>
+        <item name="stitchGlassBgTranslucent">#33FF007F</item>
+        <item name="stitchAiBg">#4DFF007F</item>
+        <item name="stitchAiText">#FF007F</item>
+    </style>
+
+    <style name="Theme.Tessera.Nord" parent="Theme.MyApplication">
+        <item name="stitchBgColor">#E62E3440</item> <!-- Nord Polar Night -->
+        <item name="stitchGlowColor">#88C0D0</item> <!-- Nord Frost Blue -->
+        <item name="stitchKeyBgColor">#26D8DEE9</item> <!-- Snow Storm soft translucent -->
+        <item name="stitchKeyBorderColor">#3388C0D0</item>
+        <item name="stitchTextColor">#ECEFF4</item>
+        <item name="stitchTextInactiveColor">#80D8DEE9</item>
+        <item name="stitchGlassBgTranslucent">#334C566A</item>
+        <item name="stitchAiBg">#3388C0D0</item>
+        <item name="stitchAiText">#88C0D0</item>
+    </style>
+
+    <style name="Theme.Tessera.Monet" parent="Theme.MyApplication">
+        <item name="stitchBgColor">#E61C1B1F</item> <!-- M3 Dark Surface -->
+        <item name="stitchGlowColor">#D0BCFF</item> <!-- M3 Primary Pastel Purple -->
+        <item name="stitchKeyBgColor">#26E6E1E5</item> <!-- On-Surface translucent -->
+        <item name="stitchKeyBorderColor">#1AE6E1E5</item>
+        <item name="stitchTextColor">#E6E1E5</item>
+        <item name="stitchTextInactiveColor">#80CAC4D0</item>
+        <item name="stitchGlassBgTranslucent">#3349454F</item>
+        <item name="stitchAiBg">#33D0BCFF</item>
+        <item name="stitchAiText">#FFFFFF</item>
+    </style>
 </resources>

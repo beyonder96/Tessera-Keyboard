@@ -59,8 +59,14 @@ import android.widget.EditText
 import android.widget.ScrollView
 import android.widget.GridLayout
 import com.example.manager.ClipboardHistoryManager
+import com.example.manager.SnippetManager
 import com.example.ui.widget.SwipeTrailView
 import com.example.engine.EmojiDictionary
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.SuperscriptSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.ForegroundColorSpan
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -164,7 +170,24 @@ class StitchKeyboardService : InputMethodService() {
     private var prefAutocorrect = true
     private var prefAutoCapitalize = true
     private var prefDoubleSpacePeriod = true
+    private var prefKeyShape = "squircle"
+    private var prefKeyHints = true
+    private var prefOneHandedMode = "off"
+    private var prefGlideTrailStyle = "Theme"
+    private var prefTranslateTarget = "Inglês"
+    private val snippetManager by lazy { SnippetManager(this) }
+    private var oneHandedLeftPanel: View? = null
+    private var oneHandedRightPanel: View? = null
     private var lastCommittedWord: String? = null
+
+    private val keyHintsMap = mapOf(
+        R.id.key_q to "1", R.id.key_w to "2", R.id.key_e to "3", R.id.key_r to "4", R.id.key_t to "5",
+        R.id.key_y to "6", R.id.key_u to "7", R.id.key_i to "8", R.id.key_o to "9", R.id.key_p to "0",
+        R.id.key_a to "@", R.id.key_s to "#", R.id.key_d to "$", R.id.key_f to "%", R.id.key_g to "&",
+        R.id.key_h to "*", R.id.key_j to "-", R.id.key_k to "+", R.id.key_l to "=",
+        R.id.key_z to "(", R.id.key_x to ")", R.id.key_c to "/", R.id.key_v to "\\",
+        R.id.key_b to "'", R.id.key_n to "\"", R.id.key_m to "?"
+    )
     
     // Novas instâncias e views
     private lateinit var clipboardHistoryManager: ClipboardHistoryManager
@@ -212,13 +235,25 @@ class StitchKeyboardService : InputMethodService() {
         prefAutoCapitalize = sp.getBoolean("PREF_AUTO_CAP", true)
         prefDoubleSpacePeriod = sp.getBoolean("PREF_DOUBLE_SPACE_PERIOD", true)
         prefSuggestScreenshots = sp.getBoolean("PREF_SUGGEST_SCREENSHOTS", true)
+        prefKeyShape = sp.getString("PREF_KEY_SHAPE", "squircle") ?: "squircle"
+        prefKeyHints = sp.getBoolean("PREF_KEY_HINTS", true)
+        prefOneHandedMode = sp.getString("PREF_ONE_HANDED_MODE", "off") ?: "off"
+        prefGlideTrailStyle = sp.getString("PREF_GLIDE_TRAIL_STYLE", "Theme") ?: "Theme"
+        prefTranslateTarget = sp.getString("PREF_TRANSLATE_TARGET", "Inglês") ?: "Inglês"
     }
 
     override fun onCreateInputView(): View {
         try {
             val themePref = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getString("KEYBOARD_THEME", "Dark") ?: "Dark"
             currentTheme = themePref
-            val themeResId = if (themePref == "Light") R.style.Theme_Tessera_Light else R.style.Theme_Tessera_Dark
+            val themeResId = when (themePref) {
+                "Light" -> R.style.Theme_Tessera_Light
+                "Amoled" -> R.style.Theme_Tessera_Amoled
+                "Cyberpunk" -> R.style.Theme_Tessera_Cyberpunk
+                "Nord" -> R.style.Theme_Tessera_Nord
+                "Monet" -> R.style.Theme_Tessera_Monet
+                else -> R.style.Theme_Tessera_Dark
+            }
             val themedContext = ContextThemeWrapper(this, themeResId)
             val keyboardView = layoutInflater.cloneInContext(themedContext)
                 .inflate(R.layout.stitch_keyboard_layout, null)
@@ -237,9 +272,61 @@ class StitchKeyboardService : InputMethodService() {
 
             clipboardHistoryRoot = keyboardView.findViewById(R.id.clipboard_history_ui_root)
             swipeTrailView = keyboardView.findViewById(R.id.swipe_trail_view)
-            val typedGlow = android.util.TypedValue()
-            theme.resolveAttribute(R.attr.stitchGlowColor, typedGlow, true)
-            swipeTrailView?.setTrailColor(typedGlow.data)
+            
+            // Trail color dinâmico
+            val trailColor = when (prefGlideTrailStyle) {
+                "Cyan" -> Color.parseColor("#00F5FF")
+                "Magenta" -> Color.parseColor("#FF007F")
+                "Amber" -> Color.parseColor("#F59E0B")
+                "White" -> Color.WHITE
+                else -> {
+                    val typedGlow = android.util.TypedValue()
+                    themedContext.theme.resolveAttribute(R.attr.stitchGlowColor, typedGlow, true)
+                    typedGlow.data
+                }
+            }
+            swipeTrailView?.setTrailColor(trailColor)
+
+            // One-Handed mode panels
+            oneHandedLeftPanel = keyboardView.findViewById(R.id.one_handed_left_panel)
+            oneHandedRightPanel = keyboardView.findViewById(R.id.one_handed_right_panel)
+
+            keyboardView.findViewById<View>(R.id.btn_one_handed_switch_left)?.setOnClickListener {
+                playClickFeedback()
+                triggerVibration()
+                setOneHandedMode("left")
+            }
+            keyboardView.findViewById<View>(R.id.btn_one_handed_expand_left)?.setOnClickListener {
+                playClickFeedback()
+                triggerVibration()
+                setOneHandedMode("off")
+            }
+            keyboardView.findViewById<View>(R.id.btn_one_handed_switch_right)?.setOnClickListener {
+                playClickFeedback()
+                triggerVibration()
+                setOneHandedMode("right")
+            }
+            keyboardView.findViewById<View>(R.id.btn_one_handed_expand_right)?.setOnClickListener {
+                playClickFeedback()
+                triggerVibration()
+                setOneHandedMode("off")
+            }
+            keyboardView.findViewById<View>(R.id.key_one_handed_top)?.setOnClickListener {
+                playClickFeedback()
+                triggerVibration()
+                val nextMode = when (prefOneHandedMode) {
+                    "off" -> "right"
+                    "right" -> "left"
+                    else -> "off"
+                }
+                setOneHandedMode(nextMode)
+            }
+            applyOneHandedModeVisuals()
+
+            // Hardware blur da janela
+            window?.window?.let { win ->
+                applyGlassmorphismBlur(win)
+            }
 
             keyboardView.findViewById<View>(R.id.btn_close_clipboard)?.setOnClickListener {
                 playClickFeedback()
@@ -1017,6 +1104,18 @@ class StitchKeyboardService : InputMethodService() {
 
         hideClipboardPill()
 
+        if (word.startsWith("!")) {
+            val snippet = snippetManager.findExpansion(word)
+            if (snippet != null) {
+                predictionJob?.cancel()
+                updateSuggestionView(suggestion1, word)
+                updateSuggestionView(suggestion2, snippet)
+                updateSuggestionView(suggestion3, "📋 Snippet")
+                dragPill?.alpha = 0f
+                return
+            }
+        }
+
         val queryKey = if (!previousWord.isNullOrEmpty()) "$previousWord|$word" else word
         if (queryKey == lastQueriedWord && word.isNotEmpty()) {
             return
@@ -1544,10 +1643,12 @@ class StitchKeyboardService : InputMethodService() {
                         playClickFeedback()
                         showKeyPopup(keyView, uppercaseChar)
                         v.isPressed = true
+                        v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(40).start()
 
                         longPressRunnable = Runnable {
                             isLongPress = true
                             hideKeyPopup()
+                            v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(60).start()
                             if (!isSymbolMode) {
                                 showAccentsPopup(keyView, currentChar)
                                 triggerVibration()
@@ -1567,6 +1668,7 @@ class StitchKeyboardService : InputMethodService() {
                             longPressRunnable?.let { mainHandler.removeCallbacks(it) }
                             hideKeyPopup()
                             v.isPressed = false
+                            v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(60).start()
                         }
                         if (isSwipingGesture) {
                             val containerLoc = IntArray(2)
@@ -1603,6 +1705,7 @@ class StitchKeyboardService : InputMethodService() {
                         longPressRunnable?.let { mainHandler.removeCallbacks(it) }
                         hideKeyPopup()
                         v.isPressed = false
+                        v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(60).start()
                         
                         if (isSwipingGesture) {
                             isSwipingGesture = false
@@ -1928,13 +2031,15 @@ class StitchKeyboardService : InputMethodService() {
                     val deltaX = event.rawX - spaceStartX
                     val density = resources.displayMetrics.density
 
-                    if (!isSpaceSwiping && (kotlin.math.abs(deltaX) > 16 * density)) {
+                    if (!isSpaceSwiping && (kotlin.math.abs(deltaX) > 14 * density)) {
                         isSpaceSwiping = true
+                        spaceKey?.text = "‹  Cursor  ›"
+                        spaceKey?.setBackgroundResource(R.drawable.bg_command_pill_active)
                     }
 
                     if (isSpaceSwiping) {
                         val moveDelta = event.rawX - lastCursorMoveX
-                        val step = 14 * density
+                        val step = 12 * density
 
                         if (moveDelta > step) {
                             sendDownUpKeyEvents(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
@@ -1948,12 +2053,37 @@ class StitchKeyboardService : InputMethodService() {
                     }
                     true
                 }
-                MotionEvent.ACTION_UP -> {
-                    if (!isSpaceSwiping) {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (isSpaceSwiping) {
+                        isSpaceSwiping = false
+                        spaceKey?.text = "Tessera"
+                        val cmdRes = if (prefKeyShape == "squircle") R.drawable.bg_command_squircle else R.drawable.bg_command_pill
+                        spaceKey?.setBackgroundResource(cmdRes)
+                        v.isPressed = false
+                        return@setOnTouchListener true
+                    }
+                    if (event.action == MotionEvent.ACTION_UP) {
                         val ic = currentInputConnection
                         val editorInfo = currentInputEditorInfo
                         val lastWord = composingBuffer.toString()
                         val centerCandidate = suggestion2?.text?.toString()?.trim() ?: ""
+
+                        // Expansão instantânea de Snippets ao teclar espaço
+                        if (lastWord.startsWith("!")) {
+                            val snippetExp = snippetManager.findExpansion(lastWord)
+                            if (snippetExp != null) {
+                                ic?.beginBatchEdit()
+                                localEditCount++
+                                ic?.deleteSurroundingText(lastWord.length, 0)
+                                ic?.commitText(snippetExp + " ", 1)
+                                ic?.endBatchEdit()
+                                composingBuffer.setLength(0)
+                                playClickFeedback()
+                                triggerVibration()
+                                v.isPressed = false
+                                return@setOnTouchListener true
+                            }
+                        }
 
                         val now = android.os.SystemClock.uptimeMillis()
                         val doubleSpacePref = prefDoubleSpacePeriod
@@ -2014,10 +2144,6 @@ class StitchKeyboardService : InputMethodService() {
                         triggerVibration()
                         scheduleAsyncPrediction("", lastCommittedWord)
                     }
-                    v.isPressed = false
-                    true
-                }
-                MotionEvent.ACTION_CANCEL -> {
                     v.isPressed = false
                     true
                 }
@@ -2258,6 +2384,54 @@ class StitchKeyboardService : InputMethodService() {
         bindAiActionButton(view.findViewById(R.id.ai_btn_shorten)) {
             performGroqAiAction("shorten")
         }
+
+        bindAiActionButton(view.findViewById(R.id.ai_btn_translate)) {
+            performGroqAiAction("translate")
+        }
+    }
+
+    private fun setOneHandedMode(mode: String) {
+        prefOneHandedMode = mode
+        getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
+            .edit().putString("PREF_ONE_HANDED_MODE", mode).apply()
+        applyOneHandedModeVisuals()
+    }
+
+    private fun applyOneHandedModeVisuals() {
+        when (prefOneHandedMode) {
+            "left" -> {
+                oneHandedLeftPanel?.visibility = View.GONE
+                oneHandedRightPanel?.visibility = View.VISIBLE
+            }
+            "right" -> {
+                oneHandedLeftPanel?.visibility = View.VISIBLE
+                oneHandedRightPanel?.visibility = View.GONE
+            }
+            else -> {
+                oneHandedLeftPanel?.visibility = View.GONE
+                oneHandedRightPanel?.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun applyKeyShapeDrawables(view: View) {
+        val isSquircle = prefKeyShape == "squircle"
+        val keyRes = if (isSquircle) R.drawable.bg_key_squircle else R.drawable.bg_key_circle
+        val cmdRes = if (isSquircle) R.drawable.bg_command_squircle else R.drawable.bg_command_pill
+
+        for ((_, kv) in keyViewMap) {
+            kv.setBackgroundResource(keyRes)
+        }
+
+        val commandIds = listOf(
+            R.id.key_shift, R.id.key_backspace, R.id.key_symbol, R.id.key_comma,
+            R.id.key_space, R.id.key_period, R.id.key_enter, R.id.key_ai_top,
+            R.id.key_mic_top, R.id.key_clipboard_top, R.id.key_emoji_top,
+            R.id.key_one_handed_top, R.id.key_settings_top
+        )
+        for (cid in commandIds) {
+            view.findViewById<View>(cid)?.setBackgroundResource(cmdRes)
+        }
     }
 
     private fun bindAiActionButton(btn: View?, action: () -> Unit) {
@@ -2432,14 +2606,33 @@ class StitchKeyboardService : InputMethodService() {
         }
         alphabetKeys.clear()
         
+        val inactiveColor = try {
+            val tv = android.util.TypedValue()
+            theme.resolveAttribute(R.attr.stitchTextInactiveColor, tv, true)
+            tv.data
+        } catch (_: Exception) {
+            Color.argb(128, 255, 255, 255)
+        }
+
         for ((id, defaultChar) in currentMap) {
             val keyView = keyViewMap[id] ?: continue
             val char = getCharForId(id) ?: defaultChar
             val displayChar = if (isShifted && !isSymbolMode) char.uppercase() else char
-            if (keyView.text != displayChar) {
+            alphabetKeys[id] = char
+
+            val hint = keyHintsMap[id]
+            if (prefKeyHints && !isSymbolMode && hint != null) {
+                val ssb = SpannableStringBuilder()
+                ssb.append(displayChar)
+                val start = ssb.length
+                ssb.append(hint)
+                ssb.setSpan(SuperscriptSpan(), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                ssb.setSpan(RelativeSizeSpan(0.52f), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                ssb.setSpan(ForegroundColorSpan(inactiveColor), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                keyView.text = ssb
+            } else {
                 keyView.text = displayChar
             }
-            alphabetKeys[id] = char
         }
         
         val symbolKeyText = keyboardRoot.findViewById<TextView>(R.id.text_key_symbol)
@@ -2754,6 +2947,10 @@ class StitchKeyboardService : InputMethodService() {
                 "Resuma o texto a seguir de forma concisa e direta em português do Brasil, preservando a ideia principal. Retorne ESTRITAMENTE APENAS o texto resumido, sem aspas ou explicações.",
                 rawInput
             )
+            "translate" -> Pair(
+                "Você é um tradutor instantâneo de alta precisão. Traduza o texto a seguir para $prefTranslateTarget mantendo o sentido, tom e contexto naturais. Retorne ESTRITAMENTE APENAS o texto traduzido, sem aspas, explicações ou notas adicionais.",
+                rawInput
+            )
             else -> Pair("Melhore o texto a seguir.", rawInput)
         }
 
@@ -3058,7 +3255,19 @@ class StitchKeyboardService : InputMethodService() {
             "c" to listOf("c", "ç"),
             "n" to listOf("n", "ñ")
         )
-        val accents = accentsMap[char.lowercase()] ?: return
+        val baseAccents = accentsMap[char.lowercase()]
+        val hintChar = keyHintsMap[keyView.id]
+
+        if (baseAccents == null) {
+            if (hintChar != null) {
+                playClickFeedback()
+                triggerVibration()
+                handleCharacterClick(hintChar)
+            }
+            return
+        }
+
+        val accents = if (hintChar != null && !baseAccents.contains(hintChar)) baseAccents + hintChar else baseAccents
         
         val context = keyView.context
         val density = resources.displayMetrics.density
