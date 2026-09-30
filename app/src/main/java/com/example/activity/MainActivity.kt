@@ -1,4 +1,4 @@
-﻿package com.example.activity
+package com.example.activity
 
 import android.Manifest
 import android.content.Context
@@ -66,9 +66,14 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        try {
+            enableEdgeToEdge()
+        } catch (_: Exception) {}
+
         setContent {
             MyApplicationTheme {
+                var fatalError by remember { mutableStateOf<String?>(null) }
+
                 Scaffold(
                     modifier = Modifier.fillMaxSize().imePadding(),
                     containerColor = Slate950
@@ -83,9 +88,24 @@ class MainActivity : ComponentActivity() {
                             )
                             .padding(innerPadding)
                     ) {
-                        TesseraDashboardContainer(
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        if (fatalError != null) {
+                            CrashRecoveryScreen(
+                                errorMessage = fatalError!!,
+                                onRetry = { fatalError = null },
+                                onResetPreferences = {
+                                    try {
+                                        getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE).edit().clear().apply()
+                                        getSharedPreferences("LocalDictionary", Context.MODE_PRIVATE).edit().clear().apply()
+                                    } catch (_: Exception) {}
+                                    fatalError = null
+                                }
+                            )
+                        } else {
+                            TesseraDashboardContainer(
+                                modifier = Modifier.fillMaxSize(),
+                                onError = { fatalError = it }
+                            )
+                        }
                     }
                 }
             }
@@ -95,29 +115,40 @@ class MainActivity : ComponentActivity() {
 
 // Helpers para verificar o status do teclado no sistema operacional
 fun isKeyboardEnabled(context: Context): Boolean {
-    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager ?: return false
-    val list = imm.enabledInputMethodList
-    for (info in list) {
-        if (info.packageName == context.packageName) {
-            return true
+    return try {
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager ?: return false
+        val list = imm.enabledInputMethodList ?: return false
+        for (info in list) {
+            if (info != null && info.packageName == context.packageName) {
+                return true
+            }
         }
+        false
+    } catch (_: Exception) {
+        false
     }
-    return false
 }
 
 fun isKeyboardSelected(context: Context): Boolean {
-    val currentInputMethodId = Settings.Secure.getString(
-        context.contentResolver,
-        Settings.Secure.DEFAULT_INPUT_METHOD
-    )
-    return currentInputMethodId != null && currentInputMethodId.startsWith(context.packageName)
+    return try {
+        val currentInputMethodId = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.DEFAULT_INPUT_METHOD
+        )
+        currentInputMethodId != null && currentInputMethodId.startsWith(context.packageName)
+    } catch (_: Exception) {
+        false
+    }
 }
 
 // ==========================================
 // CONTAINER COM LÓGICA E ESTADO
 // ==========================================
 @Composable
-fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
+fun TesseraDashboardContainer(
+    modifier: Modifier = Modifier,
+    onError: (String) -> Unit = {}
+) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE) }
     val dictManager = remember { LocalDictionaryManager(context) }
@@ -127,36 +158,43 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
     var isEnabled by remember { mutableStateOf(false) }
     var isSelected by remember { mutableStateOf(false) }
 
-    // Preferências de Digitação
-    var autocorrect by remember { mutableStateOf(prefs.getBoolean("PREF_AUTOCORRECT", true)) }
-    var smartAbbr by remember { mutableStateOf(prefs.getBoolean("PREF_SMART_ABBR", true)) }
-    var doubleSpacePeriod by remember { mutableStateOf(prefs.getBoolean("PREF_DOUBLE_SPACE_PERIOD", true)) }
-    var autoCap by remember { mutableStateOf(prefs.getBoolean("PREF_AUTO_CAP", true)) }
-    var keyPopup by remember { mutableStateOf(prefs.getBoolean("PREF_KEY_POPUP", true)) }
-    var numberRow by remember { mutableStateOf(prefs.getBoolean("PREF_NUMBER_ROW", false)) }
-    var glideTyping by remember { mutableStateOf(prefs.getBoolean("PREF_GLIDE_TYPING", true)) }
+    // Preferências de Digitação protegidas contra corrupção
+    var autocorrect by remember { mutableStateOf(try { prefs.getBoolean("PREF_AUTOCORRECT", true) } catch (_: Exception) { true }) }
+    var smartAbbr by remember { mutableStateOf(try { prefs.getBoolean("PREF_SMART_ABBR", true) } catch (_: Exception) { true }) }
+    var doubleSpacePeriod by remember { mutableStateOf(try { prefs.getBoolean("PREF_DOUBLE_SPACE_PERIOD", true) } catch (_: Exception) { true }) }
+    var autoCap by remember { mutableStateOf(try { prefs.getBoolean("PREF_AUTO_CAP", true) } catch (_: Exception) { true }) }
+    var keyPopup by remember { mutableStateOf(try { prefs.getBoolean("PREF_KEY_POPUP", true) } catch (_: Exception) { true }) }
+    var numberRow by remember { mutableStateOf(try { prefs.getBoolean("PREF_NUMBER_ROW", false) } catch (_: Exception) { false }) }
+    var glideTyping by remember { mutableStateOf(try { prefs.getBoolean("PREF_GLIDE_TYPING", true) } catch (_: Exception) { true }) }
 
     // Preferências de Feedback
-    var hapticFeedback by remember { mutableStateOf(prefs.getBoolean("PREF_HAPTIC_FEEDBACK", true)) }
-    var hapticDurationMs by remember { mutableStateOf(prefs.getInt("PREF_HAPTIC_DURATION_MS", 15)) }
-    var soundFeedback by remember { mutableStateOf(prefs.getBoolean("PREF_SOUND_FEEDBACK", false)) }
+    var hapticFeedback by remember { mutableStateOf(try { prefs.getBoolean("PREF_HAPTIC_FEEDBACK", true) } catch (_: Exception) { true }) }
+    var hapticDurationMs by remember {
+        val raw = try { prefs.getInt("PREF_HAPTIC_DURATION_MS", 15) } catch (_: Exception) { 15 }
+        mutableStateOf(raw.coerceIn(1, 50))
+    }
+    var soundFeedback by remember { mutableStateOf(try { prefs.getBoolean("PREF_SOUND_FEEDBACK", false) } catch (_: Exception) { false }) }
 
     // Tema, Formato, Trilha e Escala
-    var keyboardTheme by remember { mutableStateOf(prefs.getString("KEYBOARD_THEME", "Dark") ?: "Dark") }
-    var keyboardScale by remember { mutableStateOf(prefs.getFloat("KEYBOARD_SCALE", 1.0f)) }
-    var popupStyle by remember { mutableStateOf(prefs.getString("PREF_POPUP_STYLE", "dark_glass") ?: "dark_glass") }
-    var keyShape by remember { mutableStateOf(prefs.getString("PREF_KEY_SHAPE", "squircle") ?: "squircle") }
-    var keyHints by remember { mutableStateOf(prefs.getBoolean("PREF_KEY_HINTS", true)) }
-    var glideTrailStyle by remember { mutableStateOf(prefs.getString("PREF_GLIDE_TRAIL_STYLE", "Theme") ?: "Theme") }
+    var keyboardTheme by remember { mutableStateOf(try { prefs.getString("KEYBOARD_THEME", "Dark") ?: "Dark" } catch (_: Exception) { "Dark" }) }
+    var keyboardScale by remember {
+        val raw = try { prefs.getFloat("KEYBOARD_SCALE", 1.0f) } catch (_: Exception) { 1.0f }
+        val safe = if (raw.isNaN() || raw.isInfinite() || raw < 0.5f) 1.0f else raw
+        mutableStateOf(safe.coerceIn(0.85f, 1.25f))
+    }
+    var popupStyle by remember { mutableStateOf(try { prefs.getString("PREF_POPUP_STYLE", "dark_glass") ?: "dark_glass" } catch (_: Exception) { "dark_glass" }) }
+    var keyShape by remember { mutableStateOf(try { prefs.getString("PREF_KEY_SHAPE", "squircle") ?: "squircle" } catch (_: Exception) { "squircle" }) }
+    var keyHints by remember { mutableStateOf(try { prefs.getBoolean("PREF_KEY_HINTS", true) } catch (_: Exception) { true }) }
+    var glideTrailStyle by remember { mutableStateOf(try { prefs.getString("PREF_GLIDE_TRAIL_STYLE", "Theme") ?: "Theme" } catch (_: Exception) { "Theme" }) }
     val snippetManager = remember { SnippetManager(context) }
     var snippets by remember { mutableStateOf(snippetManager.getSnippets()) }
 
     // Dicionário pessoal (apenas palavras adicionadas manualmente)
-    var learnedWords by remember { mutableStateOf(dictManager.getManualWords().toList().sorted()) }
+    var learnedWords by remember { mutableStateOf(try { dictManager.getManualWords().toList().sorted() } catch (_: Exception) { emptyList() }) }
 
     // Permissão de microfone
     var hasMicPermission by remember {
-        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
+        mutableStateOf(try { ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED } catch (_: Exception) { false })
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         hasMicPermission = granted
@@ -169,7 +207,7 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
         Manifest.permission.READ_EXTERNAL_STORAGE
     }
     var hasScreenshotPermission by remember {
-        mutableStateOf(ContextCompat.checkSelfPermission(context, screenshotPermission) == PackageManager.PERMISSION_GRANTED)
+        mutableStateOf(try { ContextCompat.checkSelfPermission(context, screenshotPermission) == PackageManager.PERMISSION_GRANTED } catch (_: Exception) { false })
     }
     val screenshotPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         hasScreenshotPermission = granted
@@ -177,17 +215,20 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
             Toast.makeText(context, "Permissão concedida! Prints aparecerão no teclado.", Toast.LENGTH_SHORT).show()
         }
     }
-    var suggestScreenshots by remember { mutableStateOf(prefs.getBoolean("PREF_SUGGEST_SCREENSHOTS", true)) }
+    var suggestScreenshots by remember { mutableStateOf(try { prefs.getBoolean("PREF_SUGGEST_SCREENSHOTS", true) } catch (_: Exception) { true }) }
 
     // Polling contínuo de status com delay suave
     LaunchedEffect(Unit) {
         delay(200) // Simula carregamento suave inicial (Loading State)
         isLoading = false
         while (true) {
-            isEnabled = isKeyboardEnabled(context)
-            isSelected = isKeyboardSelected(context)
-            hasScreenshotPermission = ContextCompat.checkSelfPermission(context, screenshotPermission) == PackageManager.PERMISSION_GRANTED
-            hasMicPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            try {
+                isEnabled = isKeyboardEnabled(context)
+                isSelected = isKeyboardSelected(context)
+                hasScreenshotPermission = ContextCompat.checkSelfPermission(context, screenshotPermission) == PackageManager.PERMISSION_GRANTED
+                hasMicPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            } catch (_: Exception) {
+            }
             delay(1000)
         }
     }
@@ -417,7 +458,7 @@ fun TesseraDashboardContent(
             themeName = keyboardTheme,
             keyShape = keyShape,
             keyHints = keyHints,
-            scale = keyboardScale,
+            scale = keyboardScale.coerceIn(0.85f, 1.25f),
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -557,9 +598,9 @@ fun TesseraDashboardContent(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Slider(
-                    value = hapticDurationMs.toFloat(),
+                    value = hapticDurationMs.toFloat().coerceIn(1f, 50f),
                     onValueChange = { newValue ->
-                        onHapticDurationChange(newValue.toInt())
+                        onHapticDurationChange(newValue.toInt().coerceIn(1, 50))
                     },
                     valueRange = 1f..50f,
                     steps = 49,
@@ -783,8 +824,8 @@ fun TesseraDashboardContent(
             }
             Spacer(modifier = Modifier.height(4.dp))
             Slider(
-                value = keyboardScale,
-                onValueChange = onScaleChange,
+                value = keyboardScale.coerceIn(0.85f, 1.25f),
+                onValueChange = { onScaleChange(it.coerceIn(0.85f, 1.25f)) },
                 valueRange = 0.85f..1.25f,
                 steps = 7,
                 colors = SliderDefaults.colors(
@@ -1620,3 +1661,106 @@ fun StitchDashboardScreen(modifier: Modifier = Modifier) {
 
 // Data holder utilitário para status
 data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+@Composable
+fun CrashRecoveryScreen(
+    errorMessage: String,
+    onRetry: () -> Unit,
+    onResetPreferences: () -> Unit
+) {
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .background(Color(0xFF7F1D1D).copy(alpha = 0.4f), CircleShape)
+                .border(1.dp, Color(0xFFEF4444), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = "Erro",
+                tint = Color(0xFFEF4444),
+                modifier = Modifier.size(28.dp)
+            )
+        }
+
+        Text(
+            text = "Recuperação do Tessera",
+            style = MaterialTheme.typography.titleLarge,
+            color = Slate100,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text(
+            text = "Ocorreu uma falha inesperada ao inicializar o painel de configurações. Seus dados e o teclado permanecem seguros.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Slate400,
+            textAlign = TextAlign.Center
+        )
+
+        Surface(
+            color = Slate900,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, Slate800),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    text = "Detalhes do Diagnóstico:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = AccentSky,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = errorMessage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Slate300,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                )
+            }
+        }
+
+        Button(
+            onClick = onRetry,
+            colors = ButtonDefaults.buttonColors(containerColor = AccentSky, contentColor = Slate950),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) {
+            Text("Tentar Novamente", fontWeight = FontWeight.Bold)
+        }
+
+        OutlinedButton(
+            onClick = {
+                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                cm?.setPrimaryClip(android.content.ClipData.newPlainText("Tessera Error", errorMessage))
+                Toast.makeText(context, "Detalhes copiados!", Toast.LENGTH_SHORT).show()
+            },
+            border = BorderStroke(1.dp, Slate700),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) {
+            Text("Copiar Detalhes do Erro", color = Slate300)
+        }
+
+        TextButton(
+            onClick = {
+                onResetPreferences()
+                Toast.makeText(context, "Configurações restauradas ao padrão.", Toast.LENGTH_SHORT).show()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Redefinir Preferências para o Padrão", color = Color(0xFFF87171))
+        }
+    }
+}

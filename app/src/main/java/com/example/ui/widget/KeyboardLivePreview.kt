@@ -86,6 +86,7 @@ fun KeyboardLivePreview(
     val animatedKeyBg by animateColorAsState(keyBg, tween(300), label = "keyBgAnim")
     val animatedKeyBorder by animateColorAsState(keyBorder, tween(300), label = "keyBorderAnim")
 
+    val safeScale = if (scale.isNaN() || scale.isInfinite() || scale < 0.5f) 1.0f else scale.coerceIn(0.7f, 1.4f)
     val keyCornerRadius = if (keyShape == "squircle") 6.dp else 12.dp
 
     Box(
@@ -94,7 +95,7 @@ fun KeyboardLivePreview(
             .clip(RoundedCornerShape(20.dp))
             .background(Brush.verticalGradient(bgColors))
             .border(1.5.dp, animatedGlow.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
-            .padding(horizontal = 10.dp, vertical = (10 * scale).dp)
+            .padding(horizontal = 10.dp, vertical = (10 * safeScale).dp)
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -123,7 +124,7 @@ fun KeyboardLivePreview(
                     )
                 }
                 Text(
-                    text = "${(scale * 100).toInt()}%",
+                    text = "${(safeScale * 100).toInt()}%",
                     fontSize = 10.sp,
                     color = animatedText.copy(alpha = 0.6f)
                 )
@@ -163,7 +164,7 @@ fun KeyboardLivePreview(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height((24 * scale).dp),
+                    .height((24 * safeScale).dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 val row1 = listOf("Q" to "1", "W" to "2", "E" to "3", "R" to "4", "T" to "5", "Y" to "6", "U" to "7", "I" to "8", "O" to "9", "P" to "0")
@@ -185,7 +186,7 @@ fun KeyboardLivePreview(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height((24 * scale).dp),
+                    .height((24 * safeScale).dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Spacer(modifier = Modifier.weight(0.5f))
@@ -209,7 +210,7 @@ fun KeyboardLivePreview(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height((24 * scale).dp),
+                    .height((24 * safeScale).dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 MiniPill(label = "⇧", weight = 1.4f, keyCornerRadius, animatedKeyBg, animatedKeyBorder, animatedText)
@@ -233,7 +234,7 @@ fun KeyboardLivePreview(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height((22 * scale).dp),
+                    .height((22 * safeScale).dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

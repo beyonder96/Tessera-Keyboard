@@ -17,12 +17,12 @@ class SnippetManager(context: Context) {
     }
 
     fun getSnippets(): Map<String, String> {
-        if (!prefs.contains(PREF_SNIPPETS_JSON)) {
-            saveSnippets(DEFAULT_SNIPPETS)
-            return DEFAULT_SNIPPETS
-        }
-        val rawJson = prefs.getString(PREF_SNIPPETS_JSON, "{}") ?: "{}"
         return try {
+            if (!prefs.contains(PREF_SNIPPETS_JSON)) {
+                saveSnippets(DEFAULT_SNIPPETS)
+                return DEFAULT_SNIPPETS
+            }
+            val rawJson = prefs.getString(PREF_SNIPPETS_JSON, "{}") ?: "{}"
             val jsonObject = JSONObject(rawJson)
             val map = mutableMapOf<String, String>()
             val keys = jsonObject.keys()
@@ -30,7 +30,7 @@ class SnippetManager(context: Context) {
                 val key = keys.next()
                 map[key] = jsonObject.getString(key)
             }
-            map
+            if (map.isEmpty()) DEFAULT_SNIPPETS else map
         } catch (_: Exception) {
             DEFAULT_SNIPPETS
         }

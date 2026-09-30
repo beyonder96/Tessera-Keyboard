@@ -16,20 +16,24 @@ class LocalDictionaryManager(context: Context) {
     private val inMemoryBigrams = ConcurrentHashMap<String, ConcurrentHashMap<String, Int>>()
 
     init {
-        val savedManual = prefs.getStringSet(MANUAL_WORDS_KEY, emptySet()) ?: emptySet()
-        inMemoryManualWords.addAll(savedManual)
+        try {
+            val savedManual = prefs.getStringSet(MANUAL_WORDS_KEY, emptySet()) ?: emptySet()
+            inMemoryManualWords.addAll(savedManual)
+        } catch (_: Exception) {}
 
-        val savedBigrams = prefs.getStringSet(BIGRAMS_KEY, emptySet()) ?: emptySet()
-        for (item in savedBigrams) {
-            val arrowIdx = item.indexOf("->")
-            val colonIdx = item.lastIndexOf(':')
-            if (arrowIdx > 0 && colonIdx > arrowIdx) {
-                val w1 = item.substring(0, arrowIdx)
-                val w2 = item.substring(arrowIdx + 2, colonIdx)
-                val count = item.substring(colonIdx + 1).toIntOrNull() ?: 1
-                inMemoryBigrams.getOrPut(w1) { ConcurrentHashMap() }[w2] = count
+        try {
+            val savedBigrams = prefs.getStringSet(BIGRAMS_KEY, emptySet()) ?: emptySet()
+            for (item in savedBigrams) {
+                val arrowIdx = item.indexOf("->")
+                val colonIdx = item.lastIndexOf(':')
+                if (arrowIdx > 0 && colonIdx > arrowIdx) {
+                    val w1 = item.substring(0, arrowIdx)
+                    val w2 = item.substring(arrowIdx + 2, colonIdx)
+                    val count = item.substring(colonIdx + 1).toIntOrNull() ?: 1
+                    inMemoryBigrams.getOrPut(w1) { ConcurrentHashMap() }[w2] = count
+                }
             }
-        }
+        } catch (_: Exception) {}
     }
 
     /**
