@@ -10,6 +10,7 @@ import android.inputmethodservice.InputMethodService
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.LayoutInflater
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
@@ -230,7 +231,7 @@ class StitchKeyboardService : InputMethodService() {
                 "Monet" -> R.style.Theme_Tessera_Monet
                 else -> R.style.Theme_Tessera_Dark
             }
-            setTheme(themeResId)
+            currentThemedContext = ContextThemeWrapper(this, themeResId)
 
             localDict = com.example.manager.LocalDictionaryManager(this)
             predictionEngine = com.example.engine.PredictionEngine(localDict, this)
@@ -279,8 +280,7 @@ class StitchKeyboardService : InputMethodService() {
             }
             val themedContext = ContextThemeWrapper(this, themeResId)
             currentThemedContext = themedContext
-            setTheme(themeResId)
-            val keyboardView = layoutInflater.cloneInContext(themedContext)
+            val keyboardView = LayoutInflater.from(themedContext)
                 .inflate(R.layout.stitch_keyboard_layout, null)
             keyPositionCache.clear()
 
@@ -1318,7 +1318,7 @@ class StitchKeyboardService : InputMethodService() {
             numberRowContainer?.visibility = if (prefNumberRow) View.VISIBLE else View.GONE
             if (::keyboardRoot.isInitialized) {
                 val typedGlow = android.util.TypedValue()
-                theme.resolveAttribute(R.attr.stitchGlowColor, typedGlow, true)
+                (currentThemedContext ?: this).theme.resolveAttribute(R.attr.stitchGlowColor, typedGlow, true)
                 swipeTrailView?.setTrailColor(typedGlow.data)
             }
             registerScreenshotObserver()
@@ -1887,7 +1887,7 @@ class StitchKeyboardService : InputMethodService() {
                 tv.layoutParams = params
 
                 val typedValue = android.util.TypedValue()
-                theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, typedValue, true)
+                (currentThemedContext ?: this).theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, typedValue, true)
                 tv.setBackgroundResource(typedValue.resourceId)
                 tv.isClickable = true
                 tv.isFocusable = true
@@ -2557,16 +2557,17 @@ class StitchKeyboardService : InputMethodService() {
 
     private fun updateShiftVisuals() {
         if (!::keyboardRoot.isInitialized) return
+        val activeTheme = (currentThemedContext ?: this).theme
         val glowColor = try {
             val tv = android.util.TypedValue()
-            theme.resolveAttribute(R.attr.stitchGlowColor, tv, true)
+            activeTheme.resolveAttribute(R.attr.stitchGlowColor, tv, true)
             tv.data
         } catch (_: Exception) {
             android.graphics.Color.parseColor("#38BDF8")
         }
         val defaultTextColor = try {
             val tv = android.util.TypedValue()
-            theme.resolveAttribute(R.attr.stitchTextColor, tv, true)
+            activeTheme.resolveAttribute(R.attr.stitchTextColor, tv, true)
             tv.data
         } catch (_: Exception) {
             android.graphics.Color.WHITE
@@ -2610,7 +2611,8 @@ class StitchKeyboardService : InputMethodService() {
         
         val inactiveColor = try {
             val tv = android.util.TypedValue()
-            theme.resolveAttribute(R.attr.stitchTextInactiveColor, tv, true)
+            val activeTheme = (currentThemedContext ?: this).theme
+            activeTheme.resolveAttribute(R.attr.stitchTextInactiveColor, tv, true)
             tv.data
         } catch (_: Exception) {
             Color.argb(128, 255, 255, 255)
