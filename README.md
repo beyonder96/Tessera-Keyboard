@@ -7,7 +7,7 @@
 
 ---
 
-## ✨ Funcionalidades Principais (v0.0.26)
+## ✨ Funcionalidades Principais (v0.0.27)
 
 * 🎨 **Nova Identidade Visual & Ícones Adaptativos:** Novo logotipo com teclas táteis mecânicas formando o monograma "T" em Dark Slate e Electric Sky Blue, com suporte nativo a ícones adaptativos do Android (API 26+) e mipmaps de alta densidade.
 * 🔤 **Abertura Padrão Sempre em Modo Texto:** Garantia estrita de inicialização no modo alfabético QWERTY, com reset automático de modos de símbolos e numéricos ao abrir novos campos ou reabrir o teclado.
@@ -34,8 +34,8 @@ Para usar o Tessera Keyboard no seu celular sem precisar compilar o código:
 
 1. Baixe a versão mais recente clicando diretamente nos botões abaixo:
 
-   [![Baixar APK Release](https://img.shields.io/badge/Baixar-APK_Release_v0.0.26-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/releases/download/v0.0.26/app-release-v0.0.26.apk)
-   [![Baixar APK Debug](https://img.shields.io/badge/Baixar-APK_Debug_v0.0.26-0095D5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/releases/download/v0.0.26/app-debug-v0.0.26.apk)
+   [![Baixar APK Release](https://img.shields.io/badge/Baixar-APK_Release_v0.0.27-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/releases/download/v0.0.27/app-release-v0.0.27.apk)
+   [![Baixar APK Debug](https://img.shields.io/badge/Baixar-APK_Debug_v0.0.27-0095D5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/releases/download/v0.0.27/app-debug-v0.0.27.apk)
 3. Instale o APK no seu dispositivo (talvez seja necessário habilitar a "Instalação de Fontes Desconhecidas" nas configurações do seu aparelho).
 4. Ao final da instalação, abra o aplicativo **Tessera** ou vá até as configurações do seu Android em `Sistema > Idiomas e entrada > Teclado na tela`.
 5. Ative o Tessera Keyboard e o defina como o teclado padrão.

@@ -208,16 +208,42 @@ class StitchKeyboardService : InputMethodService() {
     private var audioManager: android.media.AudioManager? = null
     private var inputMethodManager: android.view.inputmethod.InputMethodManager? = null
 
+    private fun logServiceCrash(tag: String, t: Throwable) {
+        android.util.Log.e("StitchKeyboardService", "Crash in $tag: ${t.message}", t)
+        try {
+            getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
+                .edit()
+                .putString("LAST_SERVICE_CRASH", "[$tag] ${t.javaClass.simpleName}: ${t.message}\n${android.util.Log.getStackTraceString(t)}")
+                .apply()
+        } catch (_: Throwable) {}
+    }
+
     override fun onCreate() {
         super.onCreate()
-        localDict = com.example.manager.LocalDictionaryManager(this)
-        predictionEngine = com.example.engine.PredictionEngine(localDict, this)
-        clipboardHistoryManager = ClipboardHistoryManager(this)
-        vibrator = getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-        audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
-        inputMethodManager = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
-        refreshPreferences()
-        cachedKeyboardScale = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
+        try {
+            val themePref = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getString("KEYBOARD_THEME", "Dark") ?: "Dark"
+            val themeResId = when (themePref) {
+                "Light" -> R.style.Theme_Tessera_Light
+                "Amoled" -> R.style.Theme_Tessera_Amoled
+                "Cyberpunk" -> R.style.Theme_Tessera_Cyberpunk
+                "Nord" -> R.style.Theme_Tessera_Nord
+                "Monet" -> R.style.Theme_Tessera_Monet
+                else -> R.style.Theme_Tessera_Dark
+            }
+            setTheme(themeResId)
+
+            localDict = com.example.manager.LocalDictionaryManager(this)
+            predictionEngine = com.example.engine.PredictionEngine(localDict, this)
+            clipboardHistoryManager = ClipboardHistoryManager(this)
+            vibrator = getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+            audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
+            inputMethodManager = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+            refreshPreferences()
+            val rawScale = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
+            cachedKeyboardScale = if (rawScale.isNaN() || rawScale.isInfinite() || rawScale < 0.5f) 1.0f else rawScale.coerceIn(0.6f, 1.4f)
+        } catch (t: Throwable) {
+            logServiceCrash("onCreate", t)
+        }
     }
 
     private fun refreshPreferences() {
@@ -365,15 +391,15 @@ class StitchKeyboardService : InputMethodService() {
             keyboardView.findViewById<View>(R.id.btn_close_voice)?.setOnClickListener {
                 stopListening()
                 waveJob?.cancel()
-                voiceRoot.visibility = View.GONE
-                keyboardRoot.visibility = View.VISIBLE
+                if (::voiceRoot.isInitialized) voiceRoot.visibility = View.GONE
+                if (::keyboardRoot.isInitialized) keyboardRoot.visibility = View.VISIBLE
             }
             keyboardView.findViewById<View>(R.id.btn_mic_action)?.setOnClickListener {
                 if (isListening) stopListening() else startListening()
             }
             keyboardView.findViewById<View>(R.id.btn_close_emoji)?.setOnClickListener {
-                emojiRoot.visibility = View.GONE
-                keyboardRoot.visibility = View.VISIBLE
+                if (::emojiRoot.isInitialized) emojiRoot.visibility = View.GONE
+                if (::keyboardRoot.isInitialized) keyboardRoot.visibility = View.VISIBLE
             }
 
             setupKeys(keyboardView)
@@ -478,10 +504,10 @@ class StitchKeyboardService : InputMethodService() {
         exitEmojiSearchMode()
         val targetHeight = if (::keyboardRoot.isInitialized && keyboardRoot.height > 0) keyboardRoot.height else (260 * resources.displayMetrics.density).toInt()
         clipboardHistoryRoot.layoutParams.height = targetHeight
-        keyboardRoot.visibility = View.GONE
+        if (::keyboardRoot.isInitialized) keyboardRoot.visibility = View.GONE
         if (::emojiRoot.isInitialized) emojiRoot.visibility = View.GONE
-        voiceRoot.visibility = View.GONE
-        numericRoot.visibility = View.GONE
+        if (::voiceRoot.isInitialized) voiceRoot.visibility = View.GONE
+        if (::numericRoot.isInitialized) numericRoot.visibility = View.GONE
         clipboardHistoryRoot.visibility = View.VISIBLE
         renderClipboardHistory()
     }
@@ -489,7 +515,7 @@ class StitchKeyboardService : InputMethodService() {
     fun hideClipboardHistory() {
         if (!::clipboardHistoryRoot.isInitialized) return
         clipboardHistoryRoot.visibility = View.GONE
-        keyboardRoot.visibility = View.VISIBLE
+        if (::keyboardRoot.isInitialized) keyboardRoot.visibility = View.VISIBLE
     }
 
     private fun renderClipboardHistory() {
@@ -1207,9 +1233,11 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun applyGlassmorphismBlur(win: android.view.Window) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            win.setBackgroundBlurRadius(60)
-        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                win.setBackgroundBlurRadius(60)
+            }
+        } catch (_: Throwable) {}
     }
 
     override fun onEvaluateFullscreenMode(): Boolean {
@@ -1217,24 +1245,42 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     override fun onEvaluateInputViewShown(): Boolean {
-        return super.onEvaluateInputViewShown()
+        super.onEvaluateInputViewShown()
+        return true
+    }
+
+    override fun onShowInputRequested(flags: Int, configChange: Boolean): Boolean {
+        return true
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
-        unregisterScreenshotObserver()
-        isSymbolMode = false
-        isExtendedSymbolMode = false
-        localEditCount = 0
-        lastAutocorrection = null
-        lastUndoneWord = null
-        lastCommittedWord = null
-        lastClipboardText = null
-        lastClipboardImage = null
-        composingBuffer.setLength(0)
-        clearPredictionsUi()
-        if (::numericRoot.isInitialized) {
-            numericRoot.visibility = View.GONE
+        try {
+            unregisterScreenshotObserver()
+            isSymbolMode = false
+            isExtendedSymbolMode = false
+            localEditCount = 0
+            lastAutocorrection = null
+            lastUndoneWord = null
+            lastCommittedWord = null
+            lastClipboardText = null
+            lastClipboardImage = null
+            composingBuffer.setLength(0)
+            clearPredictionsUi()
+            if (::numericRoot.isInitialized) {
+                numericRoot.visibility = View.GONE
+            }
+            if (::voiceRoot.isInitialized) {
+                voiceRoot.visibility = View.GONE
+            }
+            if (::emojiRoot.isInitialized) {
+                emojiRoot.visibility = View.GONE
+            }
+            if (::clipboardHistoryRoot.isInitialized) {
+                clipboardHistoryRoot.visibility = View.GONE
+            }
+        } catch (t: Throwable) {
+            logServiceCrash("onFinishInputView", t)
         }
     }
 
@@ -1247,82 +1293,92 @@ class StitchKeyboardService : InputMethodService() {
     }
     
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
-        super.onStartInputView(info, restarting)
-        
-        // Garante que SEMPRE abre no modo alfabético (texto) e não de símbolos
-        isSymbolMode = false
-        isExtendedSymbolMode = false
-        if (::clipboardHistoryRoot.isInitialized) {
-            clipboardHistoryRoot.visibility = View.GONE
-        }
-        if (::emojiRoot.isInitialized) {
-            emojiRoot.visibility = View.GONE
-        }
-        if (::keyboardRoot.isInitialized) {
-            keyboardRoot.visibility = View.VISIBLE
-        }
-        
-        refreshPreferences()
-        numberRowContainer?.visibility = if (prefNumberRow) View.VISIBLE else View.GONE
-        if (::keyboardRoot.isInitialized) {
-            val typedGlow = android.util.TypedValue()
-            theme.resolveAttribute(R.attr.stitchGlowColor, typedGlow, true)
-            swipeTrailView?.setTrailColor(typedGlow.data)
-        }
-        registerScreenshotObserver()
-        localEditCount = 0
-        lastAutocorrection = null
-        lastUndoneWord = null
-        lastCommittedWord = null
-        ghostTextManager.onStartInput(info)
-        lastQueriedWord = ""
-        composingBuffer.setLength(0)
-        exitEmojiSearchMode()
-        suggestionContainer?.visibility = View.VISIBLE
-
-        if (::keyboardRoot.isInitialized) {
-            keyboardRoot.post { prewarmKeyPositions() }
-        }
-        
-        getWindow()?.window?.let { win ->
-            applyGlassmorphismBlur(win)
-        }
-        
-        val newTheme = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getString("KEYBOARD_THEME", "Dark") ?: "Dark"
-        if (newTheme != currentTheme) {
-            currentTheme = newTheme
-            setInputView(onCreateInputView())
-        }
-
-        val autoCap = shouldAutoCapitalize(info)
-        isCapsLock = false
-        isShifted = autoCap
-        justCommittedSpace = false
-        lastSpaceTime = 0L
-        updateKeyLabels()
-        updateShiftVisuals()
-        updateEnterKeyAction(info)
-        checkAndShowClipboardSuggestions()
-        scheduleAsyncPrediction(composingBuffer.toString())
-
-        val scalePref = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
-        cachedKeyboardScale = scalePref
-        applyKeyboardScale(scalePref)
-
-        if (::numericRoot.isInitialized && ::keyboardRoot.isInitialized) {
-            if (isNumericField(info)) {
-                numericRoot.visibility = View.VISIBLE
-                keyboardRoot.visibility = View.GONE
-                voiceRoot.visibility = View.GONE
-                emojiRoot.visibility = View.GONE
-                updateEnterKeyAction(info)
-                return
-            } else {
-                numericRoot.visibility = View.GONE
-                keyboardRoot.visibility = View.VISIBLE
-                voiceRoot.visibility = View.GONE
+        try {
+            super.onStartInputView(info, restarting)
+            
+            // Garante que SEMPRE abre no modo alfabético (texto) e não de símbolos
+            isSymbolMode = false
+            isExtendedSymbolMode = false
+            if (::clipboardHistoryRoot.isInitialized) {
+                clipboardHistoryRoot.visibility = View.GONE
+            }
+            if (::emojiRoot.isInitialized) {
                 emojiRoot.visibility = View.GONE
             }
+            if (::voiceRoot.isInitialized) {
+                voiceRoot.visibility = View.GONE
+            }
+            if (::keyboardRoot.isInitialized) {
+                keyboardRoot.visibility = View.VISIBLE
+            } else {
+                return
+            }
+            
+            refreshPreferences()
+            numberRowContainer?.visibility = if (prefNumberRow) View.VISIBLE else View.GONE
+            if (::keyboardRoot.isInitialized) {
+                val typedGlow = android.util.TypedValue()
+                theme.resolveAttribute(R.attr.stitchGlowColor, typedGlow, true)
+                swipeTrailView?.setTrailColor(typedGlow.data)
+            }
+            registerScreenshotObserver()
+            localEditCount = 0
+            lastAutocorrection = null
+            lastUndoneWord = null
+            lastCommittedWord = null
+            ghostTextManager.onStartInput(info)
+            lastQueriedWord = ""
+            composingBuffer.setLength(0)
+            exitEmojiSearchMode()
+            suggestionContainer?.visibility = View.VISIBLE
+
+            if (::keyboardRoot.isInitialized) {
+                keyboardRoot.post { prewarmKeyPositions() }
+            }
+            
+            window?.window?.let { win ->
+                applyGlassmorphismBlur(win)
+            }
+            
+            val newTheme = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getString("KEYBOARD_THEME", "Dark") ?: "Dark"
+            if (newTheme != currentTheme) {
+                currentTheme = newTheme
+                setInputView(onCreateInputView())
+            }
+
+            val autoCap = shouldAutoCapitalize(info)
+            isCapsLock = false
+            isShifted = autoCap
+            justCommittedSpace = false
+            lastSpaceTime = 0L
+            updateKeyLabels()
+            updateShiftVisuals()
+            updateEnterKeyAction(info)
+            checkAndShowClipboardSuggestions()
+            scheduleAsyncPrediction(composingBuffer.toString())
+
+            val rawScale = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getFloat("KEYBOARD_SCALE", 1.0f)
+            val safeScale = if (rawScale.isNaN() || rawScale.isInfinite() || rawScale < 0.5f) 1.0f else rawScale.coerceIn(0.6f, 1.4f)
+            cachedKeyboardScale = safeScale
+            applyKeyboardScale(safeScale)
+
+            if (::numericRoot.isInitialized && ::keyboardRoot.isInitialized) {
+                if (isNumericField(info)) {
+                    numericRoot.visibility = View.VISIBLE
+                    keyboardRoot.visibility = View.GONE
+                    if (::voiceRoot.isInitialized) voiceRoot.visibility = View.GONE
+                    if (::emojiRoot.isInitialized) emojiRoot.visibility = View.GONE
+                    updateEnterKeyAction(info)
+                    return
+                } else {
+                    numericRoot.visibility = View.GONE
+                    keyboardRoot.visibility = View.VISIBLE
+                    if (::voiceRoot.isInitialized) voiceRoot.visibility = View.GONE
+                    if (::emojiRoot.isInitialized) emojiRoot.visibility = View.GONE
+                }
+            }
+        } catch (t: Throwable) {
+            logServiceCrash("onStartInputView", t)
         }
     }
 
@@ -1403,15 +1459,13 @@ class StitchKeyboardService : InputMethodService() {
         abcBtn?.setOnClickListener {
             triggerVibration()
             playClickFeedback()
-            numericRoot.visibility = View.GONE
-            keyboardRoot.visibility = View.VISIBLE
+            if (::numericRoot.isInitialized) numericRoot.visibility = View.GONE
+            if (::keyboardRoot.isInitialized) keyboardRoot.visibility = View.VISIBLE
         }
     }
 
-
-
-
     private fun applyKeyboardScale(scale: Float) {
+        val safeScale = if (scale.isNaN() || scale.isInfinite() || scale < 0.5f) 1.0f else scale.coerceIn(0.6f, 1.4f)
         val density = resources.displayMetrics.density
 
         if (::keyboardRoot.isInitialized) {
@@ -1426,8 +1480,10 @@ class StitchKeyboardService : InputMethodService() {
                 val row = key?.parent as? View
                 if (row != null) {
                     val lp = row.layoutParams
-                    lp.height = (baseDp * density * scale).toInt()
-                    row.layoutParams = lp
+                    if (lp != null) {
+                        lp.height = (baseDp * density * safeScale).toInt()
+                        row.layoutParams = lp
+                    }
                 }
             }
             keyboardRoot.requestLayout()
@@ -1445,8 +1501,10 @@ class StitchKeyboardService : InputMethodService() {
                 val row = key?.parent as? View
                 if (row != null) {
                     val lp = row.layoutParams
-                    lp.height = (baseDp * density * scale).toInt()
-                    row.layoutParams = lp
+                    if (lp != null) {
+                        lp.height = (baseDp * density * safeScale).toInt()
+                        row.layoutParams = lp
+                    }
                 }
             }
             numericRoot.requestLayout()
@@ -1651,9 +1709,9 @@ class StitchKeyboardService : InputMethodService() {
         exitEmojiSearchMode()
         val targetHeight = if (::keyboardRoot.isInitialized && keyboardRoot.height > 0) keyboardRoot.height else (260 * resources.displayMetrics.density).toInt()
         emojiRoot.layoutParams.height = targetHeight
-        keyboardRoot.visibility = View.GONE
-        voiceRoot.visibility = View.GONE
-        numericRoot.visibility = View.GONE
+        if (::keyboardRoot.isInitialized) keyboardRoot.visibility = View.GONE
+        if (::voiceRoot.isInitialized) voiceRoot.visibility = View.GONE
+        if (::numericRoot.isInitialized) numericRoot.visibility = View.GONE
         if (::clipboardHistoryRoot.isInitialized) clipboardHistoryRoot.visibility = View.GONE
         emojiRoot.visibility = View.VISIBLE
     }

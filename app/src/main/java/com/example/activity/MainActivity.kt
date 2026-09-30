@@ -134,8 +134,8 @@ fun isKeyboardSelected(context: Context): Boolean {
         val currentInputMethodId = Settings.Secure.getString(
             context.contentResolver,
             Settings.Secure.DEFAULT_INPUT_METHOD
-        )
-        currentInputMethodId != null && currentInputMethodId.startsWith(context.packageName)
+        ) ?: ""
+        currentInputMethodId.contains(context.packageName)
     } catch (_: Exception) {
         false
     }
@@ -1059,6 +1059,22 @@ fun KeyboardStatusCard(
                         ) {
                             Text("2. Selecionar Teclado", style = MaterialTheme.typography.labelMedium)
                         }
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    OutlinedButton(
+                        onClick = onSelectClick,
+                        modifier = Modifier.height(36.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentSky),
+                        border = BorderStroke(1.dp, AccentSky.copy(alpha = 0.4f)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Text("Alternar / Trocar Teclado", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
