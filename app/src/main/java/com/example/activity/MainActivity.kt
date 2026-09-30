@@ -1,4 +1,4 @@
-package com.example.activity
+﻿package com.example.activity
 
 import android.Manifest
 import android.content.Context
@@ -58,13 +58,6 @@ import com.example.manager.LocalDictionaryManager
 import com.example.manager.SnippetManager
 import com.example.ui.widget.KeyboardLivePreview
 import com.example.ui.theme.*
-import com.example.api.GroqClient
-import com.example.api.GroqChatRequest
-import com.example.api.GroqMessage
-import com.example.api.RetrofitClient
-import com.example.api.GenerateContentRequest
-import com.example.api.Content
-import com.example.api.Part
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -155,13 +148,8 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
     var keyShape by remember { mutableStateOf(prefs.getString("PREF_KEY_SHAPE", "squircle") ?: "squircle") }
     var keyHints by remember { mutableStateOf(prefs.getBoolean("PREF_KEY_HINTS", true)) }
     var glideTrailStyle by remember { mutableStateOf(prefs.getString("PREF_GLIDE_TRAIL_STYLE", "Theme") ?: "Theme") }
-    var translateTarget by remember { mutableStateOf(prefs.getString("PREF_TRANSLATE_TARGET", "Inglês") ?: "Inglês") }
     val snippetManager = remember { SnippetManager(context) }
     var snippets by remember { mutableStateOf(snippetManager.getSnippets()) }
-
-    // Inteligência Artificial (Groq)
-    var groqApiKey by remember { mutableStateOf(prefs.getString("GROQ_API_KEY", "") ?: "") }
-    var aiModel by remember { mutableStateOf(prefs.getString("AI_MODEL", "llama-3.1-8b-instant") ?: "llama-3.1-8b-instant") }
 
     // Dicionário pessoal (apenas palavras adicionadas manualmente)
     var learnedWords by remember { mutableStateOf(dictManager.getManualWords().toList().sorted()) }
@@ -313,11 +301,6 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
                     glideTrailStyle = it
                     prefs.edit().putString("PREF_GLIDE_TRAIL_STYLE", it).apply()
                 },
-                translateTarget = translateTarget,
-                onTranslateTargetChange = {
-                    translateTarget = it
-                    prefs.edit().putString("PREF_TRANSLATE_TARGET", it).apply()
-                },
                 snippets = snippets,
                 onAddSnippet = { shortcut, text ->
                     snippetManager.addSnippet(shortcut, text)
@@ -326,16 +309,6 @@ fun TesseraDashboardContainer(modifier: Modifier = Modifier) {
                 onRemoveSnippet = { shortcut ->
                     snippetManager.removeSnippet(shortcut)
                     snippets = snippetManager.getSnippets()
-                },
-                groqApiKey = groqApiKey,
-                onGroqApiKeyChange = {
-                    groqApiKey = it
-                    prefs.edit().putString("GROQ_API_KEY", it).apply()
-                },
-                aiModel = aiModel,
-                onAiModelChange = {
-                    aiModel = it
-                    prefs.edit().putString("AI_MODEL", it).apply()
                 },
                 hasMicPermission = hasMicPermission,
                 onRequestMicPermission = {
@@ -418,15 +391,9 @@ fun TesseraDashboardContent(
     onKeyHintsChange: (Boolean) -> Unit,
     glideTrailStyle: String,
     onGlideTrailStyleChange: (String) -> Unit,
-    translateTarget: String,
-    onTranslateTargetChange: (String) -> Unit,
     snippets: Map<String, String>,
     onAddSnippet: (String, String) -> Unit,
     onRemoveSnippet: (String) -> Unit,
-    groqApiKey: String,
-    onGroqApiKeyChange: (String) -> Unit,
-    aiModel: String,
-    onAiModelChange: (String) -> Unit,
     hasMicPermission: Boolean,
     onRequestMicPermission: () -> Unit,
     learnedWords: List<String>,
@@ -903,391 +870,6 @@ fun TesseraDashboardContent(
                     modifier = Modifier.weight(1f)
                 )
             }
-        }
-
-        // Seção: Inteligência Artificial (Groq / Gemini)
-        SectionCard(title = "Inteligência Artificial (Groq / Gemini)") {
-            val context = LocalContext.current
-            val coroutineScope = rememberCoroutineScope()
-            var testStatus by remember { mutableStateOf<String?>(null) }
-            var isTesting by remember { mutableStateOf(false) }
-
-            Text(
-                text = "Superpoderes com IA no Teclado",
-                style = MaterialTheme.typography.titleSmall,
-                color = Slate100
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "A IA corrige e reescreve textos via ações rápidas no botão de varinha mágica. Suporta chaves gratuitas da Groq (gsk_...) e do Google Gemini (AIza...). Se nenhuma chave for inserida, o teclado utiliza correção inteligente local.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Slate400
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Status Badge
-            val isKeyConfigured = groqApiKey.isNotBlank() && groqApiKey != "placeholder" && groqApiKey != "MY_GROQ_API_KEY"
-            val isGeminiSaved = groqApiKey.startsWith("AIza")
-            Surface(
-                color = if (isKeyConfigured) Color(0xFF064E3B).copy(alpha = 0.5f) else Slate900,
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, if (isKeyConfigured) Color(0xFF10B981) else Slate800),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val badgeText = when {
-                        !isKeyConfigured -> "⚪ Nenhuma chave configurada ainda (correção local ativa)"
-                        isGeminiSaved -> "🟢 Chave Google Gemini ativa e pronta para uso"
-                        else -> "🟢 Chave Groq ($aiModel) ativa e pronta para uso"
-                    }
-                    Text(
-                        text = badgeText,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (isKeyConfigured) Color(0xFF34D399) else Slate400
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Modelo da Groq (caso use chave Groq):",
-                style = MaterialTheme.typography.labelMedium,
-                color = Slate300
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-
-            val models = listOf(
-                Triple("llama-3.1-8b-instant", "Llama 3.1 8B", "Ultra Rápido (~200ms)"),
-                Triple("llama-3.3-70b-versatile", "Llama 3.3 70B", "Mais Inteligente"),
-                Triple("gemma2-9b-it", "Gemma 2 9B", "Google Gemma"),
-                Triple("mixtral-8x7b-32768", "Mixtral 8x7B", "Contexto Amplo")
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                models.take(2).forEach { (modelId, name, tag) ->
-                    val isSelected = aiModel == modelId
-                    Surface(
-                        onClick = { onAiModelChange(modelId) },
-                        color = if (isSelected) AccentSky.copy(alpha = 0.15f) else Slate850,
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, if (isSelected) AccentSky else Slate800),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(modifier = Modifier.padding(8.dp)) {
-                            Text(name, style = MaterialTheme.typography.labelMedium, color = if (isSelected) AccentSky else Slate100, fontWeight = FontWeight.Bold)
-                            Text(tag, style = MaterialTheme.typography.labelSmall, color = if (isSelected) AccentSky.copy(alpha = 0.8f) else Slate400)
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                models.drop(2).forEach { (modelId, name, tag) ->
-                    val isSelected = aiModel == modelId
-                    Surface(
-                        onClick = { onAiModelChange(modelId) },
-                        color = if (isSelected) AccentSky.copy(alpha = 0.15f) else Slate850,
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, if (isSelected) AccentSky else Slate800),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(modifier = Modifier.padding(8.dp)) {
-                            Text(name, style = MaterialTheme.typography.labelMedium, color = if (isSelected) AccentSky else Slate100, fontWeight = FontWeight.Bold)
-                            Text(tag, style = MaterialTheme.typography.labelSmall, color = if (isSelected) AccentSky.copy(alpha = 0.8f) else Slate400)
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            var keyInput by remember(groqApiKey) { mutableStateOf(if (groqApiKey == "placeholder" || groqApiKey == "MY_GROQ_API_KEY") "" else groqApiKey) }
-
-            OutlinedTextField(
-                value = keyInput,
-                onValueChange = {
-                    keyInput = it
-                    val trimmed = it.trim()
-                    if (trimmed.startsWith("gsk_") || trimmed.startsWith("AIza")) {
-                        onGroqApiKeyChange(trimmed)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Chave Groq (gsk_...) ou Gemini (AIza...)", color = Slate600) },
-                label = { Text("Chave da API de IA (Groq ou Gemini)") },
-                singleLine = true,
-                shape = RoundedCornerShape(8.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentSky,
-                    unfocusedBorderColor = Slate800,
-                    focusedTextColor = Slate100,
-                    unfocusedTextColor = Slate100,
-                    focusedLabelColor = AccentSky,
-                    unfocusedLabelColor = Slate400,
-                    cursorColor = AccentSky
-                )
-            )
-
-            if (keyInput.trim().startsWith("AIza")) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "✨ Chave do Google Gemini detectada! Pronta para uso.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF34D399)
-                )
-            } else if (keyInput.trim().startsWith("gsk_")) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "✨ Chave da Groq Cloud detectada! Pronta para uso.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF34D399)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        val cleaned = keyInput.trim()
-                        onGroqApiKeyChange(cleaned)
-                        val prov = if (cleaned.startsWith("AIza")) "Google Gemini" else "Groq"
-                        testStatus = "Chave salva com sucesso! ✅ Pronta para uso com $prov."
-                        Toast.makeText(context, "Chave salva com sucesso!", Toast.LENGTH_SHORT).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentSky,
-                        contentColor = Slate950
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Salvar Chave", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        val cleaned = keyInput.trim()
-                        if (cleaned.isBlank()) {
-                            testStatus = "Cole uma chave primeiro para testar."
-                            return@OutlinedButton
-                        }
-                        val isGemini = cleaned.startsWith("AIza") || aiModel.startsWith("gemini")
-                        isTesting = true
-                        testStatus = if (isGemini) "Conectando ao Google Gemini..." else "Conectando ao Groq ($aiModel)..."
-                        coroutineScope.launch {
-                            try {
-                                val startTime = System.currentTimeMillis()
-                                if (isGemini) {
-                                    val req = GenerateContentRequest(
-                                        contents = listOf(Content(parts = listOf(Part(text = "Responda apenas: OK"))))
-                                    )
-                                    val resp = withContext(Dispatchers.IO) {
-                                        try {
-                                            RetrofitClient.service.generateContent("gemini-2.5-flash", cleaned, req)
-                                        } catch (ex: retrofit2.HttpException) {
-                                            if (ex.code() == 404) {
-                                                RetrofitClient.service.generateContent("gemini-1.5-flash", cleaned, req)
-                                            } else throw ex
-                                        }
-                                    }
-                                    val elapsed = System.currentTimeMillis() - startTime
-                                    val reply = resp.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text?.trim()
-                                    if (!reply.isNullOrBlank()) {
-                                        onGroqApiKeyChange(cleaned)
-                                        testStatus = "✅ Conexão OK! Google Gemini respondendo (${elapsed}ms)."
-                                        Toast.makeText(context, "Gemini conectado com sucesso! (${elapsed}ms)", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        testStatus = "⚠️ Gemini respondeu, mas retornou vazio."
-                                    }
-                                } else {
-                                    val req = GroqChatRequest(
-                                        model = aiModel,
-                                        messages = listOf(
-                                            GroqMessage(role = "user", content = "Diga apenas: OK")
-                                        ),
-                                        maxTokens = 10
-                                    )
-                                    val resp = withContext(Dispatchers.IO) {
-                                        try {
-                                            GroqClient.service.chatCompletion("Bearer $cleaned", req)
-                                        } catch (httpEx: retrofit2.HttpException) {
-                                            if (httpEx.code() == 404 && aiModel == "llama-3.1-8b-instant") {
-                                                val fallbackReq = req.copy(model = "llama-3.3-70b-versatile")
-                                                GroqClient.service.chatCompletion("Bearer $cleaned", fallbackReq)
-                                            } else {
-                                                throw httpEx
-                                            }
-                                        }
-                                    }
-                                    val elapsed = System.currentTimeMillis() - startTime
-                                    val reply = resp.choices?.firstOrNull()?.message?.content?.trim()
-                                    if (!reply.isNullOrBlank()) {
-                                        onGroqApiKeyChange(cleaned)
-                                        testStatus = "✅ Conexão OK! Modelo ($aiModel) respondendo (${elapsed}ms)."
-                                        Toast.makeText(context, "Groq conectado com sucesso! (${elapsed}ms)", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        testStatus = "⚠️ Groq respondeu, mas retornou vazio."
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                val errorDetails = if (e is retrofit2.HttpException) {
-                                    val code = e.code()
-                                    val rawBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
-                                    if (!rawBody.isNullOrBlank()) {
-                                        val match = """"message"\s*:\s*"([^"]+)"""".toRegex().find(rawBody)
-                                        if (match != null) {
-                                            "HTTP $code - ${match.groupValues[1]}"
-                                        } else {
-                                            "HTTP $code: $rawBody"
-                                        }
-                                    } else {
-                                        "HTTP $code"
-                                    }
-                                } else {
-                                    e.localizedMessage ?: e.message ?: "Falha na conexão"
-                                }
-                                testStatus = "❌ Falha: $errorDetails"
-                            } finally {
-                                isTesting = false
-                            }
-                        }
-                    },
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, Slate700),
-                    enabled = !isTesting,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        if (isTesting) "Testando..." else "Testar Conexão",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Slate300
-                    )
-                }
-            }
-
-            if (isKeyConfigured) {
-                Spacer(modifier = Modifier.height(6.dp))
-                TextButton(
-                    onClick = {
-                        keyInput = ""
-                        onGroqApiKeyChange("")
-                        testStatus = "Chave da Groq removida."
-                        Toast.makeText(context, "Chave da Groq removida.", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Remover chave do dispositivo", color = Color(0xFFF87171), style = MaterialTheme.typography.bodySmall)
-                }
-            }
-
-            testStatus?.let { status ->
-                Spacer(modifier = Modifier.height(8.dp))
-                Surface(
-                    color = if (status.startsWith("✅") || status.contains("sucesso")) Color(0xFF064E3B).copy(alpha = 0.35f)
-                            else if (status.startsWith("❌")) Color(0xFF7F1D1D).copy(alpha = 0.35f)
-                            else Slate900,
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, if (status.startsWith("✅") || status.contains("sucesso")) Color(0xFF10B981)
-                                                 else if (status.startsWith("❌")) Color(0xFFEF4444)
-                                                 else Slate800),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = status,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(10.dp),
-                        color = if (status.startsWith("✅") || status.contains("sucesso")) Color(0xFF34D399)
-                               else if (status.startsWith("❌")) Color(0xFFF87171)
-                               else AccentSky
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            DividerLine()
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Idioma Alvo para Tradução Automática (🌐)",
-                style = MaterialTheme.typography.titleSmall,
-                color = Slate100
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Ao tocar em 'Traduzir' na barra de IA, o texto será convertido para:",
-                style = MaterialTheme.typography.bodySmall,
-                color = Slate400
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            val languages = listOf("Inglês", "Espanhol", "Francês", "Alemão", "Italiano", "Japonês")
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                languages.take(3).forEach { lang ->
-                    val isSel = translateTarget == lang
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(if (isSel) AccentSkyMuted else Slate850, RoundedCornerShape(8.dp))
-                            .border(1.dp, if (isSel) AccentSky else Slate700, RoundedCornerShape(8.dp))
-                            .clickable { onTranslateTargetChange(lang) }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = lang,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isSel) AccentSky else Slate300
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                languages.drop(3).forEach { lang ->
-                    val isSel = translateTarget == lang
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(if (isSel) AccentSkyMuted else Slate850, RoundedCornerShape(8.dp))
-                            .border(1.dp, if (isSel) AccentSky else Slate700, RoundedCornerShape(8.dp))
-                            .clickable { onTranslateTargetChange(lang) }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = lang,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isSel) AccentSky else Slate300
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "Gratuito e sem cartão: obtenha em console.groq.com",
-                style = MaterialTheme.typography.labelSmall,
-                color = AccentSky
-            )
         }
 
         // Seção: Expansão de Texto & Snippets (!pix, !email, etc.)

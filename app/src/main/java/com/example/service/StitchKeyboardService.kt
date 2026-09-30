@@ -5,13 +5,6 @@ import com.example.BuildConfig
 import com.example.engine.PredictionEngine
 import com.example.manager.GhostTextManager
 import com.example.activity.MainActivity
-import com.example.api.GenerateContentRequest
-import com.example.api.Content
-import com.example.api.Part
-import com.example.api.RetrofitClient
-import com.example.api.GroqChatRequest
-import com.example.api.GroqMessage
-import com.example.api.GroqClient
 import android.annotation.SuppressLint
 import android.inputmethodservice.InputMethodService
 import android.view.KeyEvent
@@ -111,23 +104,33 @@ class StitchKeyboardService : InputMethodService() {
     private lateinit var predictionEngine: com.example.engine.PredictionEngine
     private val ghostTextManager = com.example.manager.GhostTextManager()
     private var suggestionContainer: LinearLayout? = null
-    private var aiActionsContainer: View? = null
-    private var aiKeyTopView: View? = null
-    private var aiIconTopView: ImageView? = null
+    private var currentThemedContext: Context? = null
 
-    private fun updateAiToggleVisual(active: Boolean) {
-        val key = aiKeyTopView ?: return
-        val icon = aiIconTopView
-        if (active) {
-            key.setBackgroundResource(R.drawable.bg_command_pill_active)
-            val typedGlow = android.util.TypedValue()
-            theme.resolveAttribute(R.attr.stitchGlowColor, typedGlow, true)
-            icon?.setColorFilter(typedGlow.data)
+    // Emoji Search Mode
+    private var isEmojiSearchMode = false
+    private var emojiSearchQuery = ""
+    private var emojiSearchModeContainer: View? = null
+    private var emojiSearchActiveQuery: TextView? = null
+    private var btnClearActiveEmojiSearch: View? = null
+    private var emojiSearchResultsContainer: LinearLayout? = null
+    private var topCommandsBar: View? = null
+
+    private val popularEmojis = listOf(
+        "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "🥲", "🥹", "😊", "😇", "🙂", "😉",
+        "😍", "🥰", "😘", "😋", "😜", "🤪", "😎", "🥳", "😏", "🤔", "🥺", "😢", "😭", "😱",
+        "😴", "💀", "💩", "🤡", "👻", "👍", "👎", "👌", "✌️", "🤞", "🫰", "🤙", "👏", "🙌",
+        "🫶", "🙏", "💪", "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "💔", "🔥", "✨",
+        "💯", "🎉", "🍕", "🍔", "☕", "🍺", "🍻", "🐶", "🐱", "🦁", "🐻", "☀️", "🌙", "⭐",
+        "🎵", "⚽", "🏖️", "🏠", "⏰", "📚", "✅", "🚀"
+    )
+
+    private fun getThemedColor(attrId: Int, defaultColor: Int): Int {
+        val ctx = currentThemedContext ?: this
+        val tv = android.util.TypedValue()
+        return if (ctx.theme.resolveAttribute(attrId, tv, true) && tv.data != 0) {
+            tv.data
         } else {
-            key.setBackgroundResource(R.drawable.bg_command_pill)
-            val typedText = android.util.TypedValue()
-            theme.resolveAttribute(R.attr.stitchTextColor, typedText, true)
-            icon?.setColorFilter(typedText.data)
+            defaultColor
         }
     }
     private var suggestion1: android.widget.TextView? = null
@@ -153,12 +156,6 @@ class StitchKeyboardService : InputMethodService() {
     private var lastConsumedClip: String? = null
     private var clipboardDismissRunnable: Runnable? = null
     private var predictionJob: Job? = null
-    private var aiSuggestionJob: Job? = null
-    private val aiSuggestionCache = java.util.Collections.synchronizedMap(
-        object : java.util.LinkedHashMap<String, Triple<String, String, String>>(50, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Triple<String, String, String>>?): Boolean = size > 50
-        }
-    )
     private var lastQueriedWord: String = ""
     private var cachedKeyboardScale: Float = 1.0f
     private var prefHapticFeedback = true
@@ -255,6 +252,8 @@ class StitchKeyboardService : InputMethodService() {
                 else -> R.style.Theme_Tessera_Dark
             }
             val themedContext = ContextThemeWrapper(this, themeResId)
+            currentThemedContext = themedContext
+            setTheme(themeResId)
             val keyboardView = layoutInflater.cloneInContext(themedContext)
                 .inflate(R.layout.stitch_keyboard_layout, null)
             keyPositionCache.clear()
@@ -264,6 +263,30 @@ class StitchKeyboardService : InputMethodService() {
             emojiRoot = keyboardView.findViewById(R.id.emoji_ui_root)
             numericRoot = keyboardView.findViewById(R.id.numeric_keypad_root)
             dragPill = keyboardView.findViewById(R.id.drag_pill)
+            topCommandsBar = keyboardView.findViewById(R.id.top_commands_bar)
+
+            // Emoji Search mode views
+            emojiSearchModeContainer = keyboardView.findViewById(R.id.emoji_search_mode_container)
+            emojiSearchActiveQuery = keyboardView.findViewById(R.id.emoji_search_active_query)
+            btnClearActiveEmojiSearch = keyboardView.findViewById(R.id.btn_clear_active_emoji_search)
+            emojiSearchResultsContainer = keyboardView.findViewById(R.id.emoji_search_results_container)
+
+            btnClearActiveEmojiSearch?.setOnClickListener {
+                playClickFeedback()
+                triggerVibration()
+                emojiSearchQuery = ""
+                updateEmojiSearchUi()
+            }
+            keyboardView.findViewById<View>(R.id.btn_close_emoji_search)?.setOnClickListener {
+                playClickFeedback()
+                triggerVibration()
+                exitEmojiSearchMode()
+            }
+            keyboardView.findViewById<View>(R.id.btn_emoji_search_categories)?.setOnClickListener {
+                playClickFeedback()
+                triggerVibration()
+                openEmojiCategories()
+            }
 
             // Key preview popup elements
             previewPopup = keyboardView.findViewById(R.id.key_preview_popup)
@@ -452,10 +475,11 @@ class StitchKeyboardService : InputMethodService() {
 
     fun showClipboardHistory() {
         if (!::clipboardHistoryRoot.isInitialized) return
+        exitEmojiSearchMode()
         val targetHeight = if (::keyboardRoot.isInitialized && keyboardRoot.height > 0) keyboardRoot.height else (260 * resources.displayMetrics.density).toInt()
         clipboardHistoryRoot.layoutParams.height = targetHeight
         keyboardRoot.visibility = View.GONE
-        emojiRoot.visibility = View.GONE
+        if (::emojiRoot.isInitialized) emojiRoot.visibility = View.GONE
         voiceRoot.visibility = View.GONE
         numericRoot.visibility = View.GONE
         clipboardHistoryRoot.visibility = View.VISIBLE
@@ -475,7 +499,11 @@ class StitchKeyboardService : InputMethodService() {
         container.removeAllViews()
 
         val entries = clipboardHistoryManager.getEntries()
+        val ctx = currentThemedContext ?: this
+        val textColor = getThemedColor(R.attr.stitchTextColor, Color.WHITE)
+
         if (entries.isEmpty()) {
+            emptyText?.setTextColor(textColor)
             emptyText?.visibility = View.VISIBLE
             return
         }
@@ -484,7 +512,7 @@ class StitchKeyboardService : InputMethodService() {
         val density = resources.displayMetrics.density
 
         for (entry in entries) {
-            val itemLayout = LinearLayout(this).apply {
+            val itemLayout = LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 background = ContextCompat.getDrawable(this@StitchKeyboardService, R.drawable.bg_command_pill)
@@ -500,14 +528,13 @@ class StitchKeyboardService : InputMethodService() {
                 isFocusable = true
             }
 
-            val tvText = TextView(this).apply {
-                text = entry.text
+            val tvText = TextView(ctx).apply {
+                val trimmed = entry.text.trim()
+                text = if (trimmed.isEmpty()) "(Texto vazio)" else trimmed
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
                 textSize = 14f
-                val typedValue = android.util.TypedValue()
-                theme.resolveAttribute(R.attr.stitchTextColor, typedValue, true)
-                setTextColor(typedValue.data)
+                setTextColor(textColor)
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
             itemLayout.addView(tvText)
@@ -524,20 +551,19 @@ class StitchKeyboardService : InputMethodService() {
             }
 
             // Pin / Unpin button
-            val btnPin = ImageView(this).apply {
+            val btnPin = ImageView(ctx).apply {
                 layoutParams = LinearLayout.LayoutParams((32 * density).toInt(), (32 * density).toInt()).apply {
                     leftMargin = (4 * density).toInt()
                 }
                 setPadding((6 * density).toInt(), (6 * density).toInt(), (6 * density).toInt(), (6 * density).toInt())
                 setImageResource(R.drawable.ic_pin_line)
-                val typedValue = android.util.TypedValue()
-                theme.resolveAttribute(R.attr.stitchTextColor, typedValue, true)
-                setColorFilter(typedValue.data)
+                setColorFilter(textColor)
                 alpha = if (entry.isPinned) 1.0f else 0.35f
                 contentDescription = if (entry.isPinned) "Desafixar" else "Fixar"
                 val rippleValue = android.util.TypedValue()
-                theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, rippleValue, true)
-                setBackgroundResource(rippleValue.resourceId)
+                if (ctx.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, rippleValue, true)) {
+                    setBackgroundResource(rippleValue.resourceId)
+                }
                 setOnClickListener {
                     playClickFeedback()
                     triggerVibration()
@@ -548,20 +574,19 @@ class StitchKeyboardService : InputMethodService() {
             itemLayout.addView(btnPin)
 
             // Delete button
-            val btnDelete = ImageView(this).apply {
+            val btnDelete = ImageView(ctx).apply {
                 layoutParams = LinearLayout.LayoutParams((32 * density).toInt(), (32 * density).toInt()).apply {
                     leftMargin = (2 * density).toInt()
                 }
                 setPadding((6 * density).toInt(), (6 * density).toInt(), (6 * density).toInt(), (6 * density).toInt())
                 setImageResource(R.drawable.ic_trash_line)
-                val typedValue = android.util.TypedValue()
-                theme.resolveAttribute(R.attr.stitchTextColor, typedValue, true)
-                setColorFilter(typedValue.data)
+                setColorFilter(textColor)
                 alpha = 0.5f
                 contentDescription = "Excluir"
                 val rippleValue = android.util.TypedValue()
-                theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, rippleValue, true)
-                setBackgroundResource(rippleValue.resourceId)
+                if (ctx.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, rippleValue, true)) {
+                    setBackgroundResource(rippleValue.resourceId)
+                }
                 setOnClickListener {
                     playClickFeedback()
                     triggerVibration()
@@ -629,7 +654,7 @@ class StitchKeyboardService : InputMethodService() {
 
     private fun isWordChar(c: Char): Boolean {
         return c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9' ||
-                c in "áéíóúãõâêîôûçÁÉÍÓÚÃÕÂÊÎÔÛÇ"
+                c in "áéíóúãõâêîôûçÁÉÍÓÚÃÕÂÊÎÔÛÇ" || c == '!'
     }
 
     private fun syncComposingBufferFromIme() {
@@ -720,7 +745,7 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun isPunctuation(c: String): Boolean {
-        return c in listOf(".", ",", "!", "?", ":", ";")
+        return c in listOf(".", ",", "?", ":", ";")
     }
 
     private fun updateEnterKeyAction(info: EditorInfo?) {
@@ -1055,7 +1080,7 @@ class StitchKeyboardService : InputMethodService() {
         }
         clipboardTextPill?.visibility = View.GONE
         clipboardImagePill?.visibility = View.GONE
-        if (aiActionsContainer?.visibility != View.VISIBLE && suggestionContainer?.visibility != View.VISIBLE) {
+        if (suggestionContainer?.visibility != View.VISIBLE) {
             suggestionContainer?.visibility = View.VISIBLE
         }
         val hasSuggestions = (suggestion1?.text?.isNotEmpty() == true) ||
@@ -1071,8 +1096,6 @@ class StitchKeyboardService : InputMethodService() {
             clearPredictionsUi()
             return
         }
-
-        aiSuggestionJob?.cancel()
 
         if (word.isEmpty()) {
             predictionJob?.cancel()
@@ -1095,7 +1118,6 @@ class StitchKeyboardService : InputMethodService() {
                         dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
                     }
                 }
-                scheduleAiNextWordsEnhancement(previousWord)
             } else {
                 clearPredictionsUi()
             }
@@ -1104,16 +1126,28 @@ class StitchKeyboardService : InputMethodService() {
 
         hideClipboardPill()
 
-        if (word.startsWith("!")) {
-            val snippet = snippetManager.findExpansion(word)
-            if (snippet != null) {
-                predictionJob?.cancel()
-                updateSuggestionView(suggestion1, word)
-                updateSuggestionView(suggestion2, snippet)
-                updateSuggestionView(suggestion3, "📋 Snippet")
-                dragPill?.alpha = 0f
-                return
+        val matchingSnippets = snippetManager.findMatchingSnippets(word)
+        if (matchingSnippets.isNotEmpty()) {
+            predictionJob?.cancel()
+            val exactMatch = matchingSnippets.find {
+                it.first.equals(word, ignoreCase = true) ||
+                it.first.removePrefix("!").equals(word.removePrefix("!"), ignoreCase = true)
             }
+
+            if (exactMatch != null) {
+                updateSuggestionView(suggestion1, exactMatch.first)
+                updateSuggestionView(suggestion2, exactMatch.second)
+                val extraMatch = matchingSnippets.find { it.first != exactMatch.first }
+                updateSuggestionView(suggestion3, extraMatch?.first ?: "📋 Snippet")
+            } else {
+                val first = matchingSnippets[0]
+                updateSuggestionView(suggestion1, first.first)
+                updateSuggestionView(suggestion2, first.second)
+                val second = matchingSnippets.getOrNull(1)
+                updateSuggestionView(suggestion3, second?.first ?: "📋 Snippet")
+            }
+            dragPill?.alpha = 0f
+            return
         }
 
         val queryKey = if (!previousWord.isNullOrEmpty()) "$previousWord|$word" else word
@@ -1140,152 +1174,6 @@ class StitchKeyboardService : InputMethodService() {
                 dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
             }
         }
-
-        if (word.length >= 2) {
-            scheduleAiTypoAndSuggestionEnhancement(word, previousWord)
-        }
-    }
-
-    private fun scheduleAiTypoAndSuggestionEnhancement(word: String, previousWord: String?) {
-        val apiKey = getGroqApiKey()
-        if (apiKey.isBlank() || apiKey == "MY_GROQ_API_KEY" || apiKey == "placeholder" || apiKey == "none") {
-            return
-        }
-
-        val ic = currentInputConnection ?: return
-        val textBefore = ic.getTextBeforeCursor(80, 0)?.toString()?.trim() ?: ""
-
-        val cacheKey = "$textBefore|$word"
-        val cached = aiSuggestionCache[cacheKey]
-        if (cached != null) {
-            applyAiSuggestionsIfMatching(word, cached.first, cached.second, cached.third)
-            return
-        }
-
-        aiSuggestionJob = scope.launch(Dispatchers.IO) {
-            delay(280)
-            if (!isActive) return@launch
-
-            val currentBuffer = withContext(Dispatchers.Main) { composingBuffer.toString() }
-            if (currentBuffer != word) return@launch
-
-            try {
-                val sysPrompt = "Você é o corretor ortográfico e preditor de um teclado inteligente em português do Brasil. Para a palavra atual sendo digitada e seu contexto, responda ESTRITAMENTE no formato:\nCORRECAO|SUGESTAO1|SUGESTAO2\nOnde CORRECAO é a palavra corrigida (corrija erros ortográficos, trocas de letras ou acentuação; se já estiver certa, repita-a), e SUGESTAO1 e SUGESTAO2 são duas continuações muito prováveis.\nExemplo para palavra 'esceção': exceção|de|da\nExemplo para palavra 'faser': fazer|isso|agora\nExemplo para palavra 'pobrema': problema|com|no\nExemplo para palavra 'vc': você|está|vai\nResponda APENAS as 3 palavras separadas por barra vertical '|', sem aspas, explicações ou pontuação extra."
-                val userPrompt = "Contexto anterior: \"$textBefore\"\nPalavra atual: \"$word\""
-
-                val req = GroqChatRequest(
-                    model = "llama-3.1-8b-instant",
-                    messages = listOf(
-                        GroqMessage(role = "system", content = sysPrompt),
-                        GroqMessage(role = "user", content = userPrompt)
-                    ),
-                    temperature = 0.1,
-                    maxTokens = 25
-                )
-
-                val resp = GroqClient.service.chatCompletion("Bearer $apiKey", req)
-                val raw = resp.choices?.firstOrNull()?.message?.content?.trim() ?: return@launch
-                val parts = raw.split("|").map { token ->
-                    token.trim().filter { c -> isWordChar(c) || c == ' ' }
-                }.filter { it.isNotEmpty() }
-
-                if (parts.isNotEmpty()) {
-                    val corrected = parts[0]
-                    val s1 = parts.getOrNull(1) ?: ""
-                    val s2 = parts.getOrNull(2) ?: ""
-                    aiSuggestionCache[cacheKey] = Triple(corrected, s1, s2)
-
-                    withContext(Dispatchers.Main) {
-                        applyAiSuggestionsIfMatching(word, corrected, s1, s2)
-                    }
-                }
-            } catch (_: Exception) {
-                // Silencioso
-            }
-        }
-    }
-
-    private fun scheduleAiNextWordsEnhancement(previousWord: String) {
-        val apiKey = getGroqApiKey()
-        if (apiKey.isBlank() || apiKey == "MY_GROQ_API_KEY" || apiKey == "placeholder" || apiKey == "none") {
-            return
-        }
-
-        val ic = currentInputConnection ?: return
-        val textBefore = ic.getTextBeforeCursor(80, 0)?.toString()?.trim() ?: ""
-
-        val cacheKey = "NEXT:$textBefore"
-        val cached = aiSuggestionCache[cacheKey]
-        if (cached != null) {
-            applyAiNextWordsIfEmpty(cached.first, cached.second, cached.third)
-            return
-        }
-
-        aiSuggestionJob = scope.launch(Dispatchers.IO) {
-            delay(320)
-            if (!isActive) return@launch
-
-            val currentBuffer = withContext(Dispatchers.Main) { composingBuffer.toString() }
-            if (currentBuffer.isNotEmpty()) return@launch
-
-            try {
-                val sysPrompt = "Você é o preditor de próximas palavras de um teclado em português do Brasil. Dado o texto digitado até agora, sugira as 3 palavras mais prováveis e naturais para continuar a frase.\nResponda ESTRITAMENTE no formato:\nPALAVRA1|PALAVRA2|PALAVRA3\nExemplo para 'Muito obrigado pela': atenção|ajuda|oportunidade\nResponda APENAS as 3 palavras separadas por barra vertical sem aspas ou notas."
-                val userPrompt = "Texto: \"$textBefore\""
-
-                val req = GroqChatRequest(
-                    model = "llama-3.1-8b-instant",
-                    messages = listOf(
-                        GroqMessage(role = "system", content = sysPrompt),
-                        GroqMessage(role = "user", content = userPrompt)
-                    ),
-                    temperature = 0.1,
-                    maxTokens = 25
-                )
-
-                val resp = GroqClient.service.chatCompletion("Bearer $apiKey", req)
-                val raw = resp.choices?.firstOrNull()?.message?.content?.trim() ?: return@launch
-                val parts = raw.split("|").map { token ->
-                    token.trim().filter { c -> isWordChar(c) || c == ' ' }
-                }.filter { it.isNotEmpty() }
-
-                if (parts.size >= 2) {
-                    val p1 = parts[0]
-                    val p2 = parts[1]
-                    val p3 = parts.getOrNull(2) ?: ""
-                    aiSuggestionCache[cacheKey] = Triple(p1, p2, p3)
-
-                    withContext(Dispatchers.Main) {
-                        applyAiNextWordsIfEmpty(p1, p2, p3)
-                    }
-                }
-            } catch (_: Exception) {
-                // Silencioso
-            }
-        }
-    }
-
-    private fun applyAiSuggestionsIfMatching(word: String, corrected: String, s1: String, s2: String) {
-        if (composingBuffer.toString() == word) {
-            if (corrected.isNotEmpty()) {
-                updateSuggestionView(suggestion2, corrected)
-            }
-            if (s1.isNotEmpty()) {
-                updateSuggestionView(suggestion1, s1)
-            }
-            if (s2.isNotEmpty()) {
-                updateSuggestionView(suggestion3, s2)
-            }
-            dragPill?.alpha = 0f
-        }
-    }
-
-    private fun applyAiNextWordsIfEmpty(p1: String, p2: String, p3: String) {
-        if (composingBuffer.isEmpty()) {
-            updateSuggestionView(suggestion1, p1)
-            updateSuggestionView(suggestion2, p2)
-            updateSuggestionView(suggestion3, p3)
-            dragPill?.alpha = 0f
-        }
     }
 
     private fun updateSuggestionView(tv: TextView?, text: String) {
@@ -1301,7 +1189,6 @@ class StitchKeyboardService : InputMethodService() {
 
     private fun clearPredictionsUi() {
         predictionJob?.cancel()
-        aiSuggestionJob?.cancel()
         lastQueriedWord = ""
         updateSuggestionView(suggestion1, "")
         updateSuggestionView(suggestion2, "")
@@ -1390,9 +1277,8 @@ class StitchKeyboardService : InputMethodService() {
         ghostTextManager.onStartInput(info)
         lastQueriedWord = ""
         composingBuffer.setLength(0)
-        aiActionsContainer?.visibility = View.GONE
+        exitEmojiSearchMode()
         suggestionContainer?.visibility = View.VISIBLE
-        updateAiToggleVisual(false)
 
         if (::keyboardRoot.isInitialized) {
             keyboardRoot.post { prewarmKeyPositions() }
@@ -1714,6 +1600,13 @@ class StitchKeyboardService : InputMethodService() {
                                 val pattern = swipeVisitedChars.joinToString("")
                                 val candidates = predictionEngine.getSwipePredictions(pattern)
                                 if (candidates.isNotEmpty()) {
+                                    if (isEmojiSearchMode) {
+                                        emojiSearchQuery = candidates[0].lowercase()
+                                        updateEmojiSearchUi()
+                                        triggerVibration()
+                                        playClickFeedback()
+                                        return@setOnTouchListener true
+                                    }
                                     val bestWord = if (isShifted) candidates[0].replaceFirstChar { it.uppercase() } else candidates[0]
                                     val ic = currentInputConnection
                                     ic?.beginBatchEdit()
@@ -1751,6 +1644,130 @@ class StitchKeyboardService : InputMethodService() {
         }
 
         updateKeyLabels()
+    }
+    
+    fun openEmojiCategories() {
+        if (!::emojiRoot.isInitialized) return
+        exitEmojiSearchMode()
+        val targetHeight = if (::keyboardRoot.isInitialized && keyboardRoot.height > 0) keyboardRoot.height else (260 * resources.displayMetrics.density).toInt()
+        emojiRoot.layoutParams.height = targetHeight
+        keyboardRoot.visibility = View.GONE
+        voiceRoot.visibility = View.GONE
+        numericRoot.visibility = View.GONE
+        if (::clipboardHistoryRoot.isInitialized) clipboardHistoryRoot.visibility = View.GONE
+        emojiRoot.visibility = View.VISIBLE
+    }
+
+    fun openEmojiSearchMode(initialQuery: String = "") {
+        if (!::keyboardRoot.isInitialized) return
+        isEmojiSearchMode = true
+        emojiSearchQuery = initialQuery
+        if (::emojiRoot.isInitialized) emojiRoot.visibility = View.GONE
+        if (::clipboardHistoryRoot.isInitialized) clipboardHistoryRoot.visibility = View.GONE
+        if (::voiceRoot.isInitialized) voiceRoot.visibility = View.GONE
+        if (::numericRoot.isInitialized) numericRoot.visibility = View.GONE
+
+        keyboardRoot.visibility = View.VISIBLE
+        dragPill?.visibility = View.GONE
+        suggestionContainer?.visibility = View.GONE
+        clipboardContainer?.visibility = View.GONE
+        topCommandsBar?.visibility = View.GONE
+        emojiSearchModeContainer?.visibility = View.VISIBLE
+
+        updateEmojiSearchUi()
+    }
+
+    fun exitEmojiSearchMode() {
+        isEmojiSearchMode = false
+        emojiSearchQuery = ""
+        emojiSearchModeContainer?.visibility = View.GONE
+        topCommandsBar?.visibility = View.VISIBLE
+        dragPill?.visibility = View.VISIBLE
+        suggestionContainer?.visibility = View.VISIBLE
+        clearPredictionsUi()
+    }
+
+    private fun updateEmojiSearchUi() {
+        val queryView = emojiSearchActiveQuery ?: return
+        val clearBtn = btnClearActiveEmojiSearch
+        val resultsContainer = emojiSearchResultsContainer ?: return
+        val ctx = currentThemedContext ?: this
+        val density = resources.displayMetrics.density
+        val textColor = getThemedColor(R.attr.stitchTextColor, Color.WHITE)
+
+        resultsContainer.removeAllViews()
+
+        if (emojiSearchQuery.isEmpty()) {
+            queryView.text = "Buscar emojis..."
+            queryView.alpha = 0.5f
+            clearBtn?.visibility = View.GONE
+
+            for (emoji in popularEmojis) {
+                val tv = TextView(ctx).apply {
+                    text = emoji
+                    textSize = 22f
+                    gravity = Gravity.CENTER
+                    val pad = (7 * density).toInt()
+                    setPadding(pad, 0, pad, 0)
+                    val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.MATCH_PARENT)
+                    layoutParams = lp
+                    val rippleVal = android.util.TypedValue()
+                    if (ctx.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, rippleVal, true)) {
+                        setBackgroundResource(rippleVal.resourceId)
+                    }
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener {
+                        playClickFeedback()
+                        triggerVibration()
+                        currentInputConnection?.commitText(emoji, 1)
+                    }
+                }
+                resultsContainer.addView(tv)
+            }
+        } else {
+            queryView.text = emojiSearchQuery
+            queryView.alpha = 1.0f
+            clearBtn?.visibility = View.VISIBLE
+
+            val matches = EmojiDictionary.search(emojiSearchQuery)
+            if (matches.isEmpty()) {
+                val emptyTv = TextView(ctx).apply {
+                    text = "Nenhum emoji encontrado para \"$emojiSearchQuery\""
+                    textSize = 13f
+                    setTextColor(textColor)
+                    alpha = 0.5f
+                    gravity = Gravity.CENTER_VERTICAL
+                    val pad = (12 * density).toInt()
+                    setPadding(pad, 0, pad, 0)
+                }
+                resultsContainer.addView(emptyTv)
+            } else {
+                for (emoji in matches) {
+                    val tv = TextView(ctx).apply {
+                        text = emoji
+                        textSize = 22f
+                        gravity = Gravity.CENTER
+                        val pad = (7 * density).toInt()
+                        setPadding(pad, 0, pad, 0)
+                        val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.MATCH_PARENT)
+                        layoutParams = lp
+                        val rippleVal = android.util.TypedValue()
+                        if (ctx.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, rippleVal, true)) {
+                            setBackgroundResource(rippleVal.resourceId)
+                        }
+                        isClickable = true
+                        isFocusable = true
+                        setOnClickListener {
+                            playClickFeedback()
+                            triggerVibration()
+                            currentInputConnection?.commitText(emoji, 1)
+                        }
+                    }
+                    resultsContainer.addView(tv)
+                }
+            }
+        }
     }
     
     private fun setupEmojiKeyboard(view: View) {
@@ -1835,63 +1852,19 @@ class StitchKeyboardService : InputMethodService() {
             keyboardRoot.visibility = View.VISIBLE
         }
 
-        val searchInput = view.findViewById<EditText>(R.id.emoji_search_input)
-        val btnClearSearch = view.findViewById<View>(R.id.btn_clear_emoji_search)
-        val searchScroll = view.findViewById<ScrollView>(R.id.emoji_search_scroll)
-        val searchGrid = view.findViewById<GridLayout>(R.id.emoji_search_results_grid)
-        val categoryBar = view.findViewById<View>(R.id.emoji_category_bar)
-        val scrollView = view.findViewById<android.widget.ScrollView>(R.id.emoji_scroll_view)
-
-        searchInput?.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                val query = s?.toString()?.trim() ?: ""
-                if (query.isEmpty()) {
-                    btnClearSearch?.visibility = View.GONE
-                    searchScroll?.visibility = View.GONE
-                    scrollView?.visibility = View.VISIBLE
-                    categoryBar?.visibility = View.VISIBLE
-                } else {
-                    btnClearSearch?.visibility = View.VISIBLE
-                    scrollView?.visibility = View.GONE
-                    categoryBar?.visibility = View.GONE
-                    searchScroll?.visibility = View.VISIBLE
-
-                    searchGrid?.removeAllViews()
-                    searchGrid?.columnCount = columns
-                    val matches = EmojiDictionary.search(query)
-                    for (emoji in matches) {
-                        val tv = TextView(this@StitchKeyboardService)
-                        tv.text = emoji
-                        tv.textSize = 28f
-                        tv.gravity = Gravity.CENTER
-                        val params = GridLayout.LayoutParams()
-                        params.width = childWidth
-                        params.height = childHeight
-                        tv.layoutParams = params
-
-                        val typedValue = android.util.TypedValue()
-                        theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, typedValue, true)
-                        tv.setBackgroundResource(typedValue.resourceId)
-                        tv.isClickable = true
-                        tv.isFocusable = true
-                        tv.setOnClickListener {
-                            playClickFeedback()
-                            triggerVibration()
-                            localEditCount++
-                            composingBuffer.setLength(0)
-                            currentInputConnection?.commitText(emoji, 1)
-                        }
-                        searchGrid?.addView(tv)
-                    }
-                }
-            }
-            override fun afterTextChanged(s: Editable?) {}
-        })
-
-        btnClearSearch?.setOnClickListener {
-            searchInput?.setText("")
+        view.findViewById<View>(R.id.emoji_search_bar_box)?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            openEmojiSearchMode()
         }
+
+        view.findViewById<View>(R.id.emoji_search_input)?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            openEmojiSearchMode()
+        }
+
+        val scrollView = view.findViewById<android.widget.ScrollView>(R.id.emoji_scroll_view)
 
         fun scrollToCategory(catName: String) {
             val targetView = categoryViews.entries.find { it.key.contains(catName, ignoreCase = true) }?.value
@@ -2063,23 +2036,45 @@ class StitchKeyboardService : InputMethodService() {
                         return@setOnTouchListener true
                     }
                     if (event.action == MotionEvent.ACTION_UP) {
+                        if (isEmojiSearchMode) {
+                            emojiSearchQuery += " "
+                            updateEmojiSearchUi()
+                            playClickFeedback()
+                            triggerVibration()
+                            v.isPressed = false
+                            return@setOnTouchListener true
+                        }
                         val ic = currentInputConnection
                         val editorInfo = currentInputEditorInfo
                         val lastWord = composingBuffer.toString()
                         val centerCandidate = suggestion2?.text?.toString()?.trim() ?: ""
 
+                        val textBeforeCursor = ic?.getTextBeforeCursor(50, 0)?.toString() ?: ""
+                        val tokenBeforeCursor = textBeforeCursor.takeLastWhile { !it.isWhitespace() }
+
                         // Expansão instantânea de Snippets ao teclar espaço
-                        if (lastWord.startsWith("!")) {
-                            val snippetExp = snippetManager.findExpansion(lastWord)
+                        val snippetQuery = when {
+                            lastWord.isNotEmpty() && snippetManager.findExpansion(lastWord) != null -> lastWord
+                            tokenBeforeCursor.isNotEmpty() && snippetManager.findExpansion(tokenBeforeCursor) != null -> tokenBeforeCursor
+                            else -> null
+                        }
+
+                        if (snippetQuery != null) {
+                            val snippetExp = snippetManager.findExpansion(snippetQuery)
                             if (snippetExp != null) {
+                                val deleteLen = if (tokenBeforeCursor.isNotEmpty()) tokenBeforeCursor.length else snippetQuery.length
                                 ic?.beginBatchEdit()
                                 localEditCount++
-                                ic?.deleteSurroundingText(lastWord.length, 0)
+                                ic?.deleteSurroundingText(deleteLen, 0)
                                 ic?.commitText(snippetExp + " ", 1)
                                 ic?.endBatchEdit()
                                 composingBuffer.setLength(0)
+                                lastCommittedWord = null
+                                justCommittedSpace = true
+                                lastAutocorrection = null
                                 playClickFeedback()
                                 triggerVibration()
+                                clearPredictionsUi()
                                 v.isPressed = false
                                 return@setOnTouchListener true
                             }
@@ -2181,10 +2176,7 @@ class StitchKeyboardService : InputMethodService() {
             if (event.action == android.view.MotionEvent.ACTION_DOWN) {
                 playClickFeedback()
                 triggerVibration()
-                val targetHeight = if (keyboardRoot.height > 0) keyboardRoot.height else (260 * resources.displayMetrics.density).toInt()
-                emojiRoot.layoutParams.height = targetHeight
-                keyboardRoot.visibility = android.view.View.GONE
-                emojiRoot.visibility = android.view.View.VISIBLE
+                openEmojiCategories()
                 v.isPressed = true
                 true
             } else if (event.action == android.view.MotionEvent.ACTION_UP || event.action == android.view.MotionEvent.ACTION_CANCEL) {
@@ -2280,43 +2272,44 @@ class StitchKeyboardService : InputMethodService() {
         val suggestionClickListener = View.OnClickListener { v ->
             if (v is TextView) {
                 val selectedSuggestion = v.text.toString()
-                if (selectedSuggestion.isEmpty()) return@OnClickListener
+                if (selectedSuggestion.isEmpty() || selectedSuggestion == "📋 Snippet") return@OnClickListener
                 
                 val ic = currentInputConnection ?: return@OnClickListener
-                val prefixLen = composingBuffer.length
-                
+                val textBefore = ic.getTextBeforeCursor(50, 0)?.toString() ?: ""
+                val tokenBefore = textBefore.takeLastWhile { !it.isWhitespace() }
+                val prefixLen = if (tokenBefore.isNotEmpty()) tokenBefore.length else composingBuffer.length
+
+                // Se a sugestão clicada for um atalho de snippet (ex: "!pix"), usa a expansão completa
+                val expansion = snippetManager.findExpansion(selectedSuggestion) ?: selectedSuggestion
+
                 ic.beginBatchEdit()
                 if (prefixLen > 0) {
                     ic.deleteSurroundingText(prefixLen, 0)
-                } else {
-                    val textBefore = ic.getTextBeforeCursor(30, 0)?.toString() ?: ""
-                    var count = 0
-                    for (i in textBefore.length - 1 downTo 0) {
-                        if (isWordChar(textBefore[i])) count++ else break
-                    }
-                    if (count > 0) {
-                        ic.deleteSurroundingText(count, 0)
-                    }
                 }
                 localEditCount++
-                ic.commitText(selectedSuggestion + " ", 1)
+                ic.commitText(expansion + " ", 1)
                 ic.endBatchEdit()
-                
-                // Aprende transição de bigrama e palavra dinamicamente
-                if (lastCommittedWord != null && lastCommittedWord != selectedSuggestion) {
-                    predictionEngine.learnBigram(lastCommittedWord!!, selectedSuggestion)
+
+                // Se NÃO for snippet (palavra comum do dicionário), aprende a transição
+                val isSnippet = snippetManager.findExpansion(selectedSuggestion) != null || 
+                                snippetManager.findExpansion(tokenBefore) != null
+                if (!isSnippet) {
+                    if (lastCommittedWord != null && lastCommittedWord != selectedSuggestion) {
+                        predictionEngine.learnBigram(lastCommittedWord!!, selectedSuggestion)
+                    }
+                    predictionEngine.learnWord(selectedSuggestion)
                 }
-                predictionEngine.learnWord(selectedSuggestion)
 
                 lastAutocorrection = null
                 lastUndoneWord = null
                 lastClipboardText = null
                 lastClipboardImage = null
                 justCommittedSpace = true
-                lastCommittedWord = selectedSuggestion
+                lastCommittedWord = expansion
                 composingBuffer.setLength(0)
                 playClickFeedback()
                 triggerVibration()
+                clearPredictionsUi()
                 scheduleAsyncPrediction("", lastCommittedWord)
             }
         }
@@ -2331,62 +2324,6 @@ class StitchKeyboardService : InputMethodService() {
             val intent = android.content.Intent(this, MainActivity::class.java)
             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
-        }
-
-        aiActionsContainer = view.findViewById(R.id.ai_actions_container)
-        val aiKeyTop = view.findViewById<View>(R.id.key_ai_top)
-        val aiIconTop = view.findViewById<ImageView>(R.id.icon_ai_top)
-        aiKeyTopView = aiKeyTop
-        aiIconTopView = aiIconTop
-
-        aiKeyTop?.setOnClickListener {
-            playClickFeedback()
-            triggerVibration()
-            val aiContainer = aiActionsContainer
-            if (aiContainer != null) {
-                val isAiVisible = aiContainer.visibility == View.VISIBLE
-                if (isAiVisible) {
-                    aiContainer.visibility = View.GONE
-                    suggestionContainer?.visibility = View.VISIBLE
-                    updateAiToggleVisual(false)
-                } else {
-                    suggestionContainer?.visibility = View.GONE
-                    clipboardContainer?.visibility = View.GONE
-                    aiContainer.visibility = View.VISIBLE
-                    aiContainer.scrollTo(0, 0)
-                    updateAiToggleVisual(true)
-                }
-            }
-        }
-
-        bindAiActionButton(view.findViewById(R.id.ai_btn_close)) {
-            aiActionsContainer?.visibility = View.GONE
-            suggestionContainer?.visibility = View.VISIBLE
-            updateAiToggleVisual(false)
-        }
-
-        bindAiActionButton(view.findViewById(R.id.ai_btn_complete)) {
-            performGroqAiAction("complete")
-        }
-
-        bindAiActionButton(view.findViewById(R.id.ai_btn_correct)) {
-            performGroqAiAction("correct")
-        }
-
-        bindAiActionButton(view.findViewById(R.id.ai_btn_formal)) {
-            performGroqAiAction("formal")
-        }
-
-        bindAiActionButton(view.findViewById(R.id.ai_btn_casual)) {
-            performGroqAiAction("casual")
-        }
-
-        bindAiActionButton(view.findViewById(R.id.ai_btn_shorten)) {
-            performGroqAiAction("shorten")
-        }
-
-        bindAiActionButton(view.findViewById(R.id.ai_btn_translate)) {
-            performGroqAiAction("translate")
         }
     }
 
@@ -2425,20 +2362,12 @@ class StitchKeyboardService : InputMethodService() {
 
         val commandIds = listOf(
             R.id.key_shift, R.id.key_backspace, R.id.key_symbol, R.id.key_comma,
-            R.id.key_space, R.id.key_period, R.id.key_enter, R.id.key_ai_top,
+            R.id.key_space, R.id.key_period, R.id.key_enter,
             R.id.key_mic_top, R.id.key_clipboard_top, R.id.key_emoji_top,
             R.id.key_one_handed_top, R.id.key_settings_top
         )
         for (cid in commandIds) {
             view.findViewById<View>(cid)?.setBackgroundResource(cmdRes)
-        }
-    }
-
-    private fun bindAiActionButton(btn: View?, action: () -> Unit) {
-        btn?.setOnClickListener {
-            playClickFeedback()
-            triggerVibration()
-            action()
         }
     }
 
@@ -2460,6 +2389,13 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun handleCharacterClick(baseChar: String) {
+        if (isEmojiSearchMode) {
+            emojiSearchQuery += if (isShifted) baseChar.uppercase() else baseChar.lowercase()
+            updateEmojiSearchUi()
+            playClickFeedback()
+            triggerVibration()
+            return
+        }
         val ic = currentInputConnection ?: return
         lastAutocorrection = null
         lastUndoneWord = null
@@ -2476,7 +2412,7 @@ class StitchKeyboardService : InputMethodService() {
             composingBuffer.setLength(0)
             justCommittedSpace = true
 
-            if (baseChar == "." || baseChar == "!" || baseChar == "?") {
+            if (baseChar == "." || baseChar == "?") {
                 setShiftState(true)
             }
             playClickFeedback()
@@ -2499,19 +2435,27 @@ class StitchKeyboardService : InputMethodService() {
         }
 
         // 2. Previsão desacoplada e cancelável via buffer local
-        var isAllWord = true
-        for (i in 0 until charToCommit.length) {
-            if (!isWordChar(charToCommit[i])) {
-                isAllWord = false
-                break
+        if (charToCommit == "!") {
+            if (composingBuffer.isEmpty() || composingBuffer.startsWith("!")) {
+                composingBuffer.append("!")
+            } else {
+                composingBuffer.setLength(0)
             }
-        }
-        if (isAllWord) {
-            composingBuffer.append(charToCommit)
         } else {
-            composingBuffer.setLength(0)
-            if (baseChar == "." || baseChar == "!" || baseChar == "?") {
-                setShiftState(true)
+            var isAllWord = true
+            for (i in 0 until charToCommit.length) {
+                if (!isWordChar(charToCommit[i])) {
+                    isAllWord = false
+                    break
+                }
+            }
+            if (isAllWord) {
+                composingBuffer.append(charToCommit)
+            } else {
+                composingBuffer.setLength(0)
+                if (baseChar == "." || baseChar == "?") {
+                    setShiftState(true)
+                }
             }
         }
         scheduleAsyncPrediction(composingBuffer.toString())
@@ -2645,6 +2589,15 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun handleBackspace() {
+        if (isEmojiSearchMode) {
+            if (emojiSearchQuery.isNotEmpty()) {
+                emojiSearchQuery = emojiSearchQuery.dropLast(1)
+                updateEmojiSearchUi()
+            }
+            playClickFeedback()
+            triggerVibration()
+            return
+        }
         val ic = currentInputConnection ?: return
         ghostTextManager.clearGhostText(ic)
         justCommittedSpace = false
@@ -2835,200 +2788,6 @@ class StitchKeyboardService : InputMethodService() {
             }
             for (bar in bars) {
                 bar?.animate()?.scaleY(1.0f)?.setDuration(150)?.start()
-            }
-        }
-    }
-
-    private fun getAiApiKey(): String {
-        val sp = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
-        val groqPref = sp.getString("GROQ_API_KEY", "")?.trim() ?: ""
-        if (groqPref.isNotBlank()) return groqPref
-
-        val geminiPref = sp.getString("GEMINI_API_KEY", "")?.trim() ?: ""
-        if (geminiPref.isNotBlank()) return geminiPref
-
-        val groqBuild = try {
-            val field = BuildConfig::class.java.getField("GROQ_API_KEY")
-            (field.get(null) as? String)?.trim() ?: ""
-        } catch (e: Exception) { "" }
-        if (groqBuild.isNotBlank()) return groqBuild
-
-        return try {
-            val field = BuildConfig::class.java.getField("GEMINI_API_KEY")
-            (field.get(null) as? String)?.trim() ?: ""
-        } catch (e: Exception) { "" }
-    }
-
-    private fun getGroqApiKey(): String = getAiApiKey()
-
-    private fun performGroqAiAction(actionType: String) {
-        val ic = currentInputConnection ?: return
-        val selectedText = ic.getSelectedText(0)?.toString()?.trim() ?: ""
-        val textBefore = ic.getTextBeforeCursor(1000, 0)?.toString() ?: ""
-        val textAfter = ic.getTextAfterCursor(500, 0)?.toString() ?: ""
-        val bufferText = composingBuffer.toString().trim()
-
-        val isSelection = selectedText.isNotBlank()
-        val rawInput = when {
-            isSelection -> selectedText
-            textBefore.isNotBlank() -> textBefore.trim()
-            bufferText.isNotBlank() -> bufferText
-            textAfter.isNotBlank() -> textAfter.trim()
-            else -> ""
-        }
-
-        if (rawInput.isBlank()) {
-            Toast.makeText(this, "Digite algo primeiro no campo de texto...", Toast.LENGTH_SHORT).show()
-            updateAiToggleVisual(false)
-            return
-        }
-
-        val apiKey = getAiApiKey()
-        if (apiKey.isBlank() || apiKey == "MY_GROQ_API_KEY" || apiKey == "placeholder" || apiKey == "none") {
-            if (actionType == "correct") {
-                val corrected = predictionEngine.correctTextLocally(rawInput)
-                if (corrected != rawInput) {
-                    ic.beginBatchEdit()
-                    localEditCount++
-                    if (isSelection) {
-                        ic.commitText(corrected, 1)
-                    } else {
-                        ic.deleteSurroundingText(textBefore.length, textAfter.length)
-                        ic.commitText(corrected, 1)
-                    }
-                    ic.endBatchEdit()
-                    triggerVibration()
-                    Toast.makeText(this, "✨ Texto corrigido localmente! (Configure IA nas opções)", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Texto já parece correto! Configure a IA nas opções para reescrita avançada.", Toast.LENGTH_LONG).show()
-                }
-            } else {
-                Toast.makeText(this, "Configure sua chave de IA (Groq ou Google Gemini) nas opções do Tessera", Toast.LENGTH_LONG).show()
-            }
-            aiActionsContainer?.visibility = View.GONE
-            suggestionContainer?.visibility = View.VISIBLE
-            updateAiToggleVisual(false)
-            return
-        }
-
-        val currentModel = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
-            .getString("AI_MODEL", "llama-3.1-8b-instant") ?: "llama-3.1-8b-instant"
-
-        val isGemini = apiKey.startsWith("AIza") || currentModel.startsWith("gemini")
-        val modelLabel = if (isGemini) "Google Gemini" else currentModel
-        Toast.makeText(this, "⚡ Processando com IA ($modelLabel)...", Toast.LENGTH_SHORT).show()
-
-        // Visual feedback na barra de sugestões
-        aiActionsContainer?.visibility = View.GONE
-        suggestionContainer?.visibility = View.VISIBLE
-        updateAiToggleVisual(false)
-        updateSuggestionView(suggestion1, "⏳")
-        updateSuggestionView(suggestion2, "⚡ Processando...")
-        updateSuggestionView(suggestion3, "⏳")
-
-        val (systemPrompt, userPrompt) = when (actionType) {
-            "complete" -> Pair(
-                "Você é um assistente de escrita preditiva em português do Brasil. Continue ou complete o texto a seguir de forma fluida, coerente e concisa. Retorne ESTRITAMENTE APENAS a continuação (sem repetir o texto original se não for necessário), sem aspas ou notas explicativas.",
-                rawInput
-            )
-            "correct" -> Pair(
-                "Você é um revisor ortográfico e gramatical experiente de português do Brasil. Corrija rigorosamente todos os erros de ortografia, acentuação, concordância e pontuação do texto a seguir. Mantenha o sentido e estilo originais. Retorne ESTRITAMENTE APENAS o texto corrigido, sem aspas, comentários ou explicações.",
-                rawInput
-            )
-            "formal" -> Pair(
-                "Reescreva o texto a seguir em português culto, elegante e formal, ideal para mensagens profissionais e e-mails. Retorne ESTRITAMENTE APENAS o texto reescrito, sem aspas ou notas adicionais.",
-                rawInput
-            )
-            "casual" -> Pair(
-                "Reescreva o texto a seguir em tom amigável, leve e descontraído em português do Brasil. Retorne ESTRITAMENTE APENAS o texto reescrito, sem aspas ou notas adicionais.",
-                rawInput
-            )
-            "shorten" -> Pair(
-                "Resuma o texto a seguir de forma concisa e direta em português do Brasil, preservando a ideia principal. Retorne ESTRITAMENTE APENAS o texto resumido, sem aspas ou explicações.",
-                rawInput
-            )
-            "translate" -> Pair(
-                "Você é um tradutor instantâneo de alta precisão. Traduza o texto a seguir para $prefTranslateTarget mantendo o sentido, tom e contexto naturais. Retorne ESTRITAMENTE APENAS o texto traduzido, sem aspas, explicações ou notas adicionais.",
-                rawInput
-            )
-            else -> Pair("Melhore o texto a seguir.", rawInput)
-        }
-
-        scope.launch {
-            try {
-                val result = withContext(Dispatchers.IO) {
-                    if (isGemini) {
-                        val geminiModel = if (currentModel.startsWith("gemini")) currentModel else "gemini-2.5-flash"
-                        val req = GenerateContentRequest(
-                            contents = listOf(Content(parts = listOf(Part(text = "$systemPrompt\n\n$userPrompt"))))
-                        )
-                        val resp = try {
-                            RetrofitClient.service.generateContent(geminiModel, apiKey, req)
-                        } catch (httpEx: retrofit2.HttpException) {
-                            if (httpEx.code() == 404 && geminiModel == "gemini-2.5-flash") {
-                                RetrofitClient.service.generateContent("gemini-1.5-flash", apiKey, req)
-                            } else {
-                                throw httpEx
-                            }
-                        }
-                        resp.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text?.trim() ?: ""
-                    } else {
-                        val request = GroqChatRequest(
-                            model = currentModel,
-                            messages = listOf(
-                                GroqMessage(role = "system", content = systemPrompt),
-                                GroqMessage(role = "user", content = userPrompt)
-                            ),
-                            temperature = 0.2,
-                            maxTokens = 512
-                        )
-                        val resp = try {
-                            GroqClient.service.chatCompletion("Bearer $apiKey", request)
-                        } catch (httpEx: retrofit2.HttpException) {
-                            if (httpEx.code() == 404 && request.model == "llama-3.1-8b-instant") {
-                                val fallbackReq = request.copy(model = "llama-3.3-70b-versatile")
-                                GroqClient.service.chatCompletion("Bearer $apiKey", fallbackReq)
-                            } else {
-                                throw httpEx
-                            }
-                        }
-                        resp.choices?.firstOrNull()?.message?.content?.trim() ?: ""
-                    }
-                }
-
-                withContext(Dispatchers.Main) {
-                    val activeIc = currentInputConnection ?: ic
-                    if (result.isNotBlank()) {
-                        triggerVibration()
-                        activeIc.beginBatchEdit()
-                        localEditCount++
-                        if (isSelection) {
-                            activeIc.commitText(result, 1)
-                        } else if (actionType == "complete") {
-                            val spacePrefix = if (!textBefore.endsWith(" ") && !result.startsWith(" ")) " " else ""
-                            activeIc.commitText(spacePrefix + result, 1)
-                        } else {
-                            activeIc.deleteSurroundingText(textBefore.length, textAfter.length)
-                            activeIc.commitText(result, 1)
-                        }
-                        activeIc.endBatchEdit()
-                        clearPredictionsUi()
-                        Toast.makeText(this@StitchKeyboardService, "✨ Aplicado com sucesso!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        clearPredictionsUi()
-                        Toast.makeText(this@StitchKeyboardService, "Resposta vazia da IA", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    clearPredictionsUi()
-                    val msg = if (e is retrofit2.HttpException && e.code() == 401) {
-                        "Chave de IA não autorizada (HTTP 401). Verifique nas configurações."
-                    } else {
-                        "Erro na IA: ${e.localizedMessage ?: "Falha na conexão"}"
-                    }
-                    Toast.makeText(this@StitchKeyboardService, msg, Toast.LENGTH_LONG).show()
-                }
             }
         }
     }

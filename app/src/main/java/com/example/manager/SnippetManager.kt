@@ -17,7 +17,11 @@ class SnippetManager(context: Context) {
     }
 
     fun getSnippets(): Map<String, String> {
-        val rawJson = prefs.getString(PREF_SNIPPETS_JSON, null) ?: return DEFAULT_SNIPPETS
+        if (!prefs.contains(PREF_SNIPPETS_JSON)) {
+            saveSnippets(DEFAULT_SNIPPETS)
+            return DEFAULT_SNIPPETS
+        }
+        val rawJson = prefs.getString(PREF_SNIPPETS_JSON, "{}") ?: "{}"
         return try {
             val jsonObject = JSONObject(rawJson)
             val map = mutableMapOf<String, String>()
@@ -26,7 +30,7 @@ class SnippetManager(context: Context) {
                 val key = keys.next()
                 map[key] = jsonObject.getString(key)
             }
-            if (map.isEmpty()) DEFAULT_SNIPPETS else map
+            map
         } catch (_: Exception) {
             DEFAULT_SNIPPETS
         }
@@ -34,21 +38,75 @@ class SnippetManager(context: Context) {
 
     fun addSnippet(shortcut: String, expansion: String) {
         val current = getSnippets().toMutableMap()
-        val formattedShortcut = if (shortcut.startsWith("!")) shortcut.trim() else "!${shortcut.trim()}"
+        val trimmedKey = shortcut.trim()
+        val formattedShortcut = if (trimmedKey.startsWith("!")) trimmedKey else "!$trimmedKey"
         current[formattedShortcut] = expansion.trim()
+        current.remove(trimmedKey.removePrefix("!"))
         saveSnippets(current)
     }
 
     fun removeSnippet(shortcut: String) {
         val current = getSnippets().toMutableMap()
-        current.remove(shortcut.trim())
+        val trimmed = shortcut.trim()
+        current.remove(trimmed)
+        current.remove(if (trimmed.startsWith("!")) trimmed.removePrefix("!") else "!$trimmed")
         saveSnippets(current)
     }
 
     fun findExpansion(shortcut: String): String? {
         val trimmed = shortcut.trim()
+        if (trimmed.isEmpty()) return null
         val snippets = getSnippets()
-        return snippets[trimmed] ?: snippets[if (trimmed.startsWith("!")) trimmed else "!$trimmed"]
+        
+        // 1. Busca exata (case-insensitive)
+        for ((k, v) in snippets) {
+            if (k.equals(trimmed, ignoreCase = true)) {
+                return v
+            }
+        }
+        
+        // 2. Busca ignorando o prefixo "!" (ex: usuário digitou "pix" e o atalho é "!pix", ou vice-versa)
+        val trimmedNoExcl = trimmed.removePrefix("!")
+        for ((k, v) in snippets) {
+            val keyNoExcl = k.removePrefix("!")
+            if (keyNoExcl.equals(trimmedNoExcl, ignoreCase = true)) {
+                return v
+            }
+        }
+        
+        return null
+    }
+
+    fun findMatchingSnippets(query: String): List<Pair<String, String>> {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return emptyList()
+        val snippets = getSnippets()
+        if (snippets.isEmpty()) return emptyList()
+
+        val results = mutableListOf<Pair<String, String>>()
+        val isExplicitPrefix = trimmed.startsWith("!")
+        val queryLower = trimmed.lowercase()
+        val queryNoExcl = queryLower.removePrefix("!")
+
+        for ((k, v) in snippets) {
+            val keyLower = k.lowercase()
+            val keyNoExcl = keyLower.removePrefix("!")
+
+            // 1. Correspondência exata (máxima prioridade)
+            if (keyLower == queryLower || keyNoExcl == queryNoExcl) {
+                results.add(0, Pair(k, v))
+            } else if (isExplicitPrefix) {
+                // Se o usuário digitou '!', busca qualquer snippet que comece com o que ele digitou
+                if (keyLower.startsWith(queryLower) || keyNoExcl.startsWith(queryNoExcl)) {
+                    results.add(Pair(k, v))
+                }
+            } else if (queryLower.length >= 2 && keyNoExcl.startsWith(queryNoExcl)) {
+                // Se digitou sem '!' com pelo menos 2 caracteres (ex: 'pi' para '!pix')
+                results.add(Pair(k, v))
+            }
+        }
+
+        return results.distinctBy { it.first }
     }
 
     private fun saveSnippets(snippets: Map<String, String>) {

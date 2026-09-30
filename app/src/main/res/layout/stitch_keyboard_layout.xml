@@ -8,17 +8,6 @@
             <TextView android:id="@+id/suggestion_2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:textColor="?attr/stitchTextColor" android:textSize="16sp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackgroundBorderless" />
             <TextView android:id="@+id/suggestion_3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:textColor="?attr/stitchTextColor" android:textSize="16sp" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackgroundBorderless" />
         </LinearLayout>
-        <HorizontalScrollView android:id="@+id/ai_actions_container" android:layout_width="match_parent" android:layout_height="match_parent" android:scrollbars="none" android:visibility="gone">
-            <LinearLayout android:layout_width="wrap_content" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center_vertical" android:paddingLeft="4dp" android:paddingRight="4dp">
-                <TextView android:id="@+id/ai_btn_complete" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="✨ Completar" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:fontFamily="sans-serif-medium" />
-                <TextView android:id="@+id/ai_btn_correct" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="📝 Corrigir" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:fontFamily="sans-serif-medium" />
-                <TextView android:id="@+id/ai_btn_formal" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="👔 Formal" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:fontFamily="sans-serif-medium" />
-                <TextView android:id="@+id/ai_btn_casual" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="😊 Descontraído" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:fontFamily="sans-serif-medium" />
-                <TextView android:id="@+id/ai_btn_shorten" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="✂️ Resumir" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:fontFamily="sans-serif-medium" />
-                <TextView android:id="@+id/ai_btn_translate" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="🌐 Traduzir" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:fontFamily="sans-serif-medium" />
-                <TextView android:id="@+id/ai_btn_close" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp" android:text="✕" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:textStyle="bold" />
-            </LinearLayout>
-        </HorizontalScrollView>
         <LinearLayout android:id="@+id/clipboard_container" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:orientation="horizontal" android:visibility="gone">
             <LinearLayout android:id="@+id/clipboard_text_pill" android:layout_width="wrap_content" android:layout_height="28dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:paddingLeft="10dp" android:paddingRight="12dp" android:visibility="gone">
                 <ImageView android:id="@+id/clipboard_text_icon" android:layout_width="14dp" android:layout_height="14dp" android:layout_marginRight="6dp" android:src="@drawable/ic_paste_line" android:tint="?attr/stitchTextColor" android:contentDescription="Colar" />
@@ -33,34 +22,49 @@
         <FrameLayout android:id="@+id/key_shift_top" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone">
             <TextView android:id="@+id/text_shift_top" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
         </FrameLayout>
-    </FrameLayout>    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="12dp">
-        <!-- 1: AI Magic Wand Toggle (Varinha Mágica / Sparkles) -->
-        <FrameLayout android:id="@+id/key_ai_top" android:layout_width="0dp" android:layout_weight="1.2" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
-            <ImageView android:id="@+id/icon_ai_top" android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_sparkles" android:tint="?attr/stitchTextColor" android:contentDescription="Assistente IA" />
-        </FrameLayout>
-        
-        <!-- 2: White Dot -->
+    </FrameLayout>
+
+    <!-- Emoji Search Mode Bar & Results Strip (shown when searching emojis) -->
+    <LinearLayout android:id="@+id/emoji_search_mode_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone" android:layout_marginBottom="8dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:orientation="horizontal" android:gravity="center_vertical">
+            <LinearLayout android:id="@+id/emoji_search_active_box" android:layout_width="0dp" android:layout_weight="1" android:layout_height="34dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/bg_command_pill" android:paddingHorizontal="10dp" android:layout_marginRight="6dp">
+                <ImageView android:layout_width="15dp" android:layout_height="15dp" android:src="@drawable/ic_search_line" android:tint="?attr/stitchTextColor" android:alpha="0.6" android:layout_marginRight="6dp" />
+                <TextView android:id="@+id/emoji_search_active_query" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="Buscar emojis..." android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:singleLine="true" android:gravity="center_vertical" android:alpha="0.6" />
+                <ImageView android:id="@+id/btn_clear_active_emoji_search" android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_backspace" android:tint="?attr/stitchTextColor" android:alpha="0.7" android:visibility="gone" android:clickable="true" android:focusable="true" />
+            </LinearLayout>
+            <FrameLayout android:id="@+id/btn_emoji_search_categories" android:layout_width="38dp" android:layout_height="34dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="6dp" android:clickable="true" android:focusable="true">
+                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:src="@drawable/ic_emoji_line" android:contentDescription="Categorias" />
+            </FrameLayout>
+            <TextView android:id="@+id/btn_close_emoji_search" android:layout_width="wrap_content" android:layout_height="34dp" android:background="@drawable/bg_command_pill" android:text="ABC" android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:textStyle="bold" android:gravity="center" android:paddingHorizontal="12dp" android:clickable="true" android:focusable="true" />
+        </LinearLayout>
+        <HorizontalScrollView android:id="@+id/emoji_search_results_scroll" android:layout_width="match_parent" android:layout_height="42dp" android:layout_marginTop="4dp" android:scrollbars="none">
+            <LinearLayout android:id="@+id/emoji_search_results_container" android:layout_width="wrap_content" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center_vertical" />
+        </HorizontalScrollView>
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/top_commands_bar" android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="12dp">
+        <!-- 1: White Dot -->
         <FrameLayout android:id="@+id/key_mic_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
             <View android:layout_width="16dp" android:layout_height="16dp" android:background="@drawable/bg_key_circle" android:layout_gravity="center" />
             <View android:layout_width="10dp" android:layout_height="10dp" android:background="@drawable/bg_circle_white" android:layout_gravity="center" />
         </FrameLayout>
         
-        <!-- 3: Clipboard History Menu -->
+        <!-- 2: Clipboard History Menu -->
         <FrameLayout android:id="@+id/key_clipboard_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
             <ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:src="@drawable/ic_paste_line" android:tint="?attr/stitchTextColor" android:contentDescription="Área de Transferência" />
         </FrameLayout>
 
-        <!-- 4: Emoji Menu -->
+        <!-- 3: Emoji Menu -->
         <FrameLayout android:id="@+id/key_emoji_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
             <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_emoji_line" android:contentDescription="Emojis" />
         </FrameLayout>
 
-        <!-- 5: One-Handed Mode Toggle -->
+        <!-- 4: One-Handed Mode Toggle -->
         <FrameLayout android:id="@+id/key_one_handed_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
             <ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:src="@drawable/ic_one_handed" android:tint="?attr/stitchTextColor" android:contentDescription="Modo Uma Mão" />
         </FrameLayout>
 
-        <!-- 6: Settings Menu -->
+        <!-- 5: Settings Menu -->
         <FrameLayout android:id="@+id/key_settings_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true">
             <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_settings_line" android:contentDescription="Configurações" />
         </FrameLayout>
@@ -217,9 +221,9 @@
     <LinearLayout android:id="@+id/emoji_ui_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@android:color/transparent" android:visibility="gone" android:padding="8dp">
         <!-- Emoji Header with Search Bar and ABC Button -->
         <LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
-            <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="34dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/bg_command_pill" android:paddingHorizontal="10dp" android:layout_marginRight="8dp">
+            <LinearLayout android:id="@+id/emoji_search_bar_box" android:layout_width="0dp" android:layout_weight="1" android:layout_height="34dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/bg_command_pill" android:paddingHorizontal="10dp" android:layout_marginRight="8dp" android:clickable="true" android:focusable="true">
                 <ImageView android:layout_width="15dp" android:layout_height="15dp" android:src="@drawable/ic_search_line" android:tint="?attr/stitchTextColor" android:alpha="0.6" android:layout_marginRight="6dp" />
-                <EditText android:id="@+id/emoji_search_input" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:background="@null" android:hint="Buscar emojis..." android:textColorHint="?attr/stitchTextColor" android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:singleLine="true" android:imeOptions="actionDone" />
+                <TextView android:id="@+id/emoji_search_input" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:background="@null" android:text="Buscar emojis..." android:textColor="?attr/stitchTextColor" android:alpha="0.6" android:textSize="13sp" android:gravity="center_vertical" />
                 <ImageView android:id="@+id/btn_clear_emoji_search" android:layout_width="16dp" android:layout_height="16dp" android:src="@drawable/ic_backspace" android:tint="?attr/stitchTextColor" android:alpha="0.6" android:visibility="gone" android:clickable="true" android:focusable="true" />
             </LinearLayout>
             <TextView android:id="@+id/btn_close_emoji" android:layout_width="wrap_content" android:layout_height="34dp" android:background="@drawable/bg_command_pill" android:text="ABC" android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:textStyle="bold" android:gravity="center" android:paddingHorizontal="14dp" android:clickable="true" android:focusable="true" />

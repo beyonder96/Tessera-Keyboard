@@ -198,24 +198,48 @@ object EmojiDictionary {
         EmojiItem("💰", listOf("saco de dinheiro", "dinheiro", "grana", "riqueza", "rico")),
         EmojiItem("💵", listOf("dinheiro", "nota", "dólar", "reais", "pagamento")),
         EmojiItem("💡", listOf("ideia", "lâmpada", "pensamento", "insight", "solução")),
-        EmojiItem("🔒", listOf("cadeado", "trancado", "segurança", "senha", "privado"))
+        EmojiItem("🔒", listOf("cadeado", "trancado", "segurança", "senha", "privado")),
+        EmojiItem("🎵", listOf("música", "nota", "som", "canção", "melodia", "music")),
+        EmojiItem("🎶", listOf("músicas", "som", "show", "ouvir", "festa")),
+        EmojiItem("⚽", listOf("futebol", "bola", "jogo", "gol", "esporte", "pelada")),
+        EmojiItem("🏀", listOf("basquete", "bola", "jogo", "esporte")),
+        EmojiItem("🏖️", listOf("praia", "mar", "verão", "férias", "sol")),
+        EmojiItem("🏠", listOf("casa", "lar", "home", "moradia")),
+        EmojiItem("⏰", listOf("relógio", "despertador", "hora", "tempo", "acordar")),
+        EmojiItem("📚", listOf("livro", "livros", "estudo", "leitura", "escola")),
+        EmojiItem("✅", listOf("check", "certo", "ok", "correto", "feito", "confirmado")),
+        EmojiItem("❌", listOf("x", "errado", "cancelar", "não", "erro")),
+        EmojiItem("🚀", listOf("foguete", "lançamento", "voar", "espacial", "hype", "bora"))
     )
 
     fun search(query: String): List<String> {
         val normalizedQuery = removeAccents(query.trim().lowercase())
         if (normalizedQuery.isEmpty()) return emptyList()
 
-        val results = mutableListOf<String>()
+        val scored = mutableListOf<Pair<String, Int>>()
         for (item in emojiList) {
-            val matches = item.keywords.any { keyword ->
+            var bestScore = 0
+            for (keyword in item.keywords) {
                 val normKeyword = removeAccents(keyword.lowercase())
-                normKeyword.contains(normalizedQuery) || normalizedQuery.contains(normKeyword)
+                val score = when {
+                    normKeyword == normalizedQuery -> 3
+                    normKeyword.startsWith(normalizedQuery) -> 2
+                    normKeyword.contains(normalizedQuery) -> 1
+                    normalizedQuery.length >= 3 && normalizedQuery.contains(normKeyword) -> 1
+                    else -> 0
+                }
+                if (score > bestScore) {
+                    bestScore = score
+                }
             }
-            if (matches) {
-                results.add(item.emoji)
+            if (bestScore > 0) {
+                scored.add(item.emoji to bestScore)
             }
         }
-        return results.distinct()
+        return scored
+            .sortedByDescending { it.second }
+            .map { it.first }
+            .distinct()
     }
 
     private fun removeAccents(str: String): String {
