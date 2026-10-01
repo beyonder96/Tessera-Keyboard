@@ -238,7 +238,11 @@ class PredictionEngine(
         prewarmPredictions()
     }
 
+    @Volatile
+    var isLearningEnabled: Boolean = true
+
     fun learnWord(word: String) {
+        if (!isLearningEnabled) return
         val clean = word.trim().lowercase()
         if (clean.length in 2..30 && clean.all { it.isLetter() }) {
             // Insere na árvore em memória na sessão sem persistir no dicionário manual do usuário
@@ -295,6 +299,7 @@ class PredictionEngine(
     )
 
     fun learnBigram(w1: String, w2: String) {
+        if (!isLearningEnabled) return
         localDict?.learnBigram(w1, w2)
     }
 

@@ -84,14 +84,19 @@ class LocalDictionaryManager(context: Context) {
         return inMemoryManualWords.toSet()
     }
 
+    @Volatile
+    var isLearningEnabled: Boolean = true
+
     /**
      * Palavras digitadas não poluem mais a lista persistente do usuário.
      */
     fun learnWord(word: String) {
+        if (!isLearningEnabled) return
         // Intencionalmente não adiciona a inMemoryManualWords para evitar poluir o dicionário pessoal do usuário
     }
 
     fun learnBigram(w1: String, w2: String) {
+        if (!isLearningEnabled) return
         val clean1 = w1.trim().lowercase()
         val clean2 = w2.trim().lowercase()
         if (clean1.length in 1..30 && clean2.length in 1..30 &&

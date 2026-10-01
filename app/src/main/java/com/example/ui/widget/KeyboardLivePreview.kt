@@ -71,6 +71,14 @@ fun KeyboardLivePreview(
             text = Color(0xFFE6E1E5),
             inactive = Color(0x80CAC4D0)
         )
+        "Incognito" -> HexThemeColors(
+            bg = listOf(Color(0xFF100E14), Color(0xFF1A1721)),
+            glow = Color(0xFFA855F7),
+            keyBg = Color(0xFF1A1721),
+            keyBorder = Color(0xFF38294A),
+            text = Color(0xFFF3E8FF),
+            inactive = Color(0xFF9382A8)
+        )
         else -> HexThemeColors( // Dark Glass Padrão
             bg = listOf(Color(0xFF001717), Color(0xFF002424)),
             glow = Color(0xFF06FBFB),

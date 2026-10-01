@@ -137,6 +137,10 @@ class StitchKeyboardService : InputMethodService() {
     private var suggestion1: android.widget.TextView? = null
     private var suggestion2: android.widget.TextView? = null
     private var suggestion3: android.widget.TextView? = null
+    private var incognitoBadge: View? = null
+    private var incognitoIconIndicator: TextView? = null
+    private var isIncognitoActive: Boolean = false
+    private var isWordLearningEnabled: Boolean = true
     private data class ClipboardImage(
         val uri: android.net.Uri,
         val mimeType: String,
@@ -222,13 +226,18 @@ class StitchKeyboardService : InputMethodService() {
     override fun onCreate() {
         super.onCreate()
         try {
-            val themePref = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getString("KEYBOARD_THEME", "Dark") ?: "Dark"
+            val themePref = if (isIncognitoActive) {
+                "Incognito"
+            } else {
+                getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getString("KEYBOARD_THEME", "Dark") ?: "Dark"
+            }
             val themeResId = when (themePref) {
                 "Light" -> R.style.Theme_Tessera_Light
                 "Amoled" -> R.style.Theme_Tessera_Amoled
                 "Cyberpunk" -> R.style.Theme_Tessera_Cyberpunk
                 "Nord" -> R.style.Theme_Tessera_Nord
                 "Monet" -> R.style.Theme_Tessera_Monet
+                "Incognito" -> R.style.Theme_Tessera_Incognito
                 else -> R.style.Theme_Tessera_Dark
             }
             currentThemedContext = ContextThemeWrapper(this, themeResId)
@@ -268,7 +277,11 @@ class StitchKeyboardService : InputMethodService() {
 
     override fun onCreateInputView(): View {
         try {
-            val themePref = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getString("KEYBOARD_THEME", "Dark") ?: "Dark"
+            val themePref = if (isIncognitoActive) {
+                "Incognito"
+            } else {
+                getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getString("KEYBOARD_THEME", "Dark") ?: "Dark"
+            }
             currentTheme = themePref
             val themeResId = when (themePref) {
                 "Light" -> R.style.Theme_Tessera_Light
@@ -276,6 +289,7 @@ class StitchKeyboardService : InputMethodService() {
                 "Cyberpunk" -> R.style.Theme_Tessera_Cyberpunk
                 "Nord" -> R.style.Theme_Tessera_Nord
                 "Monet" -> R.style.Theme_Tessera_Monet
+                "Incognito" -> R.style.Theme_Tessera_Incognito
                 else -> R.style.Theme_Tessera_Dark
             }
             val themedContext = ContextThemeWrapper(this, themeResId)
@@ -697,16 +711,20 @@ class StitchKeyboardService : InputMethodService() {
         }
     }
 
-    private fun isPrivateOrPassword(info: EditorInfo?): Boolean {
+    private fun isPasswordField(info: EditorInfo?): Boolean {
         if (info == null) return false
         val inputType = info.inputType
         val variation = inputType and EditorInfo.TYPE_MASK_VARIATION
-        val isPassword = variation == EditorInfo.TYPE_TEXT_VARIATION_PASSWORD ||
+        return variation == EditorInfo.TYPE_TEXT_VARIATION_PASSWORD ||
                 variation == EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
                 variation == EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD ||
                 (inputType and EditorInfo.TYPE_MASK_CLASS) == EditorInfo.TYPE_CLASS_NUMBER
+    }
+
+    private fun isPrivateOrPassword(info: EditorInfo?): Boolean {
+        if (info == null) return isIncognitoActive
         val noLearning = (info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0
-        return isPassword || noLearning
+        return isPasswordField(info) || noLearning || isIncognitoActive
     }
 
     private fun isNumericField(info: EditorInfo?): Boolean {
@@ -1052,7 +1070,7 @@ class StitchKeyboardService : InputMethodService() {
 
         if (hasText) {
             val clipText = lastClipboardText!!
-            if (editorInfo == null || !isPrivateOrPassword(editorInfo)) {
+            if (!isIncognitoActive && (editorInfo == null || !isPrivateOrPassword(editorInfo))) {
                 clipboardHistoryManager.addEntry(clipText)
             }
             val display = if (isPrivateOrPassword(editorInfo)) {
@@ -1112,13 +1130,23 @@ class StitchKeyboardService : InputMethodService() {
         val hasSuggestions = (suggestion1?.text?.isNotEmpty() == true) ||
                 (suggestion2?.text?.isNotEmpty() == true) ||
                 (suggestion3?.text?.isNotEmpty() == true)
-        dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
+        if (isIncognitoActive) {
+            dragPill?.visibility = View.GONE
+            dragPill?.alpha = 0f
+            incognitoBadge?.visibility = if (hasSuggestions) View.GONE else View.VISIBLE
+            incognitoIconIndicator?.visibility = if (hasSuggestions) View.VISIBLE else View.GONE
+        } else {
+            incognitoBadge?.visibility = View.GONE
+            incognitoIconIndicator?.visibility = View.GONE
+            dragPill?.visibility = View.VISIBLE
+            dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
+        }
     }
 
     private fun scheduleAsyncPrediction(word: String, previousWord: String? = lastCommittedWord) {
         if (!::keyboardRoot.isInitialized) return
         val editorInfo = currentInputEditorInfo
-        if (editorInfo != null && isPrivateOrPassword(editorInfo)) {
+        if (editorInfo != null && isPasswordField(editorInfo)) {
             clearPredictionsUi()
             return
         }
@@ -1141,7 +1169,17 @@ class StitchKeyboardService : InputMethodService() {
                         updateSuggestionView(suggestion2, center)
                         updateSuggestionView(suggestion3, right)
                         val hasSuggestions = center.isNotEmpty() || left.isNotEmpty() || right.isNotEmpty()
-                        dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
+                        if (isIncognitoActive) {
+                            dragPill?.alpha = 0f
+                            dragPill?.visibility = View.GONE
+                            incognitoBadge?.visibility = if (hasSuggestions) View.GONE else View.VISIBLE
+                            incognitoIconIndicator?.visibility = if (hasSuggestions) View.VISIBLE else View.GONE
+                        } else {
+                            incognitoBadge?.visibility = View.GONE
+                            incognitoIconIndicator?.visibility = View.GONE
+                            dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
+                            dragPill?.visibility = View.VISIBLE
+                        }
                     }
                 }
             } else {
@@ -1172,7 +1210,17 @@ class StitchKeyboardService : InputMethodService() {
                 val second = matchingSnippets.getOrNull(1)
                 updateSuggestionView(suggestion3, second?.first ?: "📋 Snippet")
             }
-            dragPill?.alpha = 0f
+            if (isIncognitoActive) {
+                dragPill?.alpha = 0f
+                dragPill?.visibility = View.GONE
+                incognitoBadge?.visibility = View.GONE
+                incognitoIconIndicator?.visibility = View.VISIBLE
+            } else {
+                incognitoBadge?.visibility = View.GONE
+                incognitoIconIndicator?.visibility = View.GONE
+                dragPill?.alpha = 0f
+                dragPill?.visibility = View.VISIBLE
+            }
             return
         }
 
@@ -1197,7 +1245,17 @@ class StitchKeyboardService : InputMethodService() {
                 updateSuggestionView(suggestion2, center)
                 updateSuggestionView(suggestion3, right)
                 val hasSuggestions = center.isNotEmpty() || left.isNotEmpty() || right.isNotEmpty()
-                dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
+                if (isIncognitoActive) {
+                    dragPill?.alpha = 0f
+                    dragPill?.visibility = View.GONE
+                    incognitoBadge?.visibility = if (hasSuggestions) View.GONE else View.VISIBLE
+                    incognitoIconIndicator?.visibility = if (hasSuggestions) View.VISIBLE else View.GONE
+                } else {
+                    incognitoBadge?.visibility = View.GONE
+                    incognitoIconIndicator?.visibility = View.GONE
+                    dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
+                    dragPill?.visibility = View.VISIBLE
+                }
             }
         }
     }
@@ -1219,11 +1277,22 @@ class StitchKeyboardService : InputMethodService() {
         updateSuggestionView(suggestion1, "")
         updateSuggestionView(suggestion2, "")
         updateSuggestionView(suggestion3, "")
-        if (composingBuffer.isEmpty()) {
-            checkAndShowClipboardSuggestions()
-        } else {
+        if (isIncognitoActive) {
             hideClipboardPill()
-            dragPill?.alpha = 0.5f
+            dragPill?.visibility = View.GONE
+            dragPill?.alpha = 0f
+            incognitoBadge?.visibility = View.VISIBLE
+            incognitoIconIndicator?.visibility = View.GONE
+        } else {
+            incognitoBadge?.visibility = View.GONE
+            incognitoIconIndicator?.visibility = View.GONE
+            if (composingBuffer.isEmpty()) {
+                checkAndShowClipboardSuggestions()
+            } else {
+                hideClipboardPill()
+                dragPill?.visibility = View.VISIBLE
+                dragPill?.alpha = 0.5f
+            }
         }
     }
 
@@ -1292,6 +1361,105 @@ class StitchKeyboardService : InputMethodService() {
         }
     }
     
+    override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
+        super.onStartInput(attribute, restarting)
+
+        attribute?.let { info ->
+            // 1. Verifica a flag padrão do Android (usada pelo Tessera Browser, Chrome, Firefox, etc.)
+            val hasNoPersonalizedLearning = (info.imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0
+
+            // 2. Verifica os extras específicos do ecossistema Tessera
+            val isTesseraIncognitoExtra = info.extras?.getBoolean("com.tessera.browser.INCOGNITO_MODE") == true
+
+            // 3. Verifica os identificadores privateImeOptions
+            val isPrivateIme = info.privateImeOptions?.let { opts ->
+                opts.contains("com.tessera.browser.INCOGNITO", ignoreCase = true) ||
+                opts.contains("org.chromium.chrome.browser.incognito_mode", ignoreCase = true)
+            } == true
+
+            // Estado final de navegação anônima:
+            isIncognitoActive = hasNoPersonalizedLearning || isTesseraIncognitoExtra || isPrivateIme
+
+            if (isIncognitoActive) {
+                // ATIVAR MODO ANÔNIMO NO TESSERA-KEYBOARD:
+                // a) Muda a paleta do teclado para preto fosco com detalhes roxos/ametista
+                applyStealthIncognitoTheme()
+
+                // b) Pausa o aprendizado de palavras (NÃO salva o que foi digitado no banco SQLite/Room)
+                disableWordLearningAndHistory()
+
+                // c) Exibe o ícone de privacidade 🕵 na barra superior de sugestões do teclado
+                showIncognitoBadgeOnSuggestionStrip(true)
+            } else {
+                // Volta para o tema normal e retoma o aprendizado de palavras
+                applyDefaultTheme()
+                enableWordLearningAndHistory()
+                showIncognitoBadgeOnSuggestionStrip(false)
+            }
+        } ?: run {
+            isIncognitoActive = false
+            applyDefaultTheme()
+            enableWordLearningAndHistory()
+            showIncognitoBadgeOnSuggestionStrip(false)
+        }
+    }
+
+    private fun applyStealthIncognitoTheme() {
+        if (currentTheme != "Incognito") {
+            currentTheme = "Incognito"
+            if (::keyboardRoot.isInitialized) {
+                setInputView(onCreateInputView())
+            }
+        }
+    }
+
+    private fun applyDefaultTheme() {
+        val defaultTheme = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
+            .getString("KEYBOARD_THEME", "Dark") ?: "Dark"
+        if (currentTheme != defaultTheme) {
+            currentTheme = defaultTheme
+            if (::keyboardRoot.isInitialized) {
+                setInputView(onCreateInputView())
+            }
+        }
+    }
+
+    private fun disableWordLearningAndHistory() {
+        isWordLearningEnabled = false
+        if (::predictionEngine.isInitialized) {
+            predictionEngine.isLearningEnabled = false
+        }
+        if (::localDict.isInitialized) {
+            localDict.isLearningEnabled = false
+        }
+    }
+
+    private fun enableWordLearningAndHistory() {
+        isWordLearningEnabled = true
+        if (::predictionEngine.isInitialized) {
+            predictionEngine.isLearningEnabled = true
+        }
+        if (::localDict.isInitialized) {
+            localDict.isLearningEnabled = true
+        }
+    }
+
+    private fun showIncognitoBadgeOnSuggestionStrip(visible: Boolean) {
+        if (visible) {
+            dragPill?.visibility = View.GONE
+            dragPill?.alpha = 0f
+            val hasSuggestions = !(suggestion1?.text.isNullOrEmpty() && suggestion2?.text.isNullOrEmpty() && suggestion3?.text.isNullOrEmpty())
+            incognitoBadge?.visibility = if (hasSuggestions) View.GONE else View.VISIBLE
+            incognitoIconIndicator?.visibility = if (hasSuggestions) View.VISIBLE else View.GONE
+        } else {
+            incognitoBadge?.visibility = View.GONE
+            incognitoIconIndicator?.visibility = View.GONE
+            val hasSuggestions = !(suggestion1?.text.isNullOrEmpty() && suggestion2?.text.isNullOrEmpty() && suggestion3?.text.isNullOrEmpty())
+            dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
+            dragPill?.visibility = View.VISIBLE
+        }
+    }
+
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         try {
             super.onStartInputView(info, restarting)
@@ -1340,11 +1508,13 @@ class StitchKeyboardService : InputMethodService() {
                 applyGlassmorphismBlur(win)
             }
             
-            val newTheme = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getString("KEYBOARD_THEME", "Dark") ?: "Dark"
-            if (newTheme != currentTheme) {
-                currentTheme = newTheme
+            val prefTheme = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE).getString("KEYBOARD_THEME", "Dark") ?: "Dark"
+            val targetTheme = if (isIncognitoActive) "Incognito" else prefTheme
+            if (targetTheme != currentTheme) {
+                currentTheme = targetTheme
                 setInputView(onCreateInputView())
             }
+            showIncognitoBadgeOnSuggestionStrip(isIncognitoActive)
 
             val autoCap = shouldAutoCapitalize(info)
             isCapsLock = false
@@ -2174,20 +2344,24 @@ class StitchKeyboardService : InputMethodService() {
                             lastAutocorrection = LastAutocorrection(lastWord, centerCandidate)
                             
                             // Aprende transição de bigrama e palavra dinamicamente
-                            if (lastCommittedWord != null && lastCommittedWord != centerCandidate) {
-                                predictionEngine.learnBigram(lastCommittedWord!!, centerCandidate)
+                            if (!isIncognitoActive && isWordLearningEnabled && !isPrivateOrPassword(currentInputEditorInfo)) {
+                                if (lastCommittedWord != null && lastCommittedWord != centerCandidate) {
+                                    predictionEngine.learnBigram(lastCommittedWord!!, centerCandidate)
+                                }
+                                predictionEngine.learnWord(centerCandidate)
                             }
-                            predictionEngine.learnWord(centerCandidate)
                             lastCommittedWord = centerCandidate
                         } else {
                             localEditCount++
                             ic?.commitText(" ", 1)
                             lastAutocorrection = null
                             if (lastWord.isNotEmpty()) {
-                                if (lastCommittedWord != null && lastCommittedWord != lastWord) {
-                                    predictionEngine.learnBigram(lastCommittedWord!!, lastWord)
+                                if (!isIncognitoActive && isWordLearningEnabled && !isPrivateOrPassword(currentInputEditorInfo)) {
+                                    if (lastCommittedWord != null && lastCommittedWord != lastWord) {
+                                        predictionEngine.learnBigram(lastCommittedWord!!, lastWord)
+                                    }
+                                    predictionEngine.learnWord(lastWord)
                                 }
-                                predictionEngine.learnWord(lastWord)
                                 lastCommittedWord = lastWord
                             }
                         }
@@ -2296,6 +2470,8 @@ class StitchKeyboardService : InputMethodService() {
         clipboardTextLabel = view.findViewById<TextView>(R.id.clipboard_text_label)
         clipboardImagePill = view.findViewById<LinearLayout>(R.id.clipboard_image_pill)
         clipboardImageLabel = view.findViewById<TextView>(R.id.clipboard_image_label)
+        incognitoBadge = view.findViewById(R.id.incognito_badge)
+        incognitoIconIndicator = view.findViewById(R.id.incognito_icon_indicator)
         val plusBtn = view.findViewById<View>(R.id.key_settings_top)
 
         clipboardTextPill?.setOnClickListener {
@@ -2351,7 +2527,7 @@ class StitchKeyboardService : InputMethodService() {
                 // Se NÃO for snippet (palavra comum do dicionário), aprende a transição
                 val isSnippet = snippetManager.findExpansion(selectedSuggestion) != null || 
                                 snippetManager.findExpansion(tokenBefore) != null
-                if (!isSnippet) {
+                if (!isSnippet && !isIncognitoActive && isWordLearningEnabled && !isPrivateOrPassword(currentInputEditorInfo)) {
                     if (lastCommittedWord != null && lastCommittedWord != selectedSuggestion) {
                         predictionEngine.learnBigram(lastCommittedWord!!, selectedSuggestion)
                     }

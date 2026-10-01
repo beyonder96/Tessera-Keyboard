@@ -233,5 +233,23 @@ class PredictionEngineTest {
         assertTrue(corrected.contains("hoje?"))
         assertTrue(corrected.contains("tudo"))
     }
+
+    @Test
+    fun testLearningDisabledWhenIncognito() {
+        val testEngine = PredictionEngine()
+        testEngine.isLearningEnabled = false
+        testEngine.learnWord("palavrasecreta")
+        val results = testEngine.getPredictions("palavrasec")
+        assertTrue(!results.contains("palavrasecreta"))
+    }
+
+    @Test
+    fun testLearningEnabledByDefault() {
+        val testEngine = PredictionEngine()
+        assertTrue(testEngine.isLearningEnabled)
+        testEngine.learnWord("palavranova")
+        val results = testEngine.getPredictions("palavrano")
+        assertTrue(results.contains("palavranova"))
+    }
 }
 

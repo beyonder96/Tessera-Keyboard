@@ -726,6 +726,18 @@ fun TesseraDashboardContent(
                     modifier = Modifier.weight(1f)
                 )
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ThemeOptionButton(
+                    title = "Stealth Incognito 🕵",
+                    isSelected = keyboardTheme == "Incognito",
+                    onClick = { onThemeChange("Incognito") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
             DividerLine()

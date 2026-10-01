@@ -73,4 +73,16 @@
         <item name="stitchAiBg">#33D0BCFF</item>
         <item name="stitchAiText">#FFFFFF</item>
     </style>
+
+    <style name="Theme.Tessera.Incognito" parent="Theme.MyApplication">
+        <item name="stitchBgColor">#F2100E14</item> <!-- 95% Matte Black / Obsidian Void -->
+        <item name="stitchGlowColor">#A855F7</item> <!-- Amethyst Purple Neon Glow -->
+        <item name="stitchKeyBgColor">#1A1721</item> <!-- Matte Dark Purple-Black Surface -->
+        <item name="stitchKeyBorderColor">#38294A</item> <!-- Subtle Amethyst Border -->
+        <item name="stitchTextColor">#F3E8FF</item> <!-- Soft Amethyst Text -->
+        <item name="stitchTextInactiveColor">#9382A8</item> <!-- Muted Amethyst Accent -->
+        <item name="stitchGlassBgTranslucent">#261B33</item> <!-- Deep Amethyst Glass Surface -->
+        <item name="stitchAiBg">#33A855F7</item>
+        <item name="stitchAiText">#C084FC</item>
+    </style>
 </resources>
