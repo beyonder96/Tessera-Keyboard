@@ -17,11 +17,16 @@ Write-Host "==========================================" -ForegroundColor Cyan
 
 # 1. Configuração de Ambiente
 $DefaultJdk = "C:\Users\kenne\.gemini\antigravity\scratch\jdk-17\jdk-17.0.12+7"
+$UserJdk = "C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"
 $DefaultSdk = "C:\Users\kenne\.gemini\antigravity\scratch\android-sdk"
 $UserSdk = "C:\Users\kenne\AppData\Local\Android\Sdk"
 
-if (-not $env:JAVA_HOME -and (Test-Path $DefaultJdk)) {
-    $env:JAVA_HOME = $DefaultJdk
+if (-not $env:JAVA_HOME) {
+    if (Test-Path $UserJdk) {
+        $env:JAVA_HOME = $UserJdk
+    } elseif (Test-Path $DefaultJdk) {
+        $env:JAVA_HOME = $DefaultJdk
+    }
 }
 if (-not $env:ANDROID_HOME) {
     if (Test-Path $UserSdk) {

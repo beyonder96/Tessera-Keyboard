@@ -15,6 +15,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.Manifest
+import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.ContentUris
@@ -194,6 +195,7 @@ class StitchKeyboardService : InputMethodService() {
     // Novas instâncias e views
     private lateinit var clipboardHistoryManager: ClipboardHistoryManager
     private lateinit var clipboardHistoryRoot: View
+    private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
     private var swipeTrailView: SwipeTrailView? = null
     private var numberRowContainer: View? = null
     private val keyBoundsMap = mutableMapOf<Char, Rect>()
@@ -245,6 +247,19 @@ class StitchKeyboardService : InputMethodService() {
             localDict = com.example.manager.LocalDictionaryManager(this)
             predictionEngine = com.example.engine.PredictionEngine(localDict, this)
             clipboardHistoryManager = ClipboardHistoryManager(this)
+            try {
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
+                    lastConsumedClip = null
+                    syncSystemClipboardToHistory()
+                    if (::clipboardHistoryRoot.isInitialized && clipboardHistoryRoot.visibility == View.VISIBLE) {
+                        renderClipboardHistory()
+                    } else if (isInputViewShown && composingBuffer.isEmpty()) {
+                        checkAndShowClipboardSuggestions()
+                    }
+                }
+                cm?.addPrimaryClipChangedListener(clipboardListener)
+            } catch (_: Exception) {}
             vibrator = getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
             audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
             inputMethodManager = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
@@ -401,6 +416,18 @@ class StitchKeyboardService : InputMethodService() {
                 clipboardHistoryManager.clearUnpinned()
                 renderClipboardHistory()
             }
+            keyboardView.findViewById<View>(R.id.btn_action_select_all)?.setOnClickListener {
+                performSelectAll()
+            }
+            keyboardView.findViewById<View>(R.id.btn_action_copy)?.setOnClickListener {
+                performCopy()
+            }
+            keyboardView.findViewById<View>(R.id.btn_action_cut)?.setOnClickListener {
+                performCut()
+            }
+            keyboardView.findViewById<View>(R.id.btn_action_paste)?.setOnClickListener {
+                performPaste()
+            }
 
             keyboardView.findViewById<View>(R.id.btn_close_voice)?.setOnClickListener {
                 stopListening()
@@ -516,6 +543,7 @@ class StitchKeyboardService : InputMethodService() {
     fun showClipboardHistory() {
         if (!::clipboardHistoryRoot.isInitialized) return
         exitEmojiSearchMode()
+        syncSystemClipboardToHistory()
         val targetHeight = if (::keyboardRoot.isInitialized && keyboardRoot.height > 0) keyboardRoot.height else (260 * resources.displayMetrics.density).toInt()
         clipboardHistoryRoot.layoutParams.height = targetHeight
         if (::keyboardRoot.isInitialized) keyboardRoot.visibility = View.GONE
@@ -542,6 +570,19 @@ class StitchKeyboardService : InputMethodService() {
         val ctx = currentThemedContext ?: this
         val textColor = getThemedColor(R.attr.stitchTextColor, Color.WHITE)
 
+        // Aplica cores do tema na barra de ações rápidas
+        val actionButtons = listOf(
+            clipboardHistoryRoot.findViewById<TextView>(R.id.btn_action_select_all),
+            clipboardHistoryRoot.findViewById<TextView>(R.id.btn_action_copy),
+            clipboardHistoryRoot.findViewById<TextView>(R.id.btn_action_cut),
+            clipboardHistoryRoot.findViewById<TextView>(R.id.btn_action_paste),
+            clipboardHistoryRoot.findViewById<TextView>(R.id.btn_clear_clipboard),
+            clipboardHistoryRoot.findViewById<TextView>(R.id.btn_close_clipboard)
+        )
+        for (btn in actionButtons) {
+            btn?.setTextColor(textColor)
+        }
+
         if (entries.isEmpty()) {
             emptyText?.setTextColor(textColor)
             emptyText?.visibility = View.VISIBLE
@@ -565,7 +606,7 @@ class StitchKeyboardService : InputMethodService() {
                 }
                 layoutParams = lp
                 isClickable = true
-                isFocusable = true
+                isFocusable = false
             }
 
             val tvText = TextView(ctx).apply {
@@ -583,10 +624,22 @@ class StitchKeyboardService : InputMethodService() {
                 playClickFeedback()
                 triggerVibration()
                 val ic = currentInputConnection
-                ic?.beginBatchEdit()
-                localEditCount++
-                ic?.commitText(entry.text, 1)
-                ic?.endBatchEdit()
+                if (ic != null) {
+                    ic.beginBatchEdit()
+                    localEditCount++
+                    ic.commitText(entry.text, 1)
+                    ic.endBatchEdit()
+                    composingBuffer.setLength(0)
+                    lastAutocorrection = null
+                    lastUndoneWord = null
+                    lastCommittedWord = entry.text
+                    justCommittedSpace = false
+                }
+                lastConsumedClip = entry.text
+                try {
+                    val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                    cm?.setPrimaryClip(ClipData.newPlainText("text", entry.text))
+                } catch (_: Exception) {}
                 hideClipboardHistory()
             }
 
@@ -812,21 +865,64 @@ class StitchKeyboardService : InputMethodService() {
         numIconView?.setImageResource(iconRes)
     }
 
-    private fun getClipboardText(): String? {
+    private fun getSystemClipboardText(): String? {
+        return try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            if (clipboard != null && clipboard.hasPrimaryClip()) {
+                val clip = clipboard.primaryClip
+                if (clip != null && clip.itemCount > 0) {
+                    val sb = StringBuilder()
+                    for (i in 0 until clip.itemCount) {
+                        val item = clip.getItemAt(i)
+                        val itemText = item?.text?.toString() ?: item?.coerceToText(this)?.toString()
+                        if (!itemText.isNullOrEmpty()) {
+                            if (sb.isNotEmpty()) sb.append("\n")
+                            sb.append(itemText)
+                        }
+                    }
+                    val full = sb.toString()
+                    if (full.isNotBlank()) full else null
+                } else null
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun syncSystemClipboardToHistory() {
+        if (isIncognitoActive) return
+        val raw = getSystemClipboardText() ?: return
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return
+
+        // Verifica flag de dado sensível do Android 13+ (ex: senhas copiadas de gerenciadores)
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            val desc = clipboard?.primaryClipDescription
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && desc != null) {
+                val isSensitive = desc.extras?.getBoolean(ClipDescription.EXTRA_IS_SENSITIVE, false) ?: false
+                if (isSensitive) return
+            }
+        } catch (_: Exception) {}
+
+        clipboardHistoryManager.addEntry(trimmed)
+    }
+
+    private fun getClipboardSuggestionText(): String? {
         return try {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             if (clipboard != null && clipboard.hasPrimaryClip()) {
                 val desc = clipboard.primaryClipDescription
                 val clipTimestamp = desc?.timestamp ?: 0L
                 val now = System.currentTimeMillis()
-                // Ignora textos copiados há mais de 90 segundos (evita sugestão defasada)
-                if (clipTimestamp > 0L && (now - clipTimestamp) > 90_000L) {
+                // Sugere apenas se copiado recentemente (até 5 minutos se houver timestamp confiável)
+                if (clipTimestamp > 0L && (now - clipTimestamp) > 300_000L) {
                     return null
                 }
                 val clip = clipboard.primaryClip
                 if (clip != null && clip.itemCount > 0) {
                     val text = clip.getItemAt(0)?.coerceToText(this)?.toString()?.trim()
-                    if (!text.isNullOrBlank() && text.length <= 500 && text != lastConsumedClip) {
+                    if (!text.isNullOrBlank() && text != lastConsumedClip) {
                         text
                     } else null
                 } else null
@@ -834,6 +930,97 @@ class StitchKeyboardService : InputMethodService() {
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun performCopy() {
+        val ic = currentInputConnection ?: return
+        val selected = ic.getSelectedText(0)?.toString()
+        ic.performContextMenuAction(android.R.id.copy)
+        playClickFeedback()
+        triggerVibration()
+        if (!selected.isNullOrBlank()) {
+            val editorInfo = currentInputEditorInfo
+            if (!isIncognitoActive && (editorInfo == null || !isPrivateOrPassword(editorInfo))) {
+                clipboardHistoryManager.addEntry(selected)
+                if (::clipboardHistoryRoot.isInitialized && clipboardHistoryRoot.visibility == View.VISIBLE) {
+                    renderClipboardHistory()
+                }
+            }
+            Toast.makeText(this, "Copiado", Toast.LENGTH_SHORT).show()
+        } else {
+            mainHandler.postDelayed({
+                syncSystemClipboardToHistory()
+                if (::clipboardHistoryRoot.isInitialized && clipboardHistoryRoot.visibility == View.VISIBLE) {
+                    renderClipboardHistory()
+                }
+            }, 120L)
+            Toast.makeText(this, "Copiado", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun performCut() {
+        val ic = currentInputConnection ?: return
+        val selected = ic.getSelectedText(0)?.toString()
+        ic.performContextMenuAction(android.R.id.cut)
+        playClickFeedback()
+        triggerVibration()
+        composingBuffer.setLength(0)
+        lastAutocorrection = null
+        lastUndoneWord = null
+        justCommittedSpace = false
+        if (!selected.isNullOrBlank()) {
+            val editorInfo = currentInputEditorInfo
+            if (!isIncognitoActive && (editorInfo == null || !isPrivateOrPassword(editorInfo))) {
+                clipboardHistoryManager.addEntry(selected)
+                if (::clipboardHistoryRoot.isInitialized && clipboardHistoryRoot.visibility == View.VISIBLE) {
+                    renderClipboardHistory()
+                }
+            }
+            Toast.makeText(this, "Recortado", Toast.LENGTH_SHORT).show()
+        } else {
+            mainHandler.postDelayed({
+                syncSystemClipboardToHistory()
+                if (::clipboardHistoryRoot.isInitialized && clipboardHistoryRoot.visibility == View.VISIBLE) {
+                    renderClipboardHistory()
+                }
+            }, 120L)
+            Toast.makeText(this, "Recortado", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun performPaste() {
+        val ic = currentInputConnection ?: return
+        val text = getSystemClipboardText()
+        if (!text.isNullOrBlank()) {
+            ic.beginBatchEdit()
+            localEditCount++
+            ic.commitText(text, 1)
+            ic.endBatchEdit()
+            composingBuffer.setLength(0)
+            lastAutocorrection = null
+            lastUndoneWord = null
+            lastCommittedWord = text
+            justCommittedSpace = false
+            lastConsumedClip = text
+            playClickFeedback()
+            triggerVibration()
+            hideClipboardPill()
+            hideClipboardHistory()
+            Toast.makeText(this, "Colado", Toast.LENGTH_SHORT).show()
+        } else {
+            ic.performContextMenuAction(android.R.id.paste)
+            playClickFeedback()
+            triggerVibration()
+            hideClipboardPill()
+            hideClipboardHistory()
+        }
+    }
+
+    private fun performSelectAll() {
+        val ic = currentInputConnection ?: return
+        ic.performContextMenuAction(android.R.id.selectAll)
+        playClickFeedback()
+        triggerVibration()
     }
 
     private fun getClipboardImage(): ClipboardImage? {
@@ -1050,12 +1237,15 @@ class StitchKeyboardService : InputMethodService() {
 
     private fun checkAndShowClipboardSuggestions() {
         val editorInfo = currentInputEditorInfo
-        if (editorInfo != null && isPrivateOrPassword(editorInfo)) {
+        if (isIncognitoActive) {
             hideClipboardPill()
             return
         }
 
-        lastClipboardText = getClipboardText()
+        // Sincroniza qualquer item do sistema com o histórico antes de sugerir
+        syncSystemClipboardToHistory()
+
+        lastClipboardText = getClipboardSuggestionText()
         lastClipboardImage = getClipboardImage() ?: if (prefSuggestScreenshots) getRecentScreenshotImage() else null
 
         val hasText = !lastClipboardText.isNullOrBlank() && lastClipboardText != lastConsumedClip
@@ -1070,9 +1260,6 @@ class StitchKeyboardService : InputMethodService() {
 
         if (hasText) {
             val clipText = lastClipboardText!!
-            if (!isIncognitoActive && (editorInfo == null || !isPrivateOrPassword(editorInfo))) {
-                clipboardHistoryManager.addEntry(clipText)
-            }
             val display = if (isPrivateOrPassword(editorInfo)) {
                 "Colar"
             } else {
@@ -1102,14 +1289,8 @@ class StitchKeyboardService : InputMethodService() {
         clipboardDismissRunnable?.let { mainHandler.removeCallbacks(it) }
         clipboardDismissRunnable = Runnable {
             hideClipboardPill()
-            if (hasText) {
-                lastConsumedClip = lastClipboardText
-                lastClipboardText = null
-            }
-            if (hasImage) {
-                lastConsumedImageUri = lastClipboardImage?.uri
-                lastClipboardImage = null
-            }
+            lastClipboardText = null
+            lastClipboardImage = null
         }
         mainHandler.postDelayed(clipboardDismissRunnable!!, 7000L)
     }
@@ -1738,6 +1919,7 @@ class StitchKeyboardService : InputMethodService() {
             var downRawY = 0f
             var isSwipingGesture = false
             val swipeVisitedChars = mutableListOf<Char>()
+            val swipeTrajectory = mutableListOf<com.example.engine.TrajectoryPoint>()
 
             keyView.setOnTouchListener { v, event ->
                 when (event.action) {
@@ -1747,6 +1929,8 @@ class StitchKeyboardService : InputMethodService() {
                         downRawX = event.rawX
                         downRawY = event.rawY
                         swipeVisitedChars.clear()
+                        swipeTrajectory.clear()
+                        swipeTrajectory.add(com.example.engine.TrajectoryPoint(event.rawX, event.rawY, event.eventTime))
                         v.parent?.requestDisallowInterceptTouchEvent(true)
 
                         val currentChar = getCharForId(id) ?: return@setOnTouchListener false
@@ -1788,6 +1972,7 @@ class StitchKeyboardService : InputMethodService() {
                             val containerLoc = IntArray(2)
                             keysContainer?.getLocationOnScreen(containerLoc)
                             swipeTrailView?.addPoint(event.rawX - containerLoc[0], event.rawY - containerLoc[1])
+                            swipeTrajectory.add(com.example.engine.TrajectoryPoint(event.rawX, event.rawY, event.eventTime))
 
                             val rx = event.rawX.toInt()
                             val ry = event.rawY.toInt()
@@ -1823,36 +2008,43 @@ class StitchKeyboardService : InputMethodService() {
                         
                         if (isSwipingGesture) {
                             isSwipingGesture = false
-                            swipeTrailView?.clearTrail()
-                            if (swipeVisitedChars.size >= 2) {
+                            swipeTrajectory.add(com.example.engine.TrajectoryPoint(event.rawX, event.rawY, event.eventTime))
+                            swipeTrailView?.fadeAndClear()
+
+                            // 1. Prioriza reconhecimento espacial contínuo da trajetória via IA/Trie
+                            var candidates = predictionEngine.getSwipePredictions(swipeTrajectory, keyBoundsMap, lastCommittedWord)
+
+                            // 2. Fallback resiliente para padrão discreto caso a trajetória seja ultra-curta
+                            if (candidates.isEmpty() && swipeVisitedChars.size >= 2) {
                                 val pattern = swipeVisitedChars.joinToString("")
-                                val candidates = predictionEngine.getSwipePredictions(pattern)
-                                if (candidates.isNotEmpty()) {
-                                    if (isEmojiSearchMode) {
-                                        emojiSearchQuery = candidates[0].lowercase()
-                                        updateEmojiSearchUi()
-                                        triggerVibration()
-                                        playClickFeedback()
-                                        return@setOnTouchListener true
-                                    }
-                                    val bestWord = if (isShifted) candidates[0].replaceFirstChar { it.uppercase() } else candidates[0]
-                                    val ic = currentInputConnection
-                                    ic?.beginBatchEdit()
-                                    localEditCount++
-                                    composingBuffer.setLength(0)
-                                    ic?.commitText(bestWord + " ", 1)
-                                    lastCommittedWord = candidates[0].lowercase()
-                                    ic?.endBatchEdit()
+                                candidates = predictionEngine.getSwipePredictions(pattern)
+                            }
+
+                            if (candidates.isNotEmpty()) {
+                                if (isEmojiSearchMode) {
+                                    emojiSearchQuery = candidates[0].lowercase()
+                                    updateEmojiSearchUi()
                                     triggerVibration()
                                     playClickFeedback()
+                                    return@setOnTouchListener true
+                                }
+                                val bestWord = if (isShifted) candidates[0].replaceFirstChar { it.uppercase() } else candidates[0]
+                                val ic = currentInputConnection
+                                ic?.beginBatchEdit()
+                                localEditCount++
+                                composingBuffer.setLength(0)
+                                ic?.commitText(bestWord + " ", 1)
+                                lastCommittedWord = candidates[0].lowercase()
+                                ic?.endBatchEdit()
+                                triggerVibration()
+                                playClickFeedback()
 
-                                    if (candidates.size > 1) {
-                                        updateSuggestionView(suggestion1, candidates[0])
-                                        updateSuggestionView(suggestion2, candidates[1])
-                                        updateSuggestionView(suggestion3, if (candidates.size > 2) candidates[2] else "")
-                                    } else {
-                                        scheduleAsyncPrediction("", lastCommittedWord)
-                                    }
+                                if (candidates.size > 1) {
+                                    updateSuggestionView(suggestion1, candidates[0])
+                                    updateSuggestionView(suggestion2, candidates[1])
+                                    updateSuggestionView(suggestion3, if (candidates.size > 2) candidates[2] else "")
+                                } else {
+                                    scheduleAsyncPrediction("", lastCommittedWord)
                                 }
                             }
                             true
@@ -2329,28 +2521,31 @@ class StitchKeyboardService : InputMethodService() {
                         lastSpaceTime = now
                         justCommittedSpace = true
 
+                        val directAutocorrect = if (lastWord.length in 2..30) predictionEngine.getTopAutocorrect(lastWord, lastCommittedWord) else null
+                        val candidateToUse = directAutocorrect ?: centerCandidate
+
                         val doAutocorrect = shouldAutocorrect(editorInfo) &&
                                 lastWord.length in 2..30 &&
-                                centerCandidate.isNotEmpty() &&
-                                !centerCandidate.equals(lastWord, ignoreCase = true) &&
+                                candidateToUse.isNotEmpty() &&
+                                !candidateToUse.equals(lastWord, ignoreCase = true) &&
                                 lastWord != lastUndoneWord
 
                         if (doAutocorrect) {
                             ic?.beginBatchEdit()
                             localEditCount++
                             ic?.deleteSurroundingText(lastWord.length, 0)
-                            ic?.commitText(centerCandidate + " ", 1)
+                            ic?.commitText(candidateToUse + " ", 1)
                             ic?.endBatchEdit()
-                            lastAutocorrection = LastAutocorrection(lastWord, centerCandidate)
+                            lastAutocorrection = LastAutocorrection(lastWord, candidateToUse)
                             
                             // Aprende transição de bigrama e palavra dinamicamente
                             if (!isIncognitoActive && isWordLearningEnabled && !isPrivateOrPassword(currentInputEditorInfo)) {
-                                if (lastCommittedWord != null && lastCommittedWord != centerCandidate) {
-                                    predictionEngine.learnBigram(lastCommittedWord!!, centerCandidate)
+                                if (lastCommittedWord != null && lastCommittedWord != candidateToUse) {
+                                    predictionEngine.learnBigram(lastCommittedWord!!, candidateToUse)
                                 }
-                                predictionEngine.learnWord(centerCandidate)
+                                predictionEngine.learnWord(candidateToUse)
                             }
-                            lastCommittedWord = centerCandidate
+                            lastCommittedWord = candidateToUse
                         } else {
                             localEditCount++
                             ic?.commitText(" ", 1)
@@ -2401,6 +2596,10 @@ class StitchKeyboardService : InputMethodService() {
             playClickFeedback()
             triggerVibration()
             showClipboardHistory()
+        }
+        clipboardTopKey?.setOnLongClickListener {
+            performPaste()
+            true
         }
 
         val emojiKey = view.findViewById<FrameLayout>(R.id.key_emoji_top)
@@ -2482,6 +2681,11 @@ class StitchKeyboardService : InputMethodService() {
                 localEditCount++
                 ic.commitText(clip, 1)
                 ic.endBatchEdit()
+                composingBuffer.setLength(0)
+                lastAutocorrection = null
+                lastUndoneWord = null
+                lastCommittedWord = clip
+                justCommittedSpace = false
                 triggerVibration()
                 playClickFeedback()
                 lastConsumedClip = clip
@@ -2598,7 +2802,9 @@ class StitchKeyboardService : InputMethodService() {
             R.id.key_shift, R.id.key_backspace, R.id.key_symbol, R.id.key_comma,
             R.id.key_space, R.id.key_period, R.id.key_enter,
             R.id.key_mic_top, R.id.key_clipboard_top, R.id.key_emoji_top,
-            R.id.key_one_handed_top, R.id.key_settings_top
+            R.id.key_one_handed_top, R.id.key_settings_top,
+            R.id.btn_action_select_all, R.id.btn_action_copy, R.id.btn_action_cut, R.id.btn_action_paste,
+            R.id.btn_clear_clipboard, R.id.btn_close_clipboard
         )
         for (cid in commandIds) {
             view.findViewById<View>(cid)?.setBackgroundResource(cmdRes)
@@ -3116,8 +3322,27 @@ class StitchKeyboardService : InputMethodService() {
         isListening = false
     }
     
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (::clipboardHistoryRoot.isInitialized && clipboardHistoryRoot.visibility == View.VISIBLE) {
+                hideClipboardHistory()
+                return true
+            }
+            if (::emojiRoot.isInitialized && emojiRoot.visibility == View.VISIBLE) {
+                emojiRoot.visibility = View.GONE
+                if (::keyboardRoot.isInitialized) keyboardRoot.visibility = View.VISIBLE
+                return true
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        try {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            clipboardListener?.let { cm?.removePrimaryClipChangedListener(it) }
+        } catch (_: Exception) {}
         unregisterScreenshotObserver()
         clipboardDismissRunnable?.let { mainHandler.removeCallbacks(it) }
         predictionJob?.cancel()

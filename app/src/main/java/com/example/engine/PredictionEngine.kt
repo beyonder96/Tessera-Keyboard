@@ -125,8 +125,18 @@ class PredictionEngine(
         "proprio" to "próprio", "propria" to "própria", "gratis" to "grátis"
     )
 
-    private val normalizedStatic: List<Pair<String, String>> = staticDictionary.map {
+    private val normalizedStatic: List<Pair<String, String>> = (staticDictionary + accentRestorationMap.values).distinct().map {
         it to TrieDictionary.normalizeFast(it)
+    }
+
+    private val gestureEngine by lazy {
+        GestureTypingEngine(
+            trie = trie,
+            staticDictionary = staticDictionary,
+            accentRestorationMap = accentRestorationMap,
+            abbreviationsMap = abbreviationsMap,
+            bigramNextWordMap = bigramNextWordMap
+        )
     }
 
     private val predictionCache = object : LinkedHashMap<String, List<String>>(512, 0.75f, true) {
@@ -474,8 +484,70 @@ class PredictionEngine(
         return results.take(3)
     }
 
+    fun getSwipePredictions(
+        trajectory: List<TrajectoryPoint>,
+        keyBounds: Map<Char, android.graphics.Rect>,
+        previousWord: String? = null
+    ): List<String> {
+        val converted = keyBounds.mapValues {
+            KeyRect(it.value.left, it.value.top, it.value.right, it.value.bottom)
+        }
+        val aiPredictions = gestureEngine.recognize(trajectory, converted, previousWord)
+        if (aiPredictions.isNotEmpty()) {
+            return aiPredictions
+        }
+        return emptyList()
+    }
+
+    fun getSwipePredictionsWithKeyRects(
+        trajectory: List<TrajectoryPoint>,
+        keyBounds: Map<Char, KeyRect>,
+        previousWord: String? = null
+    ): List<String> {
+        val aiPredictions = gestureEngine.recognize(trajectory, keyBounds, previousWord)
+        if (aiPredictions.isNotEmpty()) {
+            return aiPredictions
+        }
+        return emptyList()
+    }
+
     fun getSwipePrediction(swipePattern: String): String? {
         return getSwipePredictions(swipePattern).firstOrNull()
+    }
+
+    fun getTopAutocorrect(word: String, previousWord: String? = null): String? {
+        val clean = word.trim()
+        if (clean.length < 2) return null
+        val lower = clean.lowercase()
+
+        // 1. Abreviações diretas de gírias e conectivos (vc -> você, tbm -> também, etc.)
+        abbreviationsMap[lower]?.let {
+            return TrieDictionary.matchCasing(clean, it)
+        }
+
+        // 2. Restauração direta de acentos essenciais (voce -> você, estao -> estão, etc.)
+        accentRestorationMap[lower]?.let {
+            return TrieDictionary.matchCasing(clean, it)
+        }
+
+        // 3. Consulta de predições imediatas
+        val preds = getPredictions(clean, previousWord)
+        val top = preds.firstOrNull() ?: return null
+
+        // Se a palavra digitada for uma forma sem acento da palavra top, corrige com certeza
+        val normClean = TrieDictionary.normalizeFast(clean)
+        val normTop = TrieDictionary.normalizeFast(top)
+        if (normClean == normTop && top != clean) {
+            return top
+        }
+
+        // Se a palavra digitada NÃO existe no dicionário e temos uma correção de proximidade plausível
+        val exactWord = trie.findExactWord(clean)
+        if (exactWord == null && !top.equals(clean, ignoreCase = true)) {
+            return top
+        }
+
+        return null
     }
 
     fun correctTextLocally(input: String): String {

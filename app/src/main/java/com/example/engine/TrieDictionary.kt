@@ -158,6 +158,17 @@ class TrieDictionary {
         return@synchronized words.maxByOrNull { it.frequency }
     }
 
+    fun findExactWordFromCharArray(chars: CharArray): WordEntry? = synchronized(this) {
+        var current = root
+        for (i in chars.indices) {
+            val c = chars[i]
+            if (c !in 'a'..'z') return@synchronized null
+            current = current.children[c - 'a'] ?: return@synchronized null
+        }
+        val words = current.words ?: return@synchronized null
+        return@synchronized words.maxByOrNull { it.frequency }
+    }
+
     fun findFuzzySuggestions(word: String, maxCount: Int = 3): List<String> = synchronized(this) {
         if (Thread.currentThread().isInterrupted) return@synchronized emptyList()
         val clean = word.trim()
@@ -208,6 +219,30 @@ class TrieDictionary {
                     val currentBest = scoredCandidates[match.word] ?: 0f
                     if (score > currentBest) {
                         scoredCandidates[match.word] = score
+                    }
+                }
+            }
+        }
+
+        // 4. Omission of 1 accidentally dropped character (e.g. "obrigdo" -> "obrigado", "flando" -> "falando")
+        if (chars.size in 3..22) {
+            val buf = CharArray(chars.size + 1)
+            for (i in 0..chars.size) {
+                for (k in 0 until i) {
+                    buf[k] = chars[k]
+                }
+                for (k in i until chars.size) {
+                    buf[k + 1] = chars[k]
+                }
+                for (ch in 'a'..'z') {
+                    buf[i] = ch
+                    val match = findExactWordFromCharArray(buf)
+                    if (match != null) {
+                        val score = match.frequency * 0.88f
+                        val currentBest = scoredCandidates[match.word] ?: 0f
+                        if (score > currentBest) {
+                            scoredCandidates[match.word] = score
+                        }
                     }
                 }
             }

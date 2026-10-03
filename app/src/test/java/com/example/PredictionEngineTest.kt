@@ -3,6 +3,7 @@ package com.example
 import com.example.engine.PredictionEngine
 import com.example.engine.TrieDictionary
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -250,6 +251,94 @@ class PredictionEngineTest {
         testEngine.learnWord("palavranova")
         val results = testEngine.getPredictions("palavrano")
         assertTrue(results.contains("palavranova"))
+    }
+
+    @Test
+    fun testTopAutocorrectOnSpace() {
+        val testEngine = PredictionEngine()
+
+        // 1. Abreviações
+        assertEquals("você", testEngine.getTopAutocorrect("vc"))
+        assertEquals("também", testEngine.getTopAutocorrect("tbm"))
+        assertEquals("porque", testEngine.getTopAutocorrect("pq"))
+
+        // 2. Restauração de acentos
+        assertEquals("estão", testEngine.getTopAutocorrect("estao"))
+        assertEquals("não", testEngine.getTopAutocorrect("nao"))
+        assertEquals("você", testEngine.getTopAutocorrect("voce"))
+
+        // 3. Typos QWERTY
+        val typoCorrection = testEngine.getTopAutocorrect("obrigaso")
+        assertEquals("obrigado", typoCorrection)
+
+        // 4. Palavras corretas existentes não devem ser sequestradas
+        assertNull(testEngine.getTopAutocorrect("casa"))
+        assertNull(testEngine.getTopAutocorrect("carro"))
+        assertNull(testEngine.getTopAutocorrect("teclado"))
+    }
+
+    @Test
+    fun testFuzzyOmissionCorrection() {
+        val trie = TrieDictionary()
+        trie.insert("obrigado", 240)
+        trie.insert("computador", 220)
+        trie.insert("falando", 210)
+
+        // Omissão de 1 letra (usuário comeu uma letra digitando rápido)
+        val obrigdoSuggestions = trie.findFuzzySuggestions("obrigdo")
+        assertTrue(obrigdoSuggestions.contains("obrigado"))
+
+        val flandoSuggestions = trie.findFuzzySuggestions("flando")
+        assertTrue(flandoSuggestions.contains("falando"))
+    }
+
+    @Test
+    fun testContinuousSpatialGestureRecognition() {
+        val testEngine = PredictionEngine()
+
+        // Simula posições geométricas de teclas na tela (320x240 dip) com KeyRect Kotlin puro
+        val keyBounds = mutableMapOf<Char, com.example.engine.KeyRect>()
+        // Linha 1: q w e r t y u i o p
+        val r1 = "qwertyuiop"
+        for (i in r1.indices) {
+            val left = i * 40
+            keyBounds[r1[i]] = com.example.engine.KeyRect(left, 0, left + 40, 50)
+        }
+        // Linha 2: a s d f g h j k l ç
+        val r2 = "asdfghjklç"
+        for (i in r2.indices) {
+            val left = i * 40
+            keyBounds[r2[i]] = com.example.engine.KeyRect(left, 50, left + 40, 100)
+        }
+        // Linha 3: z x c v b n m
+        val r3 = "zxcvbnm"
+        for (i in r3.indices) {
+            val left = i * 40 + 40
+            keyBounds[r3[i]] = com.example.engine.KeyRect(left, 100, left + 40, 150)
+        }
+
+        // Trajetória simulada para "bom" ('b' -> sobe para 'o' -> desce para 'm')
+        val bCenter = keyBounds['b']!!
+        val oCenter = keyBounds['o']!!
+        val mCenter = keyBounds['m']!!
+
+        val bX = bCenter.cx
+        val bY = bCenter.cy
+        val oX = oCenter.cx
+        val oY = oCenter.cy
+        val mX = mCenter.cx
+        val mY = mCenter.cy
+
+        val trajectory = listOf(
+            com.example.engine.TrajectoryPoint(bX, bY, 1000L),
+            com.example.engine.TrajectoryPoint((bX + oX) / 2f, (bY + oY) / 2f, 1050L),
+            com.example.engine.TrajectoryPoint(oX, oY, 1100L), // Quina em 'o'
+            com.example.engine.TrajectoryPoint((oX + mX) / 2f, (oY + mY) / 2f, 1150L),
+            com.example.engine.TrajectoryPoint(mX, mY, 1200L)
+        )
+
+        val candidates = testEngine.getSwipePredictionsWithKeyRects(trajectory, keyBounds)
+        assertTrue(candidates.contains("bom") || candidates.contains("bem"))
     }
 }
 

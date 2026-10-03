@@ -21,7 +21,8 @@ class ClipboardHistoryManager(context: Context) {
     companion object {
         private const val PREFS_NAME = "TesseraClipboardHistory"
         private const val KEY_HISTORY = "clipboard_entries"
-        private const val MAX_UNPINNED = 25
+        private const val MAX_UNPINNED = 30
+        private const val MAX_TEXT_LENGTH = 50_000
     }
 
     init {
@@ -33,9 +34,16 @@ class ClipboardHistoryManager(context: Context) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return false
 
-        // Se já existe um item idêntico, remove a versão antiga para recolocá-lo no topo
-        val existingIndex = entries.indexOfFirst { it.text == trimmed }
+        // Limita o tamanho máximo de texto por item para evitar estouro de memória no SharedPreferences
+        val safeText = if (trimmed.length > MAX_TEXT_LENGTH) trimmed.take(MAX_TEXT_LENGTH) else trimmed
+
+        val existingIndex = entries.indexOfFirst { it.text == safeText }
         val wasPinned = if (existingIndex != -1) entries[existingIndex].isPinned else false
+
+        // Se já é o primeiro item recente e não mudou o estado de fixação, evita reescrita em disco
+        if (existingIndex == 0 && !wasPinned) {
+            return false
+        }
 
         if (existingIndex != -1) {
             entries.removeAt(existingIndex)
@@ -43,7 +51,7 @@ class ClipboardHistoryManager(context: Context) {
 
         val newEntry = ClipboardEntry(
             id = UUID.randomUUID().toString(),
-            text = trimmed,
+            text = safeText,
             timestamp = System.currentTimeMillis(),
             isPinned = wasPinned
         )
