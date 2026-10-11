@@ -31,14 +31,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Keyboard
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -216,6 +220,9 @@ fun TesseraDashboardContainer(
         }
     }
     var suggestScreenshots by remember { mutableStateOf(try { prefs.getBoolean("PREF_SUGGEST_SCREENSHOTS", true) } catch (_: Exception) { true }) }
+    var flickAccents by remember { mutableStateOf(try { prefs.getBoolean("PREF_FLICK_ACCENTS", true) } catch (_: Exception) { true }) }
+    var swipeDownHide by remember { mutableStateOf(try { prefs.getBoolean("PREF_SWIPE_DOWN_HIDE", true) } catch (_: Exception) { true }) }
+    var undoDelete by remember { mutableStateOf(try { prefs.getBoolean("PREF_UNDO_DELETE", true) } catch (_: Exception) { true }) }
 
     // Polling contínuo de status com delay suave
     LaunchedEffect(Unit) {
@@ -288,6 +295,21 @@ fun TesseraDashboardContainer(
                 hasScreenshotPermission = hasScreenshotPermission,
                 onRequestScreenshotPermission = {
                     screenshotPermissionLauncher.launch(screenshotPermission)
+                },
+                flickAccents = flickAccents,
+                onFlickAccentsChange = {
+                    flickAccents = it
+                    prefs.edit().putBoolean("PREF_FLICK_ACCENTS", it).apply()
+                },
+                swipeDownHide = swipeDownHide,
+                onSwipeDownHideChange = {
+                    swipeDownHide = it
+                    prefs.edit().putBoolean("PREF_SWIPE_DOWN_HIDE", it).apply()
+                },
+                undoDelete = undoDelete,
+                onUndoDeleteChange = {
+                    undoDelete = it
+                    prefs.edit().putBoolean("PREF_UNDO_DELETE", it).apply()
                 },
                 hapticFeedback = hapticFeedback,
                 onHapticFeedbackChange = {
@@ -414,6 +436,12 @@ fun TesseraDashboardContent(
     onSuggestScreenshotsChange: (Boolean) -> Unit,
     hasScreenshotPermission: Boolean,
     onRequestScreenshotPermission: () -> Unit,
+    flickAccents: Boolean,
+    onFlickAccentsChange: (Boolean) -> Unit,
+    swipeDownHide: Boolean,
+    onSwipeDownHideChange: (Boolean) -> Unit,
+    undoDelete: Boolean,
+    onUndoDeleteChange: (Boolean) -> Unit,
     hapticFeedback: Boolean,
     onHapticFeedbackChange: (Boolean) -> Unit,
     hapticDurationMs: Int,
@@ -444,517 +472,121 @@ fun TesseraDashboardContent(
     onEnableKeyboardClick: () -> Unit,
     onSelectKeyboardClick: () -> Unit
 ) {
-    Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        // Cabeçalho de Identidade
-        TesseraHeader()
+    var selectedTab by remember { mutableIntStateOf(0) }
 
-        // Live Preview Interativo em Tempo Real
-        KeyboardLivePreview(
-            themeName = keyboardTheme,
-            keyShape = keyShape,
-            keyHints = keyHints,
-            scale = keyboardScale.coerceIn(0.85f, 1.25f),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        // Card de Status do Teclado (com Error / Warning / Success states)
-        KeyboardStatusCard(
-            isEnabled = isEnabled,
-            isSelected = isSelected,
-            onEnableClick = onEnableKeyboardClick,
-            onSelectClick = onSelectKeyboardClick
-        )
-
-        // Seção: Preferências de Digitação (Otimizações Principais)
-        SectionCard(title = "Digitação e Otimização") {
-            SettingToggle(
-                title = "Correção Automática",
-                description = "Corrige palavras comuns ao pressionar a barra de espaço",
-                checked = autocorrect,
-                onCheckedChange = onAutocorrectChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Abreviações Rápidas",
-                description = "Expande vc -> você, tbm -> também, pq -> porque instantaneamente",
-                checked = smartAbbr,
-                onCheckedChange = onSmartAbbrChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Ponto com duplo espaço",
-                description = "Insere ponto final e espaço ao tocar rapidamente duas vezes na barra de espaço",
-                checked = doubleSpacePeriod,
-                onCheckedChange = onDoubleSpacePeriodChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Primeira letra maiúscula",
-                description = "Capitalização automática no início de frases e períodos",
-                checked = autoCap,
-                onCheckedChange = onAutoCapChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Pré-visualização de tecla",
-                description = "Exibe popup com o caractere pressionado",
-                checked = keyPopup,
-                onCheckedChange = onKeyPopupChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Linha Numérica Superior",
-                description = "Linha fixa com números de 0 a 9 acima do teclado alfabético",
-                checked = numberRow,
-                onCheckedChange = onNumberRowChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Digitação por Gestos (Glide Typing)",
-                description = "Deslize o dedo pelas letras para digitar palavras continuamente",
-                checked = glideTyping,
-                onCheckedChange = onGlideTypingChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Sub-legendas nas Teclas (Key Hints)",
-                description = "Exibe símbolos e números no topo das teclas com digitação por toque longo",
-                checked = keyHints,
-                onCheckedChange = onKeyHintsChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Colar prints recentes",
-                description = "Exibe botão 'Colar print' no teclado logo após tirar uma captura de tela (igual ao Gboard)",
-                checked = suggestScreenshots && hasScreenshotPermission,
-                onCheckedChange = { checked ->
-                    if (checked && !hasScreenshotPermission) {
-                        onRequestScreenshotPermission()
-                    }
-                    onSuggestScreenshotsChange(checked)
-                }
-            )
-            if (suggestScreenshots && !hasScreenshotPermission) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Permissão de fotos necessária para detectar prints",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = StateWarning,
-                        modifier = Modifier.weight(1f)
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = Color.Transparent,
+        bottomBar = {
+            NavigationBar(
+                containerColor = Slate900.copy(alpha = 0.95f),
+                contentColor = Slate100,
+                tonalElevation = 0.dp
+            ) {
+                val tabs = listOf(
+                    Triple("Início", Icons.Default.Home, 0),
+                    Triple("Digitação", Icons.Default.Edit, 1),
+                    Triple("Aparência", Icons.Default.Palette, 2),
+                    Triple("Dicionário", Icons.Default.MenuBook, 3)
+                )
+                tabs.forEach { (title, icon, index) ->
+                    NavigationBarItem(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        icon = { Icon(icon, contentDescription = title, modifier = Modifier.size(20.dp)) },
+                        label = { Text(title, style = MaterialTheme.typography.labelSmall) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = AccentSky,
+                            selectedTextColor = AccentSky,
+                            indicatorColor = AccentSkyMuted,
+                            unselectedIconColor = Slate400,
+                            unselectedTextColor = Slate400
+                        )
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = onRequestScreenshotPermission,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AccentSkyMuted,
-                            contentColor = AccentSky
-                        ),
-                        border = BorderStroke(1.dp, AccentSky.copy(alpha = 0.4f)),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text("Permitir", style = MaterialTheme.typography.labelSmall)
-                    }
                 }
             }
         }
-
-        // Seção: Feedback e Resposta Tátil
-        SectionCard(title = "Resposta e Feedback") {
-            SettingToggle(
-                title = "Resposta tátil (vibração)",
-                description = "Vibração sutil a cada caractere digitado",
-                checked = hapticFeedback,
-                onCheckedChange = onHapticFeedbackChange
-            )
-            if (hapticFeedback) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Intensidade da Vibração",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Slate300
-                    )
-                    Text(
-                        text = "${hapticDurationMs}ms",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = AccentSky
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Slider(
-                    value = hapticDurationMs.toFloat().coerceIn(1f, 50f),
-                    onValueChange = { newValue ->
-                        onHapticDurationChange(newValue.toInt().coerceIn(1, 50))
-                    },
-                    valueRange = 1f..50f,
-                    steps = 49,
-                    colors = SliderDefaults.colors(
-                        thumbColor = AccentSky,
-                        activeTrackColor = AccentSky,
-                        inactiveTrackColor = Slate800
-                    )
-                )
-            }
-            DividerLine()
-            SettingToggle(
-                title = "Som ao tocar",
-                description = "Clique de áudio leve e assíncrono (zero atraso na digitação)",
-                checked = soundFeedback,
-                onCheckedChange = onSoundFeedbackChange
-            )
-            if (!hasMicPermission) {
-                DividerLine()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Digitação por Voz",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = Slate100
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Permissão de áudio necessária para usar o microfone",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Slate400
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Button(
-                        onClick = onRequestMicPermission,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AccentSkyMuted,
-                            contentColor = AccentSky
-                        ),
-                        border = BorderStroke(1.dp, AccentSky.copy(alpha = 0.4f)),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Permitir", style = MaterialTheme.typography.labelMedium)
-                    }
-                }
-            }
-        }
-
-        // Seção: Aparência e Escala
-        SectionCard(title = "Aparência e Escala") {
-            Text(
-                text = "Tema Visual & Frosted Glass",
-                style = MaterialTheme.typography.titleSmall,
-                color = Slate100
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Suporte a desfoque de fundo em tempo real (Android 12+) e estilos modernos:",
-                style = MaterialTheme.typography.bodySmall,
-                color = Slate400
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ThemeOptionButton(
-                    title = "Dark Glass",
-                    isSelected = keyboardTheme == "Dark",
-                    onClick = { onThemeChange("Dark") },
-                    modifier = Modifier.weight(1f)
-                )
-                ThemeOptionButton(
-                    title = "Light Glass",
-                    isSelected = keyboardTheme == "Light",
-                    onClick = { onThemeChange("Light") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ThemeOptionButton(
-                    title = "AMOLED Black",
-                    isSelected = keyboardTheme == "Amoled",
-                    onClick = { onThemeChange("Amoled") },
-                    modifier = Modifier.weight(1f)
-                )
-                ThemeOptionButton(
-                    title = "Cyberpunk",
-                    isSelected = keyboardTheme == "Cyberpunk",
-                    onClick = { onThemeChange("Cyberpunk") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ThemeOptionButton(
-                    title = "Nord Frost",
-                    isSelected = keyboardTheme == "Nord",
-                    onClick = { onThemeChange("Nord") },
-                    modifier = Modifier.weight(1f)
-                )
-                ThemeOptionButton(
-                    title = "Material You",
-                    isSelected = keyboardTheme == "Monet",
-                    onClick = { onThemeChange("Monet") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ThemeOptionButton(
-                    title = "Stealth Incognito 🕵",
-                    isSelected = keyboardTheme == "Incognito",
-                    onClick = { onThemeChange("Incognito") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            DividerLine()
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Geometria das Teclas (Key Shape)",
-                style = MaterialTheme.typography.titleSmall,
-                color = Slate100
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Design dos cantos das teclas:",
-                style = MaterialTheme.typography.bodySmall,
-                color = Slate400
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ThemeOptionButton(
-                    title = "Squircle (Expressivo)",
-                    isSelected = keyShape == "squircle",
-                    onClick = { onKeyShapeChange("squircle") },
-                    modifier = Modifier.weight(1f)
-                )
-                ThemeOptionButton(
-                    title = "Pílula (Clássico)",
-                    isSelected = keyShape == "pill",
-                    onClick = { onKeyShapeChange("pill") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            DividerLine()
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Estilo do Rastro de Deslize (Glide Trail)",
-                style = MaterialTheme.typography.titleSmall,
-                color = Slate100
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Cor da linha dinâmica durante a digitação por gestos:",
-                style = MaterialTheme.typography.bodySmall,
-                color = Slate400
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            val trailOptions = listOf("Theme", "Cyan", "Magenta", "Amber", "White")
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                trailOptions.forEach { opt ->
-                    val isSel = glideTrailStyle == opt
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(if (isSel) AccentSkyMuted else Slate850, RoundedCornerShape(8.dp))
-                            .border(1.dp, if (isSel) AccentSky else Slate700, RoundedCornerShape(8.dp))
-                            .clickable { onGlideTrailStyleChange(opt) }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (opt == "Theme") "Auto" else opt,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isSel) AccentSky else Slate300
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            DividerLine()
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Altura do Teclado",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = Slate100
-                )
-                Text(
-                    text = "${(keyboardScale * 100).toInt()}%",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = AccentSky
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Slider(
-                value = keyboardScale.coerceIn(0.85f, 1.25f),
-                onValueChange = { onScaleChange(it.coerceIn(0.85f, 1.25f)) },
-                valueRange = 0.85f..1.25f,
-                steps = 7,
-                colors = SliderDefaults.colors(
-                    thumbColor = AccentSky,
-                    activeTrackColor = AccentSky,
-                    inactiveTrackColor = Slate800
-                )
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-            DividerLine()
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Cor dos Popups (Teclas Flutuantes)",
-                style = MaterialTheme.typography.titleSmall,
-                color = Slate100
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Estilo dos balões ao tocar e dos menus de acentos:",
-                style = MaterialTheme.typography.bodySmall,
-                color = Slate400
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                PopupStyleOption(
-                    title = "Dark Glass",
-                    accentColor = Color(0xFF38BDF8),
-                    surfaceColor = Color(0xFF1E293B),
-                    isSelected = popupStyle == "dark_glass",
-                    onClick = { onPopupStyleChange("dark_glass") },
-                    modifier = Modifier.weight(1f)
-                )
-                PopupStyleOption(
-                    title = "Obsidian",
-                    accentColor = Color(0xFF94A3B8),
-                    surfaceColor = Color(0xFF0F172A),
-                    isSelected = popupStyle == "obsidian",
-                    onClick = { onPopupStyleChange("obsidian") },
-                    modifier = Modifier.weight(1f)
-                )
-                PopupStyleOption(
-                    title = "Neon Cyan",
-                    accentColor = Color(0xFF00E5FF),
-                    surfaceColor = Color(0xFF0B1E2E),
-                    isSelected = popupStyle == "neon_cyan",
-                    onClick = { onPopupStyleChange("neon_cyan") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                PopupStyleOption(
-                    title = "Emerald",
-                    accentColor = Color(0xFF10B981),
-                    surfaceColor = Color(0xFF09241B),
-                    isSelected = popupStyle == "emerald",
-                    onClick = { onPopupStyleChange("emerald") },
-                    modifier = Modifier.weight(1f)
-                )
-                PopupStyleOption(
-                    title = "Purple",
-                    accentColor = Color(0xFFA855F7),
-                    surfaceColor = Color(0xFF1E1035),
-                    isSelected = popupStyle == "purple",
-                    onClick = { onPopupStyleChange("purple") },
-                    modifier = Modifier.weight(1f)
-                )
-                PopupStyleOption(
-                    title = "Amber",
-                    accentColor = Color(0xFFF59E0B),
-                    surfaceColor = Color(0xFF29160B),
-                    isSelected = popupStyle == "amber",
-                    onClick = { onPopupStyleChange("amber") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
-        // Seção: Expansão de Texto & Snippets (!pix, !email, etc.)
-        SnippetsSection(
-            snippets = snippets,
-            onAddSnippet = onAddSnippet,
-            onRemoveSnippet = onRemoveSnippet
-        )
-
-        // Seção: Dicionário Pessoal & Palavras Aprendidas (com Empty State obrigatório)
-        DictionarySection(
-            words = learnedWords,
-            onAddWord = onAddWord,
-            onRemoveWord = onRemoveWord,
-            onClearAll = onClearWords
-        )
-
-        // Seção: Laboratório de Testes (Demonstra QWERTY e o novo Teclado Numérico Automático)
-        PlaygroundSection(isEnabled = isEnabled && isSelected)
-
-        // Rodapé Minimalista
-        Text(
-            text = "Tessera Keyboard • Minimalismo & Máxima Performance",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Slate600,
-            textAlign = TextAlign.Center,
+    ) { paddingValues ->
+        Crossfade(
+            targetState = selectedTab,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-        )
+                .fillMaxSize()
+                .padding(paddingValues),
+            label = "TabCrossfade"
+        ) { tab ->
+            when (tab) {
+                0 -> TabHomeContent(
+                    keyboardTheme = keyboardTheme,
+                    keyShape = keyShape,
+                    keyHints = keyHints,
+                    keyboardScale = keyboardScale,
+                    isEnabled = isEnabled,
+                    isSelected = isSelected,
+                    onEnableKeyboardClick = onEnableKeyboardClick,
+                    onSelectKeyboardClick = onSelectKeyboardClick
+                )
+                1 -> TabTypingContent(
+                    autocorrect = autocorrect,
+                    onAutocorrectChange = onAutocorrectChange,
+                    smartAbbr = smartAbbr,
+                    onSmartAbbrChange = onSmartAbbrChange,
+                    doubleSpacePeriod = doubleSpacePeriod,
+                    onDoubleSpacePeriodChange = onDoubleSpacePeriodChange,
+                    autoCap = autoCap,
+                    onAutoCapChange = onAutoCapChange,
+                    keyPopup = keyPopup,
+                    onKeyPopupChange = onKeyPopupChange,
+                    numberRow = numberRow,
+                    onNumberRowChange = onNumberRowChange,
+                    glideTyping = glideTyping,
+                    onGlideTypingChange = onGlideTypingChange,
+                    keyHints = keyHints,
+                    onKeyHintsChange = onKeyHintsChange,
+                    suggestScreenshots = suggestScreenshots,
+                    hasScreenshotPermission = hasScreenshotPermission,
+                    onRequestScreenshotPermission = onRequestScreenshotPermission,
+                    onSuggestScreenshotsChange = onSuggestScreenshotsChange,
+                    flickAccents = flickAccents,
+                    onFlickAccentsChange = onFlickAccentsChange,
+                    swipeDownHide = swipeDownHide,
+                    onSwipeDownHideChange = onSwipeDownHideChange,
+                    undoDelete = undoDelete,
+                    onUndoDeleteChange = onUndoDeleteChange,
+                    hapticFeedback = hapticFeedback,
+                    onHapticFeedbackChange = onHapticFeedbackChange,
+                    hapticDurationMs = hapticDurationMs,
+                    onHapticDurationChange = onHapticDurationChange,
+                    soundFeedback = soundFeedback,
+                    onSoundFeedbackChange = onSoundFeedbackChange,
+                    hasMicPermission = hasMicPermission,
+                    onRequestMicPermission = onRequestMicPermission
+                )
+                2 -> TabAppearanceContent(
+                    keyboardTheme = keyboardTheme,
+                    onThemeChange = onThemeChange,
+                    keyShape = keyShape,
+                    onKeyShapeChange = onKeyShapeChange,
+                    glideTrailStyle = glideTrailStyle,
+                    onGlideTrailStyleChange = onGlideTrailStyleChange,
+                    keyboardScale = keyboardScale,
+                    onScaleChange = onScaleChange,
+                    popupStyle = popupStyle,
+                    onPopupStyleChange = onPopupStyleChange
+                )
+                else -> TabDictionaryContent(
+                    snippets = snippets,
+                    onAddSnippet = onAddSnippet,
+                    onRemoveSnippet = onRemoveSnippet,
+                    learnedWords = learnedWords,
+                    onAddWord = onAddWord,
+                    onRemoveWord = onRemoveWord,
+                    onClearWords = onClearWords
+                )
+            }
+        }
     }
 }
+
 
 // ==========================================
 // SUBCOMPONENTES E ESTADOS OBRIGATÓRIOS

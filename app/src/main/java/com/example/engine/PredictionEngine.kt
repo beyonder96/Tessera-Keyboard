@@ -384,7 +384,18 @@ class PredictionEngine(
             }
         }
 
-        val hasExactMatch = result.any {
+        val exactMatchExists = trie.findExactWord(clean) != null
+        if (!exactMatchExists && norm.length >= 3) {
+            val proximityMatches = trie.findFuzzySuggestions(clean, maxCount = 2)
+            if (proximityMatches.isNotEmpty()) {
+                val bestCorrection = proximityMatches[0]
+                if (!result.any { it.equals(bestCorrection, ignoreCase = true) }) {
+                    result.add(0, bestCorrection)
+                }
+            }
+        }
+
+        val hasExactMatch = exactMatchExists || result.any {
             TrieDictionary.normalizeFast(it).length == norm.length
         }
 
@@ -394,7 +405,7 @@ class PredictionEngine(
 
         if (Thread.currentThread().isInterrupted) return result.take(3)
 
-        // 3. Camada Fuzzy / QWERTY Proximity se não tiver match exato
+        // 3. Camada Fuzzy / QWERTY Proximity complementar
         val fuzzySuggestions = trie.findFuzzySuggestions(clean, maxCount = 3)
         if (fuzzySuggestions.isNotEmpty()) {
             val fuzzyCandidate = fuzzySuggestions[0]

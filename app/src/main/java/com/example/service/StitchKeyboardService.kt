@@ -178,6 +178,12 @@ class StitchKeyboardService : InputMethodService() {
     private var prefOneHandedMode = "off"
     private var prefGlideTrailStyle = "Theme"
     private var prefTranslateTarget = "Inglês"
+    private var prefFlickAccents = true
+    private var prefSwipeDownHide = true
+    private var prefUndoDelete = true
+    private val swipeDeletedAccumulator = java.lang.StringBuilder()
+    private var lastSwipeDeletedText: String? = null
+    private var undoDismissRunnable: Runnable? = null
     private val snippetManager by lazy { SnippetManager(this) }
     private var oneHandedLeftPanel: View? = null
     private var oneHandedRightPanel: View? = null
@@ -288,6 +294,9 @@ class StitchKeyboardService : InputMethodService() {
         prefOneHandedMode = sp.getString("PREF_ONE_HANDED_MODE", "off") ?: "off"
         prefGlideTrailStyle = sp.getString("PREF_GLIDE_TRAIL_STYLE", "Theme") ?: "Theme"
         prefTranslateTarget = sp.getString("PREF_TRANSLATE_TARGET", "Inglês") ?: "Inglês"
+        prefFlickAccents = sp.getBoolean("PREF_FLICK_ACCENTS", true)
+        prefSwipeDownHide = sp.getBoolean("PREF_SWIPE_DOWN_HIDE", true)
+        prefUndoDelete = sp.getBoolean("PREF_UNDO_DELETE", true)
     }
 
     override fun onCreateInputView(): View {
@@ -1917,6 +1926,8 @@ class StitchKeyboardService : InputMethodService() {
             var longPressRunnable: Runnable? = null
             var downRawX = 0f
             var downRawY = 0f
+            var downTime = 0L
+            var isFlickHandled = false
             var isSwipingGesture = false
             val swipeVisitedChars = mutableListOf<Char>()
             val swipeTrajectory = mutableListOf<com.example.engine.TrajectoryPoint>()
@@ -1926,8 +1937,10 @@ class StitchKeyboardService : InputMethodService() {
                     android.view.MotionEvent.ACTION_DOWN -> {
                         isLongPress = false
                         isSwipingGesture = false
+                        isFlickHandled = false
                         downRawX = event.rawX
                         downRawY = event.rawY
+                        downTime = android.os.SystemClock.uptimeMillis()
                         swipeVisitedChars.clear()
                         swipeTrajectory.clear()
                         swipeTrajectory.add(com.example.engine.TrajectoryPoint(event.rawX, event.rawY, event.eventTime))
@@ -1947,7 +1960,10 @@ class StitchKeyboardService : InputMethodService() {
                             isLongPress = true
                             hideKeyPopup()
                             v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(60).start()
-                            if (!isSymbolMode) {
+                            if (id == R.id.key_comma) {
+                                openEmojiCategories()
+                                triggerVibration()
+                            } else if (!isSymbolMode) {
                                 showAccentsPopup(keyView, currentChar)
                                 triggerVibration()
                             }
@@ -1956,11 +1972,24 @@ class StitchKeyboardService : InputMethodService() {
                         true
                     }
                     android.view.MotionEvent.ACTION_MOVE -> {
-                        if (!prefGlideTyping || isSymbolMode) return@setOnTouchListener false
-                        val dx = event.rawX - downRawX
-                        val dy = event.rawY - downRawY
-                        val dist = Math.hypot(dx.toDouble(), dy.toDouble())
                         val density = resources.displayMetrics.density
+                        val deltaY = event.rawY - downRawY
+                        val deltaX = event.rawX - downRawX
+
+                        // 1. Swipe Down rápido para fechar o teclado
+                        if (prefSwipeDownHide && deltaY > 44 * density && kotlin.math.abs(deltaX) < 26 * density && !isSwipingGesture) {
+                            isFlickHandled = true
+                            longPressRunnable?.let { mainHandler.removeCallbacks(it) }
+                            hideKeyPopup()
+                            v.isPressed = false
+                            v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(60).start()
+                            triggerVibration()
+                            requestHideSelf(0)
+                            return@setOnTouchListener true
+                        }
+
+                        if (!prefGlideTyping || isSymbolMode || isFlickHandled) return@setOnTouchListener false
+                        val dist = Math.hypot(deltaX.toDouble(), deltaY.toDouble())
                         if (dist > 18 * density && !isSwipingGesture) {
                             isSwipingGesture = true
                             longPressRunnable?.let { mainHandler.removeCallbacks(it) }
@@ -1989,7 +2018,7 @@ class StitchKeyboardService : InputMethodService() {
                                         .filter { it.second <= maxDistSq }
                                         .minByOrNull { it.second }
                                         ?.first
-                                }
+                                    }
 
                             if (touchedChar != null && (swipeVisitedChars.isEmpty() || swipeVisitedChars.last() != touchedChar)) {
                                 swipeVisitedChars.add(touchedChar)
@@ -2005,6 +2034,10 @@ class StitchKeyboardService : InputMethodService() {
                         hideKeyPopup()
                         v.isPressed = false
                         v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(60).start()
+
+                        if (isFlickHandled) {
+                            return@setOnTouchListener true
+                        }
                         
                         if (isSwipingGesture) {
                             isSwipingGesture = false
@@ -2049,8 +2082,22 @@ class StitchKeyboardService : InputMethodService() {
                             }
                             true
                         } else if (event.action == android.view.MotionEvent.ACTION_UP && !isLongPress) {
+                            val density = resources.displayMetrics.density
+                            val pressDuration = android.os.SystemClock.uptimeMillis() - downTime
+                            val upwardDelta = downRawY - event.rawY
+                            val horizontalDelta = kotlin.math.abs(event.rawX - downRawX)
+                            val isFlickUp = prefFlickAccents && !isSymbolMode &&
+                                    upwardDelta > 18 * density && horizontalDelta < 18 * density && pressDuration < 340L
+
                             val currentChar = getCharForId(id)
                             if (currentChar != null) {
+                                if (isFlickUp) {
+                                    val flickChar = getFlickChar(currentChar) ?: if (prefKeyHints) keyHintsMap[id] else null
+                                    if (flickChar != null) {
+                                        handleCharacterClick(flickChar)
+                                        return@setOnTouchListener true
+                                    }
+                                }
                                 handleCharacterClick(currentChar)
                             }
                             true
@@ -2101,8 +2148,8 @@ class StitchKeyboardService : InputMethodService() {
         isEmojiSearchMode = false
         emojiSearchQuery = ""
         emojiSearchModeContainer?.visibility = View.GONE
-        topCommandsBar?.visibility = View.VISIBLE
-        dragPill?.visibility = View.VISIBLE
+        topCommandsBar?.visibility = View.GONE
+        dragPill?.visibility = View.GONE
         suggestionContainer?.visibility = View.VISIBLE
         clearPredictionsUi()
     }
@@ -2354,6 +2401,7 @@ class StitchKeyboardService : InputMethodService() {
                     backspaceStartX = event.rawX
                     isBackspaceSwiping = false
                     lastDeleteX = backspaceStartX
+                    swipeDeletedAccumulator.setLength(0)
                     
                     handleBackspace()
                     triggerVibration()
@@ -2372,17 +2420,33 @@ class StitchKeyboardService : InputMethodService() {
                 MotionEvent.ACTION_MOVE -> {
                     val deltaX = event.rawX - backspaceStartX
                     
-                    if (!isBackspaceSwiping && deltaX < -35f) {
+                    if (!isBackspaceSwiping && deltaX < -32f) {
                         isBackspaceSwiping = true
                         backspaceRunnable?.let { backspaceHandler.removeCallbacks(it) }
                     }
                     
                     if (isBackspaceSwiping) {
+                        // Cancelamento dinâmico: se o usuário deslizar de volta para a direita, restaura tudo!
+                        if (event.rawX > backspaceStartX - 15f && swipeDeletedAccumulator.isNotEmpty()) {
+                            val ic = currentInputConnection
+                            ic?.beginBatchEdit()
+                            localEditCount++
+                            ic?.commitText(swipeDeletedAccumulator.toString(), 1)
+                            ic?.endBatchEdit()
+                            swipeDeletedAccumulator.setLength(0)
+                            isBackspaceSwiping = false
+                            triggerVibration()
+                            return@setOnTouchListener true
+                        }
+
                         val moveDelta = event.rawX - lastDeleteX
-                        val threshold = -45f
+                        val threshold = -40f
                         
                         if (moveDelta < threshold) {
-                            deleteWordBeforeCursor()
+                            val deleted = deleteWordBeforeCursor()
+                            if (deleted.isNotEmpty()) {
+                                swipeDeletedAccumulator.insert(0, deleted)
+                            }
                             triggerVibration()
                             lastDeleteX = event.rawX
                         } else if (moveDelta > -threshold && event.rawX < backspaceStartX) {
@@ -2394,6 +2458,10 @@ class StitchKeyboardService : InputMethodService() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     backspaceRunnable?.let { backspaceHandler.removeCallbacks(it) }
                     v.isPressed = false
+                    if (isBackspaceSwiping && swipeDeletedAccumulator.isNotEmpty()) {
+                        showUndoDeletePill(swipeDeletedAccumulator.toString())
+                        swipeDeletedAccumulator.setLength(0)
+                    }
                     true
                 }
                 else -> false
@@ -2711,6 +2779,22 @@ class StitchKeyboardService : InputMethodService() {
             if (v is TextView) {
                 val selectedSuggestion = v.text.toString()
                 if (selectedSuggestion.isEmpty() || selectedSuggestion == "📋 Snippet") return@OnClickListener
+                
+                if (selectedSuggestion.startsWith("↩ Desfazer")) {
+                    val toRestore = lastSwipeDeletedText ?: ""
+                    if (toRestore.isNotEmpty()) {
+                        val ic = currentInputConnection
+                        ic?.beginBatchEdit()
+                        localEditCount++
+                        ic?.commitText(toRestore, 1)
+                        ic?.endBatchEdit()
+                        triggerVibration()
+                        playClickFeedback()
+                    }
+                    lastSwipeDeletedText = null
+                    clearPredictionsUi()
+                    return@OnClickListener
+                }
                 
                 val ic = currentInputConnection ?: return@OnClickListener
                 val textBefore = ic.getTextBeforeCursor(50, 0)?.toString() ?: ""
@@ -3082,20 +3166,21 @@ class StitchKeyboardService : InputMethodService() {
         scheduleAsyncPrediction(composingBuffer.toString())
     }
 
-    private fun deleteWordBeforeCursor() {
-        val ic = currentInputConnection ?: return
+    private fun deleteWordBeforeCursor(): String {
+        val ic = currentInputConnection ?: return ""
         localEditCount++
         if (composingBuffer.isNotEmpty()) {
+            val deleted = composingBuffer.toString()
             val len = composingBuffer.length
             composingBuffer.setLength(0)
             ic.deleteSurroundingText(len, 0)
             scheduleAsyncPrediction("")
-            return
+            return deleted
         }
         val text = ic.getTextBeforeCursor(50, 0)?.toString() ?: ""
         if (text.isEmpty()) {
             ic.deleteSurroundingText(1, 0)
-            return
+            return ""
         }
         var i = text.length - 1
         while (i >= 0 && text[i].isWhitespace()) {
@@ -3105,12 +3190,46 @@ class StitchKeyboardService : InputMethodService() {
             i--
         }
         val deleteCount = text.length - 1 - i
+        val deleted = if (deleteCount > 0) text.substring(text.length - deleteCount) else ""
         if (deleteCount > 0) {
             ic.deleteSurroundingText(deleteCount, 0)
         } else {
             ic.deleteSurroundingText(1, 0)
         }
         scheduleAsyncPrediction("")
+        return deleted
+    }
+
+    private fun showUndoDeletePill(deletedText: String) {
+        if (!prefUndoDelete || deletedText.isBlank()) return
+        lastSwipeDeletedText = deletedText
+        val preview = if (deletedText.length > 8) deletedText.take(7) + "…" else deletedText
+        updateSuggestionView(suggestion1, "")
+        updateSuggestionView(suggestion2, "↩ Desfazer \"$preview\"")
+        updateSuggestionView(suggestion3, "")
+
+        undoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
+        undoDismissRunnable = Runnable {
+            if (suggestion2?.text?.startsWith("↩ Desfazer") == true) {
+                lastSwipeDeletedText = null
+                clearPredictionsUi()
+            }
+        }
+        mainHandler.postDelayed(undoDismissRunnable!!, 4500)
+    }
+
+    private fun getFlickChar(baseChar: String): String? {
+        val lower = baseChar.lowercase()
+        val mapped = when (lower) {
+            "c" -> "ç"
+            "a" -> "á"
+            "e" -> "é"
+            "i" -> "í"
+            "o" -> "ó"
+            "u" -> "ú"
+            else -> null
+        } ?: return null
+        return if (isShifted) mapped.uppercase() else mapped
     }
 
     private fun handleEnter() {
@@ -3187,16 +3306,18 @@ class StitchKeyboardService : InputMethodService() {
     private fun triggerVibration() {
         if (!prefHapticFeedback || prefHapticDurationMs <= 0) return
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val vib = vibrator ?: (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)
+            val vib = vibrator ?: (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                vib?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vib?.vibrate(
                     VibrationEffect.createOneShot(
-                        prefHapticDurationMs.toLong().coerceIn(1L, 100L),
+                        prefHapticDurationMs.toLong().coerceIn(1L, 50L),
                         VibrationEffect.DEFAULT_AMPLITUDE
                     )
                 )
             } else {
-                vibrator?.vibrate(prefHapticDurationMs.toLong().coerceIn(1L, 100L))
+                vibrator?.vibrate(prefHapticDurationMs.toLong().coerceIn(1L, 50L))
             }
         } catch (_: Exception) {
             try {

@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="?attr/stitchBgColor" /> <!-- Dynamic theme color -->
-    <corners android:radius="32dp" /> <!-- Cantos super arredondados -->
+    <solid android:color="?attr/stitchBgColor" />
+    <corners
+        android:topLeftRadius="12dp"
+        android:topRightRadius="12dp"
+        android:bottomLeftRadius="0dp"
+        android:bottomRightRadius="0dp" />
 </shape>

@@ -36,6 +36,8 @@ class GestureTypingEngine(
     data class KeyCenter(val char: Char, val cx: Float, val cy: Float)
 
     private data class Corner(val char: Char, val trajectoryIdx: Int, val angle: Float)
+    private data class Dwell(val char: Char, val trajectoryIdx: Int)
+    private data class TrajectoryFeatures(val corners: List<Corner>, val dwells: List<Dwell>)
 
     fun recognize(
         rawTrajectory: List<TrajectoryPoint>,
@@ -92,8 +94,10 @@ class GestureTypingEngine(
 
         if (startCandidates.isEmpty() || endCandidates.isEmpty()) return emptyList()
 
-        // 5. Detect Corners / Directional Inflections
-        val corners = detectCorners(trajectory, keyCenters, avgKeyWidth)
+        // 5. Detect Corners & Dwell points (pauses / decelerations)
+        val features = detectCornersAndDwells(trajectory, keyCenters, avgKeyWidth)
+        val corners = features.corners
+        val dwells = features.dwells
 
         // 6. Traverse Trie with Spatial Pruning
         val scoredWords = HashMap<String, Float>()
@@ -117,6 +121,7 @@ class GestureTypingEngine(
                 keyCenters = keyCenters,
                 endCandidates = endCandidates,
                 corners = corners,
+                dwells = dwells,
                 avgKeyWidth = avgKeyWidth,
                 previousWord = previousWord,
                 scoredWords = scoredWords
@@ -130,6 +135,7 @@ class GestureTypingEngine(
             endCandidates = endCandidates,
             keyCenters = keyCenters,
             corners = corners,
+            dwells = dwells,
             avgKeyWidth = avgKeyWidth,
             previousWord = previousWord,
             scoredWords = scoredWords
@@ -153,6 +159,7 @@ class GestureTypingEngine(
         keyCenters: Map<Char, KeyCenter>,
         endCandidates: List<Char>,
         corners: List<Corner>,
+        dwells: List<Dwell>,
         avgKeyWidth: Float,
         previousWord: String?,
         scoredWords: MutableMap<String, Float>
@@ -178,6 +185,7 @@ class GestureTypingEngine(
                             totalDist = totalDistance,
                             freq = entry.frequency,
                             corners = corners,
+                            dwells = dwells,
                             keyCenters = keyCenters,
                             avgKeyWidth = avgKeyWidth,
                             previousWord = previousWord
@@ -212,6 +220,7 @@ class GestureTypingEngine(
                     keyCenters = keyCenters,
                     endCandidates = endCandidates,
                     corners = corners,
+                    dwells = dwells,
                     avgKeyWidth = avgKeyWidth,
                     previousWord = previousWord,
                     scoredWords = scoredWords
@@ -242,6 +251,7 @@ class GestureTypingEngine(
                     keyCenters = keyCenters,
                     endCandidates = endCandidates,
                     corners = corners,
+                    dwells = dwells,
                     avgKeyWidth = avgKeyWidth,
                     previousWord = previousWord,
                     scoredWords = scoredWords
@@ -256,6 +266,7 @@ class GestureTypingEngine(
         endCandidates: List<Char>,
         keyCenters: Map<Char, KeyCenter>,
         corners: List<Corner>,
+        dwells: List<Dwell>,
         avgKeyWidth: Float,
         previousWord: String?,
         scoredWords: MutableMap<String, Float>
@@ -316,6 +327,7 @@ class GestureTypingEngine(
                     totalDist = accumDist,
                     freq = 245,
                     corners = corners,
+                    dwells = dwells,
                     keyCenters = keyCenters,
                     avgKeyWidth = avgKeyWidth,
                     previousWord = previousWord
@@ -334,6 +346,7 @@ class GestureTypingEngine(
         totalDist: Float,
         freq: Int,
         corners: List<Corner>,
+        dwells: List<Dwell>,
         keyCenters: Map<Char, KeyCenter>,
         avgKeyWidth: Float,
         previousWord: String?
@@ -356,6 +369,13 @@ class GestureTypingEngine(
             }
         }
 
+        // Dwell matching bonus: reward words whose letters match points where user paused/slowed down
+        for (dwell in dwells) {
+            if (normWord.contains(dwell.char)) {
+                score += 1.25f
+            }
+        }
+
         // Bigram context bonus
         if (!previousWord.isNullOrEmpty()) {
             val expectedNext = bigramNextWordMap[previousWord.lowercase()]
@@ -372,16 +392,17 @@ class GestureTypingEngine(
         return score
     }
 
-    private fun detectCorners(
+    private fun detectCornersAndDwells(
         trajectory: List<TrajectoryPoint>,
         keyCenters: Map<Char, KeyCenter>,
         avgKeyWidth: Float
-    ): List<Corner> {
+    ): TrajectoryFeatures {
         val corners = mutableListOf<Corner>()
-        if (trajectory.size < 6) return corners
+        val dwells = mutableListOf<Dwell>()
+        if (trajectory.size < 6) return TrajectoryFeatures(corners, dwells)
 
         val step = max(1, trajectory.size / 18)
-        val toleranceSq = (avgKeyWidth * 1.0f) * (avgKeyWidth * 1.0f)
+        val toleranceSq = (avgKeyWidth * 1.05f) * (avgKeyWidth * 1.05f)
 
         for (i in step until trajectory.size - step) {
             val pPrev = trajectory[i - step]
@@ -395,10 +416,29 @@ class GestureTypingEngine(
 
             val len1 = hypot(v1x, v1y)
             val len2 = hypot(v2x, v2y)
+            val dt = max(1L, pNext.time - pPrev.time)
+            val localSpeed = (len1 + len2) / dt // pixels / ms
+
+            // Dwell detection: desaceleração sobre uma tecla específica
+            if (localSpeed < 0.40f && (len1 + len2) < avgKeyWidth * 0.8f) {
+                var closestChar: Char? = null
+                var minDistSq = Float.MAX_VALUE
+                for ((char, center) in keyCenters) {
+                    val dSq = distSq(pCurr.x, pCurr.y, center.cx, center.cy)
+                    if (dSq < minDistSq && dSq <= toleranceSq) {
+                        minDistSq = dSq
+                        closestChar = char
+                    }
+                }
+                if (closestChar != null && (dwells.isEmpty() || dwells.last().char != closestChar)) {
+                    dwells.add(Dwell(closestChar, i))
+                }
+            }
+
             if (len1 < 5f || len2 < 5f) continue
 
             val dot = (v1x * v2x + v1y * v2y) / (len1 * len2)
-            // dot = cos(theta). If theta > 40 degrees, dot < 0.76
+            // dot = cos(theta). If theta > 40 degrees, dot < 0.72
             if (dot < 0.72f) {
                 var closestChar: Char? = null
                 var minDistSq = Float.MAX_VALUE
@@ -417,7 +457,7 @@ class GestureTypingEngine(
                 }
             }
         }
-        return corners
+        return TrajectoryFeatures(corners, dwells)
     }
 
     private fun resampleTrajectory(raw: List<TrajectoryPoint>, minSpacing: Float): List<TrajectoryPoint> {
