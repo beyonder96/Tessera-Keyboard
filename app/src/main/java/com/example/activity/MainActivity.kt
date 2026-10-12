@@ -49,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -593,31 +594,92 @@ fun TesseraDashboardContent(
 // ==========================================
 
 @Composable
+fun TesseraLogoBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(52.dp)
+            .shadow(8.dp, RoundedCornerShape(16.dp), spotColor = AccentSky.copy(alpha = 0.35f))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF0F172A), Color(0xFF060911))
+                ),
+                RoundedCornerShape(16.dp)
+            )
+            .border(
+                1.dp,
+                Brush.linearGradient(listOf(Color(0x5538BDF8), Color(0x1138BDF8))),
+                RoundedCornerShape(16.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        // Glowing cyan ambient aura
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color(0x3300F2FE), Color.Transparent)
+                    ),
+                    CircleShape
+                )
+        )
+        // Tactile Monogram 'T' (Two precision tiles)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.5.dp)
+        ) {
+            // Top Tile (Horizontal Keycap)
+            Box(
+                modifier = Modifier
+                    .size(width = 28.dp, height = 9.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xFFF1F5F9), Color(0xFF94A3B8))
+                        ),
+                        RoundedCornerShape(2.5.dp)
+                    )
+                    .border(0.5.dp, Color(0x4438BDF8), RoundedCornerShape(2.5.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                // Micro accent dot
+                Box(
+                    modifier = Modifier
+                        .size(width = 3.dp, height = 1.dp)
+                        .background(AccentSky, RoundedCornerShape(0.5.dp))
+                )
+            }
+            // Vertical Tile (Pillar Keycap)
+            Box(
+                modifier = Modifier
+                    .size(width = 11.dp, height = 17.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xFFE2E8F0), Color(0xFF64748B))
+                        ),
+                        RoundedCornerShape(2.5.dp)
+                    )
+                    .border(0.5.dp, Color(0x3338BDF8), RoundedCornerShape(2.5.dp))
+            )
+        }
+    }
+}
+
+@Composable
 fun TesseraHeader() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .background(Slate900, RoundedCornerShape(12.dp))
-                .border(1.dp, Slate800, RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Keyboard,
-                contentDescription = "Tessera",
-                tint = AccentSky,
-                modifier = Modifier.size(24.dp)
-            )
-        }
+        TesseraLogoBadge()
         Text(
             text = "TESSERA",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleLarge.copy(
+                letterSpacing = 2.sp,
+                fontWeight = FontWeight.Bold
+            ),
             color = Slate100
         )
         Text(

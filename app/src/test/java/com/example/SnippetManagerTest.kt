@@ -35,34 +35,34 @@ class SnippetManagerTest {
     }
 
     @Test
-    fun `findExpansion matches with and without exclamation mark and case-insensitively`() {
+    fun `findExpansion requires exclamation mark when shortcut is configured with exclamation mark`() {
         // Exato com '!'
         assertEquals("chave.pix.exemplo@tessera.app", snippetManager.findExpansion("!pix"))
         
-        // Sem '!'
-        assertEquals("chave.pix.exemplo@tessera.app", snippetManager.findExpansion("pix"))
+        // Sem '!' não deve expandir
+        assertNull(snippetManager.findExpansion("pix"))
         
         // Case-insensitive com '!'
         assertEquals("chave.pix.exemplo@tessera.app", snippetManager.findExpansion("!Pix"))
         assertEquals("chave.pix.exemplo@tessera.app", snippetManager.findExpansion("!PIX"))
         
-        // Case-insensitive sem '!'
-        assertEquals("chave.pix.exemplo@tessera.app", snippetManager.findExpansion("Pix"))
-        assertEquals("chave.pix.exemplo@tessera.app", snippetManager.findExpansion("PIX"))
+        // Case-insensitive sem '!' não deve expandir
+        assertNull(snippetManager.findExpansion("Pix"))
+        assertNull(snippetManager.findExpansion("PIX"))
 
         // Email
         assertEquals("contato@exemplo.com", snippetManager.findExpansion("!email"))
-        assertEquals("contato@exemplo.com", snippetManager.findExpansion("email"))
+        assertNull(snippetManager.findExpansion("email"))
     }
 
     @Test
     fun `add and remove custom snippet`() {
         snippetManager.addSnippet("cpf", "123.456.789-00")
-        assertEquals("123.456.789-00", snippetManager.findExpansion("cpf"))
+        assertNull(snippetManager.findExpansion("cpf"))
         assertEquals("123.456.789-00", snippetManager.findExpansion("!cpf"))
 
         snippetManager.removeSnippet("cpf")
-        assertNull(snippetManager.findExpansion("cpf"))
+        assertNull(snippetManager.findExpansion("!cpf"))
     }
 
     @Test
@@ -75,7 +75,7 @@ class SnippetManagerTest {
     }
 
     @Test
-    fun `findMatchingSnippets returns specific snippet on prefix`() {
+    fun `findMatchingSnippets returns specific snippet on prefix with exclamation mark`() {
         val matchesP = snippetManager.findMatchingSnippets("!p")
         assertEquals(1, matchesP.size)
         assertEquals("!pix", matchesP[0].first)
@@ -83,9 +83,15 @@ class SnippetManagerTest {
         val matchesE = snippetManager.findMatchingSnippets("!e")
         assertEquals(1, matchesE.size)
         assertEquals("!email", matchesE[0].first)
+    }
 
-        val matchesPix = snippetManager.findMatchingSnippets("pix")
-        assertEquals(1, matchesPix.size)
-        assertEquals("!pix", matchesPix[0].first)
+    @Test
+    fun `findMatchingSnippets does not return snippets when symbol is not used`() {
+        assertTrue(snippetManager.findMatchingSnippets("pix").isEmpty())
+        assertTrue(snippetManager.findMatchingSnippets("pi").isEmpty())
+        assertTrue(snippetManager.findMatchingSnippets("email").isEmpty())
+        assertTrue(snippetManager.findMatchingSnippets("em").isEmpty())
+        assertTrue(snippetManager.findMatchingSnippets("tel").isEmpty())
+        assertTrue(snippetManager.findMatchingSnippets("te").isEmpty())
     }
 }

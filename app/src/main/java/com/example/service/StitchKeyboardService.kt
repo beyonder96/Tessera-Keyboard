@@ -756,7 +756,7 @@ class StitchKeyboardService : InputMethodService() {
 
     private fun isWordChar(c: Char): Boolean {
         return c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9' ||
-                c in "áéíóúãõâêîôûçÁÉÍÓÚÃÕÂÊÎÔÛÇ" || c == '!'
+                c in "áéíóúãõâêîôûçÁÉÍÓÚÃÕÂÊÎÔÛÇ"
     }
 
     private fun syncComposingBufferFromIme() {
@@ -765,7 +765,15 @@ class StitchKeyboardService : InputMethodService() {
         composingBuffer.setLength(0)
         for (i in textBefore.length - 1 downTo 0) {
             val c = textBefore[i]
-            if (isWordChar(c)) {
+            if (c == '!') {
+                val prevChar = if (i > 0) textBefore[i - 1] else ' '
+                if (prevChar.isWhitespace()) {
+                    composingBuffer.insert(0, c)
+                } else {
+                    composingBuffer.setLength(0)
+                }
+                break
+            } else if (isWordChar(c)) {
                 composingBuffer.insert(0, c)
             } else {
                 break
@@ -1384,8 +1392,7 @@ class StitchKeyboardService : InputMethodService() {
         if (matchingSnippets.isNotEmpty()) {
             predictionJob?.cancel()
             val exactMatch = matchingSnippets.find {
-                it.first.equals(word, ignoreCase = true) ||
-                it.first.removePrefix("!").equals(word.removePrefix("!"), ignoreCase = true)
+                it.first.equals(word, ignoreCase = true)
             }
 
             if (exactMatch != null) {
@@ -1393,12 +1400,15 @@ class StitchKeyboardService : InputMethodService() {
                 updateSuggestionView(suggestion2, exactMatch.second)
                 val extraMatch = matchingSnippets.find { it.first != exactMatch.first }
                 updateSuggestionView(suggestion3, extraMatch?.first ?: "📋 Snippet")
+            } else if (matchingSnippets.size == 1) {
+                val single = matchingSnippets[0]
+                updateSuggestionView(suggestion1, single.first)
+                updateSuggestionView(suggestion2, single.second)
+                updateSuggestionView(suggestion3, "📋 Snippet")
             } else {
-                val first = matchingSnippets[0]
-                updateSuggestionView(suggestion1, first.first)
-                updateSuggestionView(suggestion2, first.second)
-                val second = matchingSnippets.getOrNull(1)
-                updateSuggestionView(suggestion3, second?.first ?: "📋 Snippet")
+                updateSuggestionView(suggestion1, matchingSnippets[0].first)
+                updateSuggestionView(suggestion2, matchingSnippets.getOrNull(1)?.first ?: matchingSnippets[0].second)
+                updateSuggestionView(suggestion3, matchingSnippets.getOrNull(2)?.first ?: "📋 Snippet")
             }
             if (isIncognitoActive) {
                 dragPill?.alpha = 0f

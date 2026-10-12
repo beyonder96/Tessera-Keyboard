@@ -58,18 +58,9 @@ class SnippetManager(context: Context) {
         if (trimmed.isEmpty()) return null
         val snippets = getSnippets()
         
-        // 1. Busca exata (case-insensitive)
+        // Busca exata (case-insensitive) - atalhos com '!' só expandem se digitados com '!'
         for ((k, v) in snippets) {
             if (k.equals(trimmed, ignoreCase = true)) {
-                return v
-            }
-        }
-        
-        // 2. Busca ignorando o prefixo "!" (ex: usuário digitou "pix" e o atalho é "!pix", ou vice-versa)
-        val trimmedNoExcl = trimmed.removePrefix("!")
-        for ((k, v) in snippets) {
-            val keyNoExcl = k.removePrefix("!")
-            if (keyNoExcl.equals(trimmedNoExcl, ignoreCase = true)) {
                 return v
             }
         }
@@ -84,25 +75,31 @@ class SnippetManager(context: Context) {
         if (snippets.isEmpty()) return emptyList()
 
         val results = mutableListOf<Pair<String, String>>()
-        val isExplicitPrefix = trimmed.startsWith("!")
         val queryLower = trimmed.lowercase()
-        val queryNoExcl = queryLower.removePrefix("!")
+        val isExplicitPrefix = trimmed.startsWith("!")
 
         for ((k, v) in snippets) {
             val keyLower = k.lowercase()
-            val keyNoExcl = keyLower.removePrefix("!")
 
-            // 1. Correspondência exata (máxima prioridade)
-            if (keyLower == queryLower || keyNoExcl == queryNoExcl) {
-                results.add(0, Pair(k, v))
-            } else if (isExplicitPrefix) {
-                // Se o usuário digitou '!', busca qualquer snippet que comece com o que ele digitou
-                if (keyLower.startsWith(queryLower) || keyNoExcl.startsWith(queryNoExcl)) {
+            // Atalhos iniciados com '!' só devem ser exibidos se o usuário utilizou '!'
+            if (keyLower.startsWith("!")) {
+                if (!isExplicitPrefix) {
+                    continue
+                }
+                if (keyLower == queryLower) {
+                    results.add(0, Pair(k, v))
+                } else if (keyLower.startsWith(queryLower)) {
                     results.add(Pair(k, v))
                 }
-            } else if (queryLower.length >= 2 && keyNoExcl.startsWith(queryNoExcl)) {
-                // Se digitou sem '!' com pelo menos 2 caracteres (ex: 'pi' para '!pix')
-                results.add(Pair(k, v))
+            } else {
+                if (isExplicitPrefix) {
+                    continue
+                }
+                if (keyLower == queryLower) {
+                    results.add(0, Pair(k, v))
+                } else if (queryLower.length >= 2 && keyLower.startsWith(queryLower)) {
+                    results.add(Pair(k, v))
+                }
             }
         }
 
