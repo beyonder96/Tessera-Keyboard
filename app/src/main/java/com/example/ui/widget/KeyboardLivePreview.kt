@@ -1,4 +1,4 @@
-package com.example.ui.widget
+﻿package com.example.ui.widget
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -30,12 +30,12 @@ fun KeyboardLivePreview(
     // Cores calculadas dinamicamente com base no tema editorial
     val (bgColor, glowColor, keyBg, actionKeyBg, textColor, inactiveColor) = when (themeName) {
         "Light" -> HexThemeColors(
-            bg = Color(0xFFF4F5F7),
-            glow = Color(0xFFE2E4E9),
+            bg = Color(0xFFF7F4EB),
+            glow = Color(0xFFDDD8CB),
             keyBg = Color(0xFFFFFFFF),
-            actionKeyBg = Color(0xFFEAEBED),
-            text = Color(0xFF111215),
-            inactive = Color(0xFF6B7280)
+            actionKeyBg = Color(0xFFE8E4D8),
+            text = Color(0xFF1C1917),
+            inactive = Color(0xFF57534E)
         )
         "Amoled" -> HexThemeColors(
             bg = Color(0xFF000000),

@@ -1,4 +1,4 @@
-package com.example.activity
+﻿package com.example.activity
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -402,7 +402,7 @@ fun TabAppearanceContent(
                     modifier = Modifier.weight(1f)
                 )
                 ThemeOptionButton(
-                    title = "Paper Light",
+                    title = "Journal Light",
                     isSelected = keyboardTheme == "Light",
                     onClick = { onThemeChange("Light") },
                     modifier = Modifier.weight(1f)

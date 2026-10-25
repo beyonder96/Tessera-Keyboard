@@ -396,7 +396,7 @@ class PredictionEngine(
         }
 
         val hasExactMatch = exactMatchExists || result.any {
-            TrieDictionary.normalizeFast(it).length == norm.length
+            TrieDictionary.normalizeFast(it).equals(norm, ignoreCase = true)
         }
 
         if (hasExactMatch && result.isNotEmpty()) {

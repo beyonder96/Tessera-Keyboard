@@ -39,7 +39,23 @@ class GestureTypingEngine(
     private data class Dwell(val char: Char, val trajectoryIdx: Int)
     private data class TrajectoryFeatures(val corners: List<Corner>, val dwells: List<Dwell>)
 
+    private val staticPool: List<String> by lazy {
+        (staticDictionary + accentRestorationMap.values + abbreviationsMap.values).distinct()
+    }
+
     fun recognize(
+        rawTrajectory: List<TrajectoryPoint>,
+        keyBounds: Map<Char, KeyRect>,
+        previousWord: String? = null
+    ): List<String> {
+        return try {
+            recognizeInternal(rawTrajectory, keyBounds, previousWord)
+        } catch (_: Throwable) {
+            emptyList()
+        }
+    }
+
+    private fun recognizeInternal(
         rawTrajectory: List<TrajectoryPoint>,
         keyBounds: Map<Char, KeyRect>,
         previousWord: String? = null
@@ -167,7 +183,8 @@ class GestureTypingEngine(
         if (depth > 16) return
 
         // If this node represents valid words in dictionary:
-        val nodeWords = node.words
+        if (scoredWords.size >= 150) return
+        val nodeWords = synchronized(trie) { node.words?.toList() }
         if (!nodeWords.isNullOrEmpty() && depth >= 2) {
             if (currentChar in endCandidates) {
                 val trajProgress = trajIdx.toFloat() / max(1, trajectory.size - 1)
@@ -271,11 +288,12 @@ class GestureTypingEngine(
         previousWord: String?,
         scoredWords: MutableMap<String, Float>
     ) {
-        val staticPool = staticDictionary + accentRestorationMap.values + abbreviationsMap.values
+        var evaluatedCount = 0
         val maxReachDist = avgKeyWidth * 1.55f
         val maxReachDistSq = maxReachDist * maxReachDist
 
         for (word in staticPool) {
+            if (evaluatedCount >= 100) break
             val norm = TrieDictionary.normalizeFast(word)
             if (norm.length < 2) continue
             val first = norm.first()
@@ -321,6 +339,7 @@ class GestureTypingEngine(
             }
 
             if (valid && currentTrajIdx >= trajectory.size * 0.45f) {
+                evaluatedCount++
                 val score = computeCandidateScore(
                     word = word,
                     normLength = norm.length,

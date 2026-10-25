@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.MyApplication" parent="android:Theme.Material.Light.NoActionBar" />
     
@@ -15,17 +15,17 @@
         <item name="stitchAiText">#E6E8EE</item>
     </style>
 
-    <!-- Paper Editorial Light (Fundo Papel Mate, Teclas Brancas Planas) -->
+    <!-- Journal Light (Papel de Jornal Quente & Tinta Mineral do Tessera) -->
     <style name="Theme.Tessera.Light" parent="Theme.MyApplication">
-        <item name="stitchBgColor">#F4F5F7</item>
-        <item name="stitchGlowColor">#E2E4E9</item>
+        <item name="stitchBgColor">#F7F4EB</item>
+        <item name="stitchGlowColor">#DDD8CB</item>
         <item name="stitchKeyBgColor">#FFFFFF</item>
         <item name="stitchKeyBorderColor">#00000000</item>
-        <item name="stitchTextColor">#111215</item>
-        <item name="stitchTextInactiveColor">#6B7280</item>
-        <item name="stitchGlassBgTranslucent">#EAEBED</item> <!-- Teclas de ação -->
-        <item name="stitchAiBg">#E2E4E9</item>
-        <item name="stitchAiText">#111215</item>
+        <item name="stitchTextColor">#1C1917</item>
+        <item name="stitchTextInactiveColor">#57534E</item>
+        <item name="stitchGlassBgTranslucent">#E8E4D8</item> <!-- Teclas de ação: Shift, 123, Enter, Delete -->
+        <item name="stitchAiBg">#E8E4D8</item>
+        <item name="stitchAiText">#1C1917</item>
     </style>
 
     <!-- Pure AMOLED (Zero Emissão de Luz, Contraste Puro) -->

@@ -63,6 +63,8 @@ import android.text.style.SuperscriptSpan
 import android.text.style.RelativeSizeSpan
 import android.text.style.ForegroundColorSpan
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -98,7 +100,11 @@ class StitchKeyboardService : InputMethodService() {
     private var justCommittedSpace = false
     private var lastSpaceTime = 0L
     
-    private val scope = CoroutineScope(Dispatchers.Main + Job())
+    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        logServiceCrash("CoroutineScope", throwable)
+    }
+    private var serviceJob = SupervisorJob()
+    private var scope = CoroutineScope(Dispatchers.Main + serviceJob + coroutineExceptionHandler)
     private lateinit var keyboardRoot: View
     private lateinit var voiceRoot: View
     private lateinit var emojiRoot: View
@@ -184,6 +190,8 @@ class StitchKeyboardService : InputMethodService() {
     private val swipeDeletedAccumulator = java.lang.StringBuilder()
     private var lastSwipeDeletedText: String? = null
     private var undoDismissRunnable: Runnable? = null
+    private val backspaceHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var backspaceRunnable: Runnable? = null
     private val snippetManager by lazy { SnippetManager(this) }
     private var oneHandedLeftPanel: View? = null
     private var oneHandedRightPanel: View? = null
@@ -922,7 +930,13 @@ class StitchKeyboardService : InputMethodService() {
             }
         } catch (_: Exception) {}
 
-        clipboardHistoryManager.addEntry(trimmed)
+        try {
+            if (::clipboardHistoryManager.isInitialized) {
+                clipboardHistoryManager.addEntry(trimmed)
+            }
+        } catch (t: Throwable) {
+            logServiceCrash("syncClipboard", t)
+        }
     }
 
     private fun getClipboardSuggestionText(): String? {
@@ -1526,6 +1540,8 @@ class StitchKeyboardService : InputMethodService() {
         super.onFinishInputView(finishingInput)
         try {
             unregisterScreenshotObserver()
+            backspaceRunnable?.let { backspaceHandler.removeCallbacks(it) }
+            backspaceRunnable = null
             isSymbolMode = false
             isExtendedSymbolMode = false
             localEditCount = 0
@@ -1662,6 +1678,10 @@ class StitchKeyboardService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         try {
+            if (serviceJob.isCancelled) {
+                serviceJob = SupervisorJob()
+                scope = CoroutineScope(Dispatchers.Main + serviceJob + coroutineExceptionHandler)
+            }
             super.onStartInputView(info, restarting)
             
             // Garante que SEMPRE abre no modo alfabético (texto) e não de símbolos
@@ -2055,12 +2075,22 @@ class StitchKeyboardService : InputMethodService() {
                             swipeTrailView?.fadeAndClear()
 
                             // 1. Prioriza reconhecimento espacial contínuo da trajetória via IA/Trie
-                            var candidates = predictionEngine.getSwipePredictions(swipeTrajectory, keyBoundsMap, lastCommittedWord)
+                            var candidates = try {
+                                predictionEngine.getSwipePredictions(swipeTrajectory, keyBoundsMap, lastCommittedWord)
+                            } catch (t: Throwable) {
+                                logServiceCrash("swipeTrajectory", t)
+                                emptyList()
+                            }
 
                             // 2. Fallback resiliente para padrão discreto caso a trajetória seja ultra-curta
                             if (candidates.isEmpty() && swipeVisitedChars.size >= 2) {
                                 val pattern = swipeVisitedChars.joinToString("")
-                                candidates = predictionEngine.getSwipePredictions(pattern)
+                                candidates = try {
+                                    predictionEngine.getSwipePredictions(pattern)
+                                } catch (t: Throwable) {
+                                    logServiceCrash("swipePattern", t)
+                                    emptyList()
+                                }
                             }
 
                             if (candidates.isNotEmpty()) {
@@ -2402,8 +2432,7 @@ class StitchKeyboardService : InputMethodService() {
         var backspaceStartX = 0f
         var isBackspaceSwiping = false
         var lastDeleteX = 0f
-        val backspaceHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        var backspaceRunnable: Runnable? = null
+        // Usando backspaceHandler e backspaceRunnable de nível de serviço com ciclo de vida gerenciado
 
         backspaceKey?.setOnTouchListener { v, event ->
             when (event.action) {
@@ -2923,6 +2952,14 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun handleCharacterClick(baseChar: String) {
+        try {
+            handleCharacterClickInternal(baseChar)
+        } catch (t: Throwable) {
+            logServiceCrash("handleCharacterClick", t)
+        }
+    }
+
+    private fun handleCharacterClickInternal(baseChar: String) {
         if (isEmojiSearchMode) {
             emojiSearchQuery += if (isShifted) baseChar.uppercase() else baseChar.lowercase()
             updateEmojiSearchUi()
@@ -3125,6 +3162,14 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun handleBackspace() {
+        try {
+            handleBackspaceInternal()
+        } catch (t: Throwable) {
+            logServiceCrash("handleBackspace", t)
+        }
+    }
+
+    private fun handleBackspaceInternal() {
         if (isEmojiSearchMode) {
             if (emojiSearchQuery.isNotEmpty()) {
                 emojiSearchQuery = emojiSearchQuery.dropLast(1)
@@ -3283,6 +3328,7 @@ class StitchKeyboardService : InputMethodService() {
         if (!prefKeyPopup) return
         if (!::previewPopup.isInitialized || !::previewPopupText.isInitialized) return
         previewPopupText.text = char
+        previewPopupText.setTextColor(if (currentTheme == "Light") Color.parseColor("#1C1917") else Color.WHITE)
         previewPopup.background = getPopupBackground(this)
 
         val (x, y) = keyPositionCache.getOrPut(keyView.id) {
@@ -3479,7 +3525,10 @@ class StitchKeyboardService : InputMethodService() {
         predictionJob?.cancel()
         waveJob?.cancel()
         mainHandler.removeCallbacksAndMessages(null)
-        scope.cancel()
+        backspaceRunnable?.let { backspaceHandler.removeCallbacks(it) }
+        backspaceRunnable = null
+        backspaceHandler.removeCallbacksAndMessages(null)
+        serviceJob.cancel()
         speechRecognizer?.destroy()
         speechRecognizer = null
     }
@@ -3491,6 +3540,12 @@ class StitchKeyboardService : InputMethodService() {
         gd.shape = GradientDrawable.RECTANGLE
         val density = context.resources.displayMetrics.density
         gd.cornerRadius = 16f * density
+
+        if (currentTheme == "Light") {
+            gd.setColor(Color.parseColor("#FAF7F4EB"))
+            gd.setStroke((1.5f * density).toInt(), Color.parseColor("#DDD8CB"))
+            return gd
+        }
 
         when (style) {
             "obsidian" -> {
@@ -3549,7 +3604,7 @@ class StitchKeyboardService : InputMethodService() {
             tv.text = domain
             tv.textSize = 15f
             tv.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            tv.setTextColor(Color.WHITE)
+            tv.setTextColor(if (currentTheme == "Light") Color.parseColor("#1C1917") else Color.WHITE)
             tv.gravity = Gravity.CENTER
             tv.setPadding((14 * density).toInt(), 0, (14 * density).toInt(), 0)
             tv.setBackgroundResource(R.drawable.bg_popup_key_pill)
@@ -3646,7 +3701,7 @@ class StitchKeyboardService : InputMethodService() {
             tv.text = if (isShifted && !isSymbolMode) accent.uppercase() else accent
             tv.textSize = 24f
             tv.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            tv.setTextColor(Color.WHITE)
+            tv.setTextColor(if (currentTheme == "Light") Color.parseColor("#1C1917") else Color.WHITE)
             tv.gravity = Gravity.CENTER
             tv.includeFontPadding = true
             tv.setBackgroundResource(R.drawable.bg_popup_key_pill)
