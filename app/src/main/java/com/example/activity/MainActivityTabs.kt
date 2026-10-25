@@ -1,4 +1,4 @@
-﻿package com.example.activity
+package com.example.activity
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -509,15 +509,21 @@ fun TabAppearanceContent(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ThemeOptionButton(
-                    title = "Editorial Flat (7dp)",
+                    title = "Editorial Flat",
                     isSelected = keyShape == "squircle",
                     onClick = { onKeyShapeChange("squircle") },
                     modifier = Modifier.weight(1f)
                 )
                 ThemeOptionButton(
-                    title = "Pílula Suave",
+                    title = "Circular Achatada",
                     isSelected = keyShape == "pill",
                     onClick = { onKeyShapeChange("pill") },
+                    modifier = Modifier.weight(1f)
+                )
+                ThemeOptionButton(
+                    title = "Sem Bordas",
+                    isSelected = keyShape == "borderless",
+                    onClick = { onKeyShapeChange("borderless") },
                     modifier = Modifier.weight(1f)
                 )
             }

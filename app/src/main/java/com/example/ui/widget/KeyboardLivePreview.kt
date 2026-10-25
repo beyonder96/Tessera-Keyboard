@@ -1,4 +1,4 @@
-﻿package com.example.ui.widget
+package com.example.ui.widget
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -85,7 +85,13 @@ fun KeyboardLivePreview(
     val animatedActionKeyBg by animateColorAsState(actionKeyBg, tween(250), label = "actionKeyBgAnim")
 
     val safeScale = if (scale.isNaN() || scale.isInfinite() || scale < 0.5f) 1.0f else scale.coerceIn(0.7f, 1.4f)
-    val keyCornerRadius = 7.dp
+    val keyCornerRadius = when (keyShape) {
+        "pill" -> 20.dp
+        "borderless" -> 8.dp
+        else -> 7.dp
+    }
+    val effectiveKeyBg = if (keyShape == "borderless") Color.Transparent else animatedKeyBg
+    val effectiveActionKeyBg = if (keyShape == "borderless") animatedActionKeyBg.copy(alpha = 0.45f) else animatedActionKeyBg
 
     Box(
         modifier = modifier
@@ -99,7 +105,7 @@ fun KeyboardLivePreview(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Contextual Suggestion Preview Bar (Modo Ultralimpio)
+            // Contextual Suggestion / Smart Tools Preview Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -108,24 +114,11 @@ fun KeyboardLivePreview(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "você",
-                    fontSize = 11.sp,
-                    color = animatedText.copy(alpha = 0.5f),
-                    fontWeight = FontWeight.Normal
-                )
-                Text(
-                    text = "também",
-                    fontSize = 12.sp,
-                    color = animatedText,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = "porque",
-                    fontSize = 11.sp,
-                    color = animatedText.copy(alpha = 0.5f),
-                    fontWeight = FontWeight.Normal
-                )
+                Text(text = "🎤", fontSize = 11.sp, color = animatedText.copy(alpha = 0.7f))
+                Text(text = "📋", fontSize = 11.sp, color = animatedText.copy(alpha = 0.7f))
+                Text(text = "😊", fontSize = 11.sp, color = animatedText.copy(alpha = 0.7f))
+                Text(text = "📱", fontSize = 11.sp, color = animatedText.copy(alpha = 0.7f))
+                Text(text = "⚙️", fontSize = 11.sp, color = animatedText.copy(alpha = 0.7f))
             }
 
             // Number row (opcional)
@@ -137,7 +130,7 @@ fun KeyboardLivePreview(
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0").forEach { num ->
-                        MiniKey(label = num, hint = null, weight = 1f, keyCornerRadius, animatedKeyBg, animatedText, inactiveColor)
+                        MiniKey(label = num, hint = null, weight = 1f, keyCornerRadius, effectiveKeyBg, animatedText, inactiveColor)
                     }
                 }
             }
@@ -193,7 +186,7 @@ fun KeyboardLivePreview(
                     .height((26 * safeScale).dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                MiniPill(label = "⇧", weight = 1.5f, keyCornerRadius, animatedActionKeyBg, animatedText)
+                MiniPill(label = "⇧", weight = 1.5f, keyCornerRadius, effectiveActionKeyBg, animatedText)
                 val row3 = listOf("Z" to "(", "X" to ")", "C" to "/", "V" to "\\", "B" to "'", "N" to "\"", "M" to "?")
                 row3.forEach { (letter, hint) ->
                     MiniKey(
@@ -206,7 +199,7 @@ fun KeyboardLivePreview(
                         inactiveColor = inactiveColor
                     )
                 }
-                MiniPill(label = "⌫", weight = 1.5f, keyCornerRadius, animatedActionKeyBg, animatedText)
+                MiniPill(label = "⌫", weight = 1.5f, keyCornerRadius, effectiveActionKeyBg, animatedText)
             }
 
             // Row 4: 123 , [ Tessera ] . ↵
@@ -217,11 +210,11 @@ fun KeyboardLivePreview(
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                MiniPill(label = "123", weight = 1.5f, keyCornerRadius, animatedActionKeyBg, animatedText)
+                MiniPill(label = "123", weight = 1.5f, keyCornerRadius, effectiveActionKeyBg, animatedText)
                 MiniPill(label = ",", weight = 1f, keyCornerRadius, animatedKeyBg, animatedText)
                 MiniPill(label = "Tessera", weight = 5.0f, keyCornerRadius, animatedKeyBg, animatedText, isSpace = true)
                 MiniPill(label = ".", weight = 1f, keyCornerRadius, animatedKeyBg, animatedText)
-                MiniPill(label = "↵", weight = 1.5f, keyCornerRadius, animatedActionKeyBg, animatedText)
+                MiniPill(label = "↵", weight = 1.5f, keyCornerRadius, effectiveActionKeyBg, animatedText)
             }
         }
     }

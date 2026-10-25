@@ -50,6 +50,34 @@
         <FrameLayout android:id="@+id/key_shift_top" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone">
             <TextView android:id="@+id/text_shift_top" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
         </FrameLayout>
+        <!-- Smart Tools Bar (Visible when idle) -->
+        <LinearLayout android:id="@+id/top_commands_bar" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center" android:visibility="visible">
+            <!-- 1: Voice Dictation / Mic -->
+            <FrameLayout android:id="@+id/key_mic_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
+                <View android:layout_width="14dp" android:layout_height="14dp" android:background="@drawable/bg_key_circle" android:layout_gravity="center" />
+                <View android:layout_width="8dp" android:layout_height="8dp" android:background="@drawable/bg_circle_white" android:layout_gravity="center" />
+            </FrameLayout>
+            
+            <!-- 2: Clipboard History Menu -->
+            <FrameLayout android:id="@+id/key_clipboard_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
+                <ImageView android:layout_width="16dp" android:layout_height="16dp" android:layout_gravity="center" android:src="@drawable/ic_paste_line" android:tint="?attr/stitchTextColor" android:contentDescription="Área de Transferência" />
+            </FrameLayout>
+
+            <!-- 3: Emoji Menu -->
+            <FrameLayout android:id="@+id/key_emoji_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
+                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:src="@drawable/ic_emoji_line" android:contentDescription="Emojis" />
+            </FrameLayout>
+
+            <!-- 4: One-Handed Mode Toggle -->
+            <FrameLayout android:id="@+id/key_one_handed_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
+                <ImageView android:layout_width="16dp" android:layout_height="16dp" android:layout_gravity="center" android:src="@drawable/ic_one_handed" android:tint="?attr/stitchTextColor" android:contentDescription="Modo Uma Mão" />
+            </FrameLayout>
+
+            <!-- 5: Settings Menu -->
+            <FrameLayout android:id="@+id/key_settings_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
+                <ImageView android:layout_width="16dp" android:layout_height="16dp" android:layout_gravity="center" android:src="@drawable/ic_settings_line" android:contentDescription="Configurações" />
+            </FrameLayout>
+        </LinearLayout>
     </FrameLayout>
 
     <!-- Emoji Search Mode Bar & Results Strip (shown when searching emojis) -->
@@ -70,33 +98,6 @@
         </HorizontalScrollView>
     </LinearLayout>
 
-    <LinearLayout android:id="@+id/top_commands_bar" android:layout_width="match_parent" android:layout_height="0dp" android:orientation="horizontal" android:gravity="center" android:visibility="gone">
-        <!-- 1: White Dot -->
-        <FrameLayout android:id="@+id/key_mic_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
-            <View android:layout_width="16dp" android:layout_height="16dp" android:background="@drawable/bg_key_circle" android:layout_gravity="center" />
-            <View android:layout_width="10dp" android:layout_height="10dp" android:background="@drawable/bg_circle_white" android:layout_gravity="center" />
-        </FrameLayout>
-        
-        <!-- 2: Clipboard History Menu -->
-        <FrameLayout android:id="@+id/key_clipboard_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
-            <ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:src="@drawable/ic_paste_line" android:tint="?attr/stitchTextColor" android:contentDescription="Área de Transferência" />
-        </FrameLayout>
-
-        <!-- 3: Emoji Menu -->
-        <FrameLayout android:id="@+id/key_emoji_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
-            <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_emoji_line" android:contentDescription="Emojis" />
-        </FrameLayout>
-
-        <!-- 4: One-Handed Mode Toggle -->
-        <FrameLayout android:id="@+id/key_one_handed_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="4dp" android:clickable="true" android:focusable="true">
-            <ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:src="@drawable/ic_one_handed" android:tint="?attr/stitchTextColor" android:contentDescription="Modo Uma Mão" />
-        </FrameLayout>
-
-        <!-- 5: Settings Menu -->
-        <FrameLayout android:id="@+id/key_settings_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true">
-            <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_settings_line" android:contentDescription="Configurações" />
-        </FrameLayout>
-    </LinearLayout>
     <LinearLayout android:id="@+id/keyboard_body_layout" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
         <LinearLayout android:id="@+id/one_handed_left_panel" android:layout_width="48dp" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:visibility="gone" android:paddingHorizontal="4dp">
             <FrameLayout android:id="@+id/btn_one_handed_switch_left" android:layout_width="38dp" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:layout_marginBottom="16dp">
@@ -281,6 +282,19 @@
         </HorizontalScrollView>
     </LinearLayout>
     <LinearLayout android:id="@+id/numeric_keypad_root" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_floating_keyboard" android:paddingLeft="6dp" android:paddingRight="6dp" android:paddingTop="4dp" android:paddingBottom="52dp" android:visibility="gone" android:clickable="true" android:focusable="true" android:splitMotionEvents="true">
+        <!-- Tools Bar for Numeric Pad -->
+        <LinearLayout android:id="@+id/num_top_tools_bar" android:layout_width="match_parent" android:layout_height="34dp" android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="4dp">
+            <FrameLayout android:id="@+id/num_key_clipboard_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="30dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
+                <ImageView android:layout_width="15dp" android:layout_height="15dp" android:layout_gravity="center" android:src="@drawable/ic_paste_line" android:tint="?attr/stitchTextColor" android:contentDescription="Área de Transferência" />
+            </FrameLayout>
+            <FrameLayout android:id="@+id/num_key_mic_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="30dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
+                <View android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/bg_key_circle" android:layout_gravity="center" />
+                <View android:layout_width="6dp" android:layout_height="6dp" android:background="@drawable/bg_circle_white" android:layout_gravity="center" />
+            </FrameLayout>
+            <FrameLayout android:id="@+id/num_key_settings_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="30dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
+                <ImageView android:layout_width="15dp" android:layout_height="15dp" android:layout_gravity="center" android:src="@drawable/ic_settings_line" android:contentDescription="Configurações" />
+            </FrameLayout>
+        </LinearLayout>
         <LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:orientation="horizontal" android:gravity="center" android:weightSum="7" android:layout_marginBottom="6dp">
             <TextView android:id="@+id/num_sym_minus" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="-" android:textColor="?attr/stitchTextColor" android:textSize="18sp" android:gravity="center" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true" />
             <TextView android:id="@+id/num_sym_slash" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="/" android:textColor="?attr/stitchTextColor" android:textSize="18sp" android:gravity="center" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true" />

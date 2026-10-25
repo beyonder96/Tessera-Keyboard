@@ -1314,8 +1314,10 @@ class StitchKeyboardService : InputMethodService() {
 
         container.alpha = 1f
         container.visibility = View.VISIBLE
-        suggestionContainer?.visibility = View.INVISIBLE
+        suggestionContainer?.visibility = View.GONE
+        topCommandsBar?.visibility = View.GONE
         dragPill?.alpha = 0f
+        dragPill?.visibility = View.GONE
 
         clipboardDismissRunnable?.let { mainHandler.removeCallbacks(it) }
         clipboardDismissRunnable = Runnable {
@@ -1336,9 +1338,6 @@ class StitchKeyboardService : InputMethodService() {
         }
         clipboardTextPill?.visibility = View.GONE
         clipboardImagePill?.visibility = View.GONE
-        if (suggestionContainer?.visibility != View.VISIBLE) {
-            suggestionContainer?.visibility = View.VISIBLE
-        }
         val hasSuggestions = (suggestion1?.text?.isNotEmpty() == true) ||
                 (suggestion2?.text?.isNotEmpty() == true) ||
                 (suggestion3?.text?.isNotEmpty() == true)
@@ -1350,9 +1349,9 @@ class StitchKeyboardService : InputMethodService() {
         } else {
             incognitoBadge?.visibility = View.GONE
             incognitoIconIndicator?.visibility = View.GONE
-            dragPill?.visibility = View.VISIBLE
-            dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
+            dragPill?.visibility = View.GONE
         }
+        updateTopStripVisibility()
     }
 
     private fun scheduleAsyncPrediction(word: String, previousWord: String? = lastCommittedWord) {
@@ -1389,9 +1388,9 @@ class StitchKeyboardService : InputMethodService() {
                         } else {
                             incognitoBadge?.visibility = View.GONE
                             incognitoIconIndicator?.visibility = View.GONE
-                            dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
-                            dragPill?.visibility = View.VISIBLE
+                            dragPill?.visibility = View.GONE
                         }
+                        updateTopStripVisibility()
                     }
                 }
             } else {
@@ -1432,9 +1431,9 @@ class StitchKeyboardService : InputMethodService() {
             } else {
                 incognitoBadge?.visibility = View.GONE
                 incognitoIconIndicator?.visibility = View.GONE
-                dragPill?.alpha = 0f
-                dragPill?.visibility = View.VISIBLE
+                dragPill?.visibility = View.GONE
             }
+            updateTopStripVisibility()
             return
         }
 
@@ -1467,9 +1466,9 @@ class StitchKeyboardService : InputMethodService() {
                 } else {
                     incognitoBadge?.visibility = View.GONE
                     incognitoIconIndicator?.visibility = View.GONE
-                    dragPill?.alpha = if (hasSuggestions) 0f else 0.5f
-                    dragPill?.visibility = View.VISIBLE
+                    dragPill?.visibility = View.GONE
                 }
+                updateTopStripVisibility()
             }
         }
     }
@@ -1504,9 +1503,33 @@ class StitchKeyboardService : InputMethodService() {
                 checkAndShowClipboardSuggestions()
             } else {
                 hideClipboardPill()
-                dragPill?.visibility = View.VISIBLE
-                dragPill?.alpha = 0.5f
+                dragPill?.visibility = View.GONE
             }
+        }
+        updateTopStripVisibility()
+    }
+
+    private fun updateTopStripVisibility() {
+        if (isEmojiSearchMode || (::voiceRoot.isInitialized && voiceRoot.visibility == View.VISIBLE)) return
+
+        val hasClipboardPill = clipboardContainer?.visibility == View.VISIBLE
+        val hasSuggestions = (suggestion1?.text?.isNotEmpty() == true && suggestion1?.visibility == View.VISIBLE) ||
+                             (suggestion2?.text?.isNotEmpty() == true && suggestion2?.visibility == View.VISIBLE) ||
+                             (suggestion3?.text?.isNotEmpty() == true && suggestion3?.visibility == View.VISIBLE) ||
+                             composingBuffer.isNotEmpty()
+
+        if (hasClipboardPill) {
+            topCommandsBar?.visibility = View.GONE
+            suggestionContainer?.visibility = View.GONE
+            dragPill?.visibility = View.GONE
+        } else if (hasSuggestions) {
+            topCommandsBar?.visibility = View.GONE
+            suggestionContainer?.visibility = View.VISIBLE
+            dragPill?.visibility = View.GONE
+        } else {
+            suggestionContainer?.visibility = View.GONE
+            topCommandsBar?.visibility = View.VISIBLE
+            dragPill?.visibility = View.GONE
         }
     }
 
@@ -1851,6 +1874,41 @@ class StitchKeyboardService : InputMethodService() {
             playClickFeedback()
             if (::numericRoot.isInitialized) numericRoot.visibility = View.GONE
             if (::keyboardRoot.isInitialized) keyboardRoot.visibility = View.VISIBLE
+        }
+
+        val numClipboard = view.findViewById<View>(R.id.num_key_clipboard_top)
+        numClipboard?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            showClipboardHistory()
+        }
+
+        val numMic = view.findViewById<View>(R.id.num_key_mic_top)
+        numMic?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                val intent = Intent(this, MainActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                startActivity(intent)
+                Toast.makeText(this, "Conceda a permissão no app", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+            if (::keyboardRoot.isInitialized) keyboardRoot.visibility = View.GONE
+            if (::numericRoot.isInitialized) numericRoot.visibility = View.GONE
+            if (::voiceRoot.isInitialized) voiceRoot.visibility = View.VISIBLE
+            voiceText?.text = "Fale agora..."
+            startListening()
+            startWaveAnimation(view.rootView)
+        }
+
+        val numSettings = view.findViewById<View>(R.id.num_key_settings_top)
+        numSettings?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            val intent = Intent(this, MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            startActivity(intent)
         }
     }
 
@@ -2557,7 +2615,11 @@ class StitchKeyboardService : InputMethodService() {
                     if (isSpaceSwiping) {
                         isSpaceSwiping = false
                         spaceKey?.text = "Tessera"
-                        val cmdRes = if (prefKeyShape == "squircle") R.drawable.bg_command_squircle else R.drawable.bg_command_pill
+                        val cmdRes = when (prefKeyShape) {
+                            "borderless" -> R.drawable.bg_command_borderless
+                            "pill" -> R.drawable.bg_command_pill
+                            else -> R.drawable.bg_command_squircle
+                        }
                         spaceKey?.setBackgroundResource(cmdRes)
                         v.isPressed = false
                         return@setOnTouchListener true
@@ -2779,6 +2841,13 @@ class StitchKeyboardService : InputMethodService() {
         incognitoBadge = view.findViewById(R.id.incognito_badge)
         incognitoIconIndicator = view.findViewById(R.id.incognito_icon_indicator)
         val plusBtn = view.findViewById<View>(R.id.key_settings_top)
+        plusBtn?.setOnClickListener {
+            playClickFeedback()
+            triggerVibration()
+            val intent = Intent(this, MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            startActivity(intent)
+        }
 
         clipboardTextPill?.setOnClickListener {
             val clip = lastClipboardText
@@ -2913,12 +2982,27 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun applyKeyShapeDrawables(view: View) {
-        val isSquircle = prefKeyShape == "squircle"
-        val keyRes = if (isSquircle) R.drawable.bg_key_squircle else R.drawable.bg_key_circle
-        val cmdRes = if (isSquircle) R.drawable.bg_command_squircle else R.drawable.bg_command_pill
+        val keyRes = when (prefKeyShape) {
+            "borderless" -> R.drawable.bg_key_borderless
+            "pill" -> R.drawable.bg_key_circle
+            else -> R.drawable.bg_key_squircle
+        }
+        val cmdRes = when (prefKeyShape) {
+            "borderless" -> R.drawable.bg_command_borderless
+            "pill" -> R.drawable.bg_command_pill
+            else -> R.drawable.bg_command_squircle
+        }
 
         for ((_, kv) in keyViewMap) {
             kv.setBackgroundResource(keyRes)
+        }
+
+        val numKeyIds = listOf(
+            R.id.num_row_1, R.id.num_row_2, R.id.num_row_3, R.id.num_row_4, R.id.num_row_5,
+            R.id.num_row_6, R.id.num_row_7, R.id.num_row_8, R.id.num_row_9, R.id.num_row_0
+        )
+        for (nid in numKeyIds) {
+            view.findViewById<View>(nid)?.setBackgroundResource(keyRes)
         }
 
         val commandIds = listOf(
@@ -2927,7 +3011,8 @@ class StitchKeyboardService : InputMethodService() {
             R.id.key_mic_top, R.id.key_clipboard_top, R.id.key_emoji_top,
             R.id.key_one_handed_top, R.id.key_settings_top,
             R.id.btn_action_select_all, R.id.btn_action_copy, R.id.btn_action_cut, R.id.btn_action_paste,
-            R.id.btn_clear_clipboard, R.id.btn_close_clipboard
+            R.id.btn_clear_clipboard, R.id.btn_close_clipboard,
+            R.id.num_key_clipboard_top, R.id.num_key_mic_top, R.id.num_key_settings_top
         )
         for (cid in commandIds) {
             view.findViewById<View>(cid)?.setBackgroundResource(cmdRes)
