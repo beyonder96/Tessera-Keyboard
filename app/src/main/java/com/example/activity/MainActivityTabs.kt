@@ -378,6 +378,13 @@ fun TabAppearanceContent(
             subtitle = "Temas neutros, geometria e escala visual das teclas"
         )
 
+        KeyboardLivePreview(
+            themeName = keyboardTheme,
+            keyShape = keyShape,
+            scale = keyboardScale.coerceIn(0.85f, 1.25f),
+            modifier = Modifier.fillMaxWidth()
+        )
+
         SectionCard(title = "Paleta e Tema") {
             Text(
                 text = "Tema Visual",

@@ -106,6 +106,7 @@ class StitchKeyboardService : InputMethodService() {
     private var serviceJob = SupervisorJob()
     private var scope = CoroutineScope(Dispatchers.Main + serviceJob + coroutineExceptionHandler)
     private lateinit var keyboardRoot: View
+    private var mainInputView: View? = null
     private lateinit var voiceRoot: View
     private lateinit var emojiRoot: View
     private lateinit var localDict: com.example.manager.LocalDictionaryManager
@@ -476,6 +477,8 @@ class StitchKeyboardService : InputMethodService() {
                 prewarmKeyPositions()
             }
 
+            mainInputView = keyboardView
+            applyKeyShapeDrawables(keyboardView)
             return keyboardView
         } catch (e: Exception) {
             val errorView = TextView(this)
@@ -1726,6 +1729,9 @@ class StitchKeyboardService : InputMethodService() {
             }
             
             refreshPreferences()
+            if (::keyboardRoot.isInitialized) {
+                applyKeyShapeDrawables(mainInputView ?: keyboardRoot.rootView ?: keyboardRoot)
+            }
             numberRowContainer?.visibility = if (prefNumberRow) View.VISIBLE else View.GONE
             if (::keyboardRoot.isInitialized) {
                 val typedGlow = android.util.TypedValue()
@@ -2615,12 +2621,12 @@ class StitchKeyboardService : InputMethodService() {
                     if (isSpaceSwiping) {
                         isSpaceSwiping = false
                         spaceKey?.text = "Tessera"
-                        val cmdRes = when (prefKeyShape) {
-                            "borderless" -> R.drawable.bg_command_borderless
-                            "pill" -> R.drawable.bg_command_pill
-                            else -> R.drawable.bg_command_squircle
+                        val spaceRes = when (prefKeyShape) {
+                            "borderless" -> R.drawable.bg_key_borderless
+                            "pill" -> R.drawable.bg_key_circle
+                            else -> R.drawable.bg_key_editorial_flat
                         }
-                        spaceKey?.setBackgroundResource(cmdRes)
+                        spaceKey?.setBackgroundResource(spaceRes)
                         v.isPressed = false
                         return@setOnTouchListener true
                     }
@@ -2985,18 +2991,23 @@ class StitchKeyboardService : InputMethodService() {
         val keyRes = when (prefKeyShape) {
             "borderless" -> R.drawable.bg_key_borderless
             "pill" -> R.drawable.bg_key_circle
-            else -> R.drawable.bg_key_squircle
+            else -> R.drawable.bg_key_editorial_flat
         }
         val cmdRes = when (prefKeyShape) {
             "borderless" -> R.drawable.bg_command_borderless
             "pill" -> R.drawable.bg_command_pill
-            else -> R.drawable.bg_command_squircle
+            else -> R.drawable.bg_key_action_flat
         }
 
+        // 1. Teclas alfabéticas (Q-P, A-L, Z-M, vírgula e ponto)
         for ((_, kv) in keyViewMap) {
             kv.setBackgroundResource(keyRes)
         }
 
+        // 2. Barra de espaço
+        view.findViewById<View>(R.id.key_space)?.setBackgroundResource(keyRes)
+
+        // 3. Linha numérica superior (QWERTY)
         val numKeyIds = listOf(
             R.id.num_row_1, R.id.num_row_2, R.id.num_row_3, R.id.num_row_4, R.id.num_row_5,
             R.id.num_row_6, R.id.num_row_7, R.id.num_row_8, R.id.num_row_9, R.id.num_row_0
@@ -3005,14 +3016,29 @@ class StitchKeyboardService : InputMethodService() {
             view.findViewById<View>(nid)?.setBackgroundResource(keyRes)
         }
 
+        // 4. Teclado numérico expandido / keypad
+        val keypadNumIds = listOf(
+            R.id.num_key_1, R.id.num_key_2, R.id.num_key_3,
+            R.id.num_key_4, R.id.num_key_5, R.id.num_key_6,
+            R.id.num_key_7, R.id.num_key_8, R.id.num_key_9,
+            R.id.num_key_0, R.id.num_key_comma, R.id.num_key_dot
+        )
+        for (knid in keypadNumIds) {
+            view.findViewById<View>(knid)?.setBackgroundResource(keyRes)
+        }
+
+        // 5. Teclas de comando / ação (Shift, Backspace, 123, Enter, ferramentas)
         val commandIds = listOf(
-            R.id.key_shift, R.id.key_backspace, R.id.key_symbol, R.id.key_comma,
-            R.id.key_space, R.id.key_period, R.id.key_enter,
+            R.id.key_shift, R.id.key_backspace, R.id.key_symbol, R.id.key_enter,
             R.id.key_mic_top, R.id.key_clipboard_top, R.id.key_emoji_top,
             R.id.key_one_handed_top, R.id.key_settings_top,
+            R.id.num_key_clipboard_top, R.id.num_key_mic_top, R.id.num_key_settings_top,
+            R.id.num_sym_minus, R.id.num_sym_slash, R.id.num_sym_colon,
+            R.id.num_sym_paren_open, R.id.num_sym_paren_close, R.id.num_sym_dollar, R.id.num_sym_percent,
+            R.id.num_key_abc, R.id.num_key_backspace, R.id.num_key_enter,
             R.id.btn_action_select_all, R.id.btn_action_copy, R.id.btn_action_cut, R.id.btn_action_paste,
             R.id.btn_clear_clipboard, R.id.btn_close_clipboard,
-            R.id.num_key_clipboard_top, R.id.num_key_mic_top, R.id.num_key_settings_top
+            R.id.btn_emoji_search_categories, R.id.btn_close_emoji_search
         )
         for (cid in commandIds) {
             view.findViewById<View>(cid)?.setBackgroundResource(cmdRes)

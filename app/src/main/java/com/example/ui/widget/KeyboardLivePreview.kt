@@ -211,9 +211,9 @@ fun KeyboardLivePreview(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 MiniPill(label = "123", weight = 1.5f, keyCornerRadius, effectiveActionKeyBg, animatedText)
-                MiniPill(label = ",", weight = 1f, keyCornerRadius, animatedKeyBg, animatedText)
-                MiniPill(label = "Tessera", weight = 5.0f, keyCornerRadius, animatedKeyBg, animatedText, isSpace = true)
-                MiniPill(label = ".", weight = 1f, keyCornerRadius, animatedKeyBg, animatedText)
+                MiniPill(label = ",", weight = 1f, keyCornerRadius, effectiveKeyBg, animatedText)
+                MiniPill(label = "Tessera", weight = 5.0f, keyCornerRadius, effectiveKeyBg, animatedText, isSpace = true)
+                MiniPill(label = ".", weight = 1f, keyCornerRadius, effectiveKeyBg, animatedText)
                 MiniPill(label = "↵", weight = 1.5f, keyCornerRadius, effectiveActionKeyBg, animatedText)
             }
         }
