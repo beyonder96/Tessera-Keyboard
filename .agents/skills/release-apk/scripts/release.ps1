@@ -63,7 +63,8 @@ if ($Version) {
     
     $NewGradleContent = $GradleContent -replace 'versionCode\s*=\s*\d+', "versionCode = $NewCode"
     $NewGradleContent = $NewGradleContent -replace 'versionName\s*=\s*"[^"]+"', "versionName = `"$TargetVersion`""
-    Set-Content -Path $GradleFile -Value $NewGradleContent -NoNewline
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($GradleFile, $NewGradleContent, $utf8NoBom)
 
     # Atualizar badges no README.md se existir
     $ReadmeFile = Join-Path $ProjectRoot "README.md"
@@ -72,7 +73,7 @@ if ($Version) {
         $ReadmeContent = $ReadmeContent -replace 'v\d+\.\d+\.\d+', "v$TargetVersion"
         $ReadmeContent = $ReadmeContent -replace 'Release_v\d+\.\d+\.\d+', "Release_v$TargetVersion"
         $ReadmeContent = $ReadmeContent -replace 'Debug_v\d+\.\d+\.\d+', "Debug_v$TargetVersion"
-        Set-Content -Path $ReadmeFile -Value $ReadmeContent -NoNewline
+        [System.IO.File]::WriteAllText($ReadmeFile, $ReadmeContent, $utf8NoBom)
         Write-Host " README.md atualizado com os badges de v$TargetVersion" -ForegroundColor Gray
     }
 } else {
