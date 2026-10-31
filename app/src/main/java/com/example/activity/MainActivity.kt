@@ -21,6 +21,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,6 +63,8 @@ import androidx.core.content.ContextCompat
 import com.example.manager.LocalDictionaryManager
 import com.example.manager.SnippetManager
 import com.example.ui.widget.KeyboardLivePreview
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
@@ -597,70 +600,28 @@ fun TesseraDashboardContent(
 fun TesseraLogoBadge(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .size(52.dp)
-            .shadow(8.dp, RoundedCornerShape(16.dp), spotColor = AccentSky.copy(alpha = 0.35f))
+            .size(56.dp)
+            .shadow(10.dp, RoundedCornerShape(16.dp), spotColor = Color.Black.copy(alpha = 0.5f))
             .background(
                 Brush.linearGradient(
-                    listOf(Color(0xFF0F172A), Color(0xFF060911))
+                    listOf(Color(0xFF28282B), Color(0xFF1B1B1D))
                 ),
                 RoundedCornerShape(16.dp)
             )
             .border(
                 1.dp,
-                Brush.linearGradient(listOf(Color(0x5538BDF8), Color(0x1138BDF8))),
+                Color(0x22FFFFFF),
                 RoundedCornerShape(16.dp)
             ),
         contentAlignment = Alignment.Center
     ) {
-        // Glowing cyan ambient aura
-        Box(
+        Image(
+            painter = painterResource(id = R.drawable.ic_tessera_logo),
+            contentDescription = "Tessera Logo",
             modifier = Modifier
-                .size(34.dp)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(Color(0x3300F2FE), Color.Transparent)
-                    ),
-                    CircleShape
-                )
+                .size(52.dp)
+                .clip(RoundedCornerShape(14.dp))
         )
-        // Tactile Monogram 'T' (Two precision tiles)
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.5.dp)
-        ) {
-            // Top Tile (Horizontal Keycap)
-            Box(
-                modifier = Modifier
-                    .size(width = 28.dp, height = 9.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color(0xFFF1F5F9), Color(0xFF94A3B8))
-                        ),
-                        RoundedCornerShape(2.5.dp)
-                    )
-                    .border(0.5.dp, Color(0x4438BDF8), RoundedCornerShape(2.5.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                // Micro accent dot
-                Box(
-                    modifier = Modifier
-                        .size(width = 3.dp, height = 1.dp)
-                        .background(AccentSky, RoundedCornerShape(0.5.dp))
-                )
-            }
-            // Vertical Tile (Pillar Keycap)
-            Box(
-                modifier = Modifier
-                    .size(width = 11.dp, height = 17.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color(0xFFE2E8F0), Color(0xFF64748B))
-                        ),
-                        RoundedCornerShape(2.5.dp)
-                    )
-                    .border(0.5.dp, Color(0x3338BDF8), RoundedCornerShape(2.5.dp))
-            )
-        }
     }
 }
 

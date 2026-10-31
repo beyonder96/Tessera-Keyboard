@@ -9,7 +9,7 @@
 
 ## ✨ Funcionalidades Principais (v0.0.35)
 
-* 🎨 **Nova Identidade Visual & Ícones Adaptativos:** Novo logotipo com teclas táteis mecânicas formando o monograma "T" em Dark Slate e Electric Sky Blue, com suporte nativo a ícones adaptativos do Android (API 26+) e mipmaps de alta densidade.
+* 🎨 **Nova Identidade Visual & Ícones Adaptativos:** Novo logotipo com keycap mecânica tátil e monograma caligráfico "T" em alto contraste minimalista, com suporte nativo a ícones adaptativos do Android (API 26+), tema dinâmico monocromático (Android 13+) e mipmaps de alta densidade.
 * 🔤 **Abertura Padrão Sempre em Modo Texto:** Garantia estrita de inicialização no modo alfabético QWERTY, com reset automático de modos de símbolos e numéricos ao abrir novos campos ou reabrir o teclado.
 * 🖼️ **Colar Fotos Direto do Clipboard (Estilo Gboard):** Suporte nativo à API de Rich Content (`commitContent`) do Android. Ao copiar uma imagem, o teclado apresenta um chip minimalista "Colar foto" e a insere diretamente em apps compatíveis (WhatsApp, Telegram, Discord, etc.).
 * 💎 **Redesign Premium do Colar (Minimalismo Rigoroso):** Eliminação completa de emojis decorativos no clipboard. Layout maduro em pílulas translúcidas com borda sutil de 1px, ícones vetoriais lineares finos (1.5dp) e tipografia neutra do sistema.
