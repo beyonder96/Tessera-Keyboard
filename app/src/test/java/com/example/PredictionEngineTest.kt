@@ -340,5 +340,52 @@ class PredictionEngineTest {
         val candidates = testEngine.getSwipePredictionsWithKeyRects(trajectory, keyBounds)
         assertTrue(candidates.contains("bom") || candidates.contains("bem"))
     }
+
+    @Test
+    fun testShortPrefixAutocorrectProtection() {
+        val testEngine = PredictionEngine()
+        // Short prefix "dig" should not be aggressively hijacked to "digitando"
+        val autocorrect = testEngine.getTopAutocorrect("dig")
+        // Either null or a word of length <= 4
+        if (autocorrect != null) {
+            assertTrue(autocorrect.length <= 4)
+        }
+    }
+
+    @Test
+    fun testContextualDisambiguation() {
+        val testEngine = PredictionEngine()
+        // "ele esta" -> "está"
+        val estaResult = testEngine.getTopAutocorrect("esta", previousWord = "ele")
+        assertEquals("está", estaResult)
+
+        // "eles tem" -> "têm"
+        val temResult = testEngine.getTopAutocorrect("tem", previousWord = "eles")
+        assertEquals("têm", temResult)
+    }
+
+    @Test
+    fun testSmartAbbreviationsToggle() {
+        val testEngine = PredictionEngine()
+        testEngine.isSmartAbbrEnabled = true
+        assertEquals("você", testEngine.getTopAutocorrect("vc"))
+        assertEquals("também", testEngine.getTopAutocorrect("tbm"))
+        assertEquals("porque", testEngine.getTopAutocorrect("pq"))
+
+        testEngine.isSmartAbbrEnabled = false
+        val noAbbr = testEngine.getTopAutocorrect("vc")
+        assertNull(noAbbr)
+    }
+
+    @Test
+    fun testValidNextCharsMask() {
+        val testEngine = PredictionEngine()
+        val mask = testEngine.getValidNextCharsMask("ca")
+        assertTrue(mask != 0)
+        // 's' (casa) and 'r' (carro) should be valid next letters
+        val bitS = 1 shl ('s' - 'a')
+        val bitR = 1 shl ('r' - 'a')
+        assertTrue((mask and bitS) != 0 || (mask and bitR) != 0)
+    }
 }
 

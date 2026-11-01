@@ -1,301 +1,1232 @@
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content"><LinearLayout android:id="@+id/keyboard_root" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_floating_keyboard" android:paddingLeft="6dp" android:paddingRight="6dp" android:paddingTop="4dp" android:paddingBottom="52dp" android:clickable="true" android:focusable="true" android:splitMotionEvents="true">
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
 
-    
-    <FrameLayout android:id="@+id/drag_handle_container" android:layout_width="match_parent" android:layout_height="36dp">
-        <View android:id="@+id/drag_pill" android:layout_width="40dp" android:layout_height="4dp" android:layout_gravity="center" android:background="@drawable/bg_command_pill" android:visibility="gone" />
-        <LinearLayout android:id="@+id/suggestion_container" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:visibility="visible" android:gravity="center">
-            <TextView android:id="@+id/incognito_icon_indicator" android:layout_width="wrap_content" android:layout_height="match_parent" android:gravity="center" android:paddingLeft="10dp" android:paddingRight="4dp" android:text="🕵" android:textSize="15sp" android:visibility="gone" />
-            <TextView android:id="@+id/suggestion_1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:textColor="?attr/stitchTextColor" android:textSize="15sp" android:fontFamily="sans-serif-medium" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackgroundBorderless" />
-            <TextView android:id="@+id/suggestion_2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:textColor="?attr/stitchTextColor" android:textSize="15sp" android:fontFamily="sans-serif-medium" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackgroundBorderless" />
-            <TextView android:id="@+id/suggestion_3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:gravity="center" android:textColor="?attr/stitchTextColor" android:textSize="15sp" android:fontFamily="sans-serif-medium" android:clickable="true" android:focusable="true" android:background="?android:attr/selectableItemBackgroundBorderless" />
-        </LinearLayout>
+    <LinearLayout
+        android:id="@+id/keyboard_root"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_floating_keyboard"
+        android:paddingLeft="6dp"
+        android:paddingRight="6dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="0dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:splitMotionEvents="true">
+
+        <FrameLayout
+            android:id="@+id/drag_handle_container"
+            android:layout_width="match_parent"
+            android:layout_height="36dp">
+
+            <View
+                android:id="@+id/drag_pill"
+                android:layout_width="40dp"
+                android:layout_height="4dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_command_pill"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/suggestion_container"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:visibility="visible"
+                android:gravity="center">
+
+                <TextView
+                    android:id="@+id/incognito_icon_indicator"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:paddingLeft="10dp"
+                    android:paddingRight="4dp"
+                    android:text="🕵"
+                    android:textSize="15sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/suggestion_1"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:textColor="?attr/stitchTextColor"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?android:attr/selectableItemBackgroundBorderless" />
+
+                <TextView
+                    android:id="@+id/suggestion_2"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:textColor="?attr/stitchTextColor"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?android:attr/selectableItemBackgroundBorderless" />
+
+                <TextView
+                    android:id="@+id/suggestion_3"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:textColor="?attr/stitchTextColor"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?android:attr/selectableItemBackgroundBorderless" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/incognito_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:layout_gravity="center"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_command_pill"
+                android:paddingLeft="10dp"
+                android:paddingRight="12dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/incognito_badge_icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🕵"
+                    android:textSize="14sp"
+                    android:layout_marginRight="6dp" />
+
+                <TextView
+                    android:id="@+id/incognito_badge_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Anônimo"
+                    android:textColor="?attr/stitchTextColor"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/clipboard_container"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/clipboard_text_pill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="28dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/bg_command_pill"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingLeft="10dp"
+                    android:paddingRight="12dp"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:id="@+id/clipboard_text_icon"
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:layout_marginRight="6dp"
+                        android:src="@drawable/ic_paste_line"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Colar" />
+
+                    <TextView
+                        android:id="@+id/clipboard_text_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="?attr/stitchTextColor"
+                        android:textSize="13sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:singleLine="true"
+                        android:ellipsize="end"
+                        android:maxWidth="220dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/clipboard_image_pill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="28dp"
+                    android:layout_marginLeft="6dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/bg_command_pill"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingLeft="10dp"
+                    android:paddingRight="12dp"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:id="@+id/clipboard_image_icon"
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:layout_marginRight="6dp"
+                        android:src="@drawable/ic_image_line"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Colar Foto" />
+
+                    <TextView
+                        android:id="@+id/clipboard_image_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Colar foto"
+                        android:textColor="?attr/stitchTextColor"
+                        android:textSize="13sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:singleLine="true" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/key_ia"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/key_shift_top"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone">
+                <TextView
+                    android:id="@+id/text_shift_top"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <!-- Smart Tools Bar (Visible when idle) -->
+            <LinearLayout
+                android:id="@+id/top_commands_bar"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:visibility="visible">
+
+                <!-- 1: Voice Dictation / Mic -->
+                <FrameLayout
+                    android:id="@+id/key_mic_top"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="32dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:layout_marginHorizontal="2dp"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_mic_line"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Voz" />
+                </FrameLayout>
+
+                <!-- 2: Clipboard History Menu -->
+                <FrameLayout
+                    android:id="@+id/key_clipboard_top"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="32dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:layout_marginHorizontal="2dp"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_paste_line"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Área de Transferência" />
+                </FrameLayout>
+
+                <!-- 3: Cursor Navigation & Editing Pad Mode -->
+                <FrameLayout
+                    android:id="@+id/key_cursor_top"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="32dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:layout_marginHorizontal="2dp"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_cursor_move"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Edição e Cursor" />
+                </FrameLayout>
+
+                <!-- 4: Emoji Menu -->
+                <FrameLayout
+                    android:id="@+id/key_emoji_top"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="32dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:layout_marginHorizontal="2dp"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_emoji_line"
+                        android:contentDescription="Emojis" />
+                </FrameLayout>
+
+                <!-- 5: One-Handed Mode Toggle -->
+                <FrameLayout
+                    android:id="@+id/key_one_handed_top"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="32dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:layout_marginHorizontal="2dp"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_one_handed"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Modo Uma Mão" />
+                </FrameLayout>
+
+                <!-- 6: Settings Menu -->
+                <FrameLayout
+                    android:id="@+id/key_settings_top"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="32dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:layout_marginHorizontal="2dp"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_settings_line"
+                        android:contentDescription="Configurações" />
+                </FrameLayout>
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- Emoji Search Mode Bar & Results Strip -->
         <LinearLayout
-            android:id="@+id/incognito_badge"
-            android:layout_width="wrap_content"
-            android:layout_height="28dp"
-            android:layout_gravity="center"
+            android:id="@+id/emoji_search_mode_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginBottom="6dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <LinearLayout
+                    android:id="@+id/emoji_search_active_box"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="34dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/bg_command_pill"
+                    android:paddingHorizontal="10dp"
+                    android:layout_marginRight="6dp">
+
+                    <ImageView
+                        android:layout_width="15dp"
+                        android:layout_height="15dp"
+                        android:src="@drawable/ic_search_line"
+                        android:tint="?attr/stitchTextColor"
+                        android:alpha="0.6"
+                        android:layout_marginRight="6dp" />
+
+                    <TextView
+                        android:id="@+id/emoji_search_active_query"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="match_parent"
+                        android:text="Buscar emojis..."
+                        android:textColor="?attr/stitchTextColor"
+                        android:textSize="13sp"
+                        android:singleLine="true"
+                        android:gravity="center_vertical"
+                        android:alpha="0.6" />
+
+                    <ImageView
+                        android:id="@+id/btn_clear_active_emoji_search"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:src="@drawable/ic_backspace"
+                        android:tint="?attr/stitchTextColor"
+                        android:alpha="0.7"
+                        android:visibility="gone"
+                        android:clickable="true"
+                        android:focusable="true" />
+                </LinearLayout>
+
+                <FrameLayout
+                    android:id="@+id/btn_emoji_search_categories"
+                    android:layout_width="38dp"
+                    android:layout_height="34dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:layout_marginRight="6dp"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_emoji_line"
+                        android:contentDescription="Categorias" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/btn_close_emoji_search"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:text="ABC"
+                    android:textColor="?attr/stitchTextColor"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:paddingHorizontal="12dp"
+                    android:clickable="true"
+                    android:focusable="true" />
+            </LinearLayout>
+
+            <HorizontalScrollView
+                android:id="@+id/emoji_search_results_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="42dp"
+                android:layout_marginTop="4dp"
+                android:scrollbars="none">
+                <LinearLayout
+                    android:id="@+id/emoji_search_results_container"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical" />
+            </HorizontalScrollView>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/keyboard_body_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@drawable/bg_command_pill"
-            android:paddingLeft="10dp"
-            android:paddingRight="12dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/incognito_badge_icon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🕵"
-                android:textSize="14sp"
-                android:layout_marginRight="6dp" />
-            <TextView
-                android:id="@+id/incognito_badge_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Anônimo"
-                android:textColor="?attr/stitchTextColor"
-                android:textSize="12sp"
-                android:fontFamily="sans-serif-medium" />
-        </LinearLayout>
-        <LinearLayout android:id="@+id/clipboard_container" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:orientation="horizontal" android:visibility="gone">
-            <LinearLayout android:id="@+id/clipboard_text_pill" android:layout_width="wrap_content" android:layout_height="28dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:paddingLeft="10dp" android:paddingRight="12dp" android:visibility="gone">
-                <ImageView android:id="@+id/clipboard_text_icon" android:layout_width="14dp" android:layout_height="14dp" android:layout_marginRight="6dp" android:src="@drawable/ic_paste_line" android:tint="?attr/stitchTextColor" android:contentDescription="Colar" />
-                <TextView android:id="@+id/clipboard_text_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:fontFamily="sans-serif-medium" android:singleLine="true" android:ellipsize="end" android:maxWidth="220dp" />
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:id="@+id/one_handed_left_panel"
+                android:layout_width="48dp"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone"
+                android:paddingHorizontal="4dp">
+
+                <FrameLayout
+                    android:id="@+id/btn_one_handed_switch_left"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:layout_marginBottom="16dp">
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_back"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Mover para Esquerda" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/btn_one_handed_expand_left"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_fullscreen"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Expandir Teclado" />
+                </FrameLayout>
             </LinearLayout>
-            <LinearLayout android:id="@+id/clipboard_image_pill" android:layout_width="wrap_content" android:layout_height="28dp" android:layout_marginLeft="6dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:paddingLeft="10dp" android:paddingRight="12dp" android:visibility="gone">
-                <ImageView android:id="@+id/clipboard_image_icon" android:layout_width="14dp" android:layout_height="14dp" android:layout_marginRight="6dp" android:src="@drawable/ic_image_line" android:tint="?attr/stitchTextColor" android:contentDescription="Colar Foto" />
-                <TextView android:id="@+id/clipboard_image_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Colar foto" android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:fontFamily="sans-serif-medium" android:singleLine="true" />
+
+            <RelativeLayout
+                android:id="@+id/keyboard_keys_wrapper"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:id="@+id/keys_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:splitMotionEvents="true">
+
+                    <!-- Optional 5th Number Row -->
+                    <LinearLayout
+                        android:id="@+id/number_row_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:orientation="horizontal"
+                        android:weightSum="10"
+                        android:gravity="center"
+                        android:visibility="gone"
+                        android:layout_marginBottom="4dp"
+                        android:splitMotionEvents="true">
+
+                        <TextView android:id="@+id/num_row_1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="1" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
+                        <TextView android:id="@+id/num_row_2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="2" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
+                        <TextView android:id="@+id/num_row_3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="3" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
+                        <TextView android:id="@+id/num_row_4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="4" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
+                        <TextView android:id="@+id/num_row_5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="5" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
+                        <TextView android:id="@+id/num_row_6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="6" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
+                        <TextView android:id="@+id/num_row_7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="7" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
+                        <TextView android:id="@+id/num_row_8" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="8" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
+                        <TextView android:id="@+id/num_row_9" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="9" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
+                        <TextView android:id="@+id/num_row_0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="0" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
+                    </LinearLayout>
+
+                    <!-- Tessera 120Hz Unified Canvas Key Plane -->
+                    <com.example.ui.keyboard.TesseraKeyPlaneView
+                        android:id="@+id/tessera_key_plane"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                </LinearLayout>
+
+                <com.example.ui.widget.SwipeTrailView
+                    android:id="@+id/swipe_trail_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_alignTop="@id/keys_container"
+                    android:layout_alignBottom="@id/keys_container" />
+
+            </RelativeLayout>
+
+            <LinearLayout
+                android:id="@+id/one_handed_right_panel"
+                android:layout_width="48dp"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone"
+                android:paddingHorizontal="4dp">
+
+                <FrameLayout
+                    android:id="@+id/btn_one_handed_switch_right"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:layout_marginBottom="16dp">
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_next_line"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Mover para Direita" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:id="@+id/btn_one_handed_expand_right"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_fullscreen"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Expandir Teclado" />
+                </FrameLayout>
             </LinearLayout>
         </LinearLayout>
-        <TextView android:id="@+id/key_ia" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
-        <FrameLayout android:id="@+id/key_shift_top" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone">
-            <TextView android:id="@+id/text_shift_top" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone" />
-        </FrameLayout>
-        <!-- Smart Tools Bar (Visible when idle) -->
-        <LinearLayout android:id="@+id/top_commands_bar" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center" android:visibility="visible">
-            <!-- 1: Voice Dictation / Mic -->
-            <FrameLayout android:id="@+id/key_mic_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
-                <View android:layout_width="14dp" android:layout_height="14dp" android:background="@drawable/bg_key_circle" android:layout_gravity="center" />
-                <View android:layout_width="8dp" android:layout_height="8dp" android:background="@drawable/bg_circle_white" android:layout_gravity="center" />
-            </FrameLayout>
-            
-            <!-- 2: Clipboard History Menu -->
-            <FrameLayout android:id="@+id/key_clipboard_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="16dp" android:layout_height="16dp" android:layout_gravity="center" android:src="@drawable/ic_paste_line" android:tint="?attr/stitchTextColor" android:contentDescription="Área de Transferência" />
-            </FrameLayout>
-
-            <!-- 3: Emoji Menu -->
-            <FrameLayout android:id="@+id/key_emoji_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:src="@drawable/ic_emoji_line" android:contentDescription="Emojis" />
-            </FrameLayout>
-
-            <!-- 4: One-Handed Mode Toggle -->
-            <FrameLayout android:id="@+id/key_one_handed_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="16dp" android:layout_height="16dp" android:layout_gravity="center" android:src="@drawable/ic_one_handed" android:tint="?attr/stitchTextColor" android:contentDescription="Modo Uma Mão" />
-            </FrameLayout>
-
-            <!-- 5: Settings Menu -->
-            <FrameLayout android:id="@+id/key_settings_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="16dp" android:layout_height="16dp" android:layout_gravity="center" android:src="@drawable/ic_settings_line" android:contentDescription="Configurações" />
-            </FrameLayout>
-        </LinearLayout>
-    </FrameLayout>
-
-    <!-- Emoji Search Mode Bar & Results Strip (shown when searching emojis) -->
-    <LinearLayout android:id="@+id/emoji_search_mode_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone" android:layout_marginBottom="6dp">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:orientation="horizontal" android:gravity="center_vertical">
-            <LinearLayout android:id="@+id/emoji_search_active_box" android:layout_width="0dp" android:layout_weight="1" android:layout_height="34dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/bg_command_pill" android:paddingHorizontal="10dp" android:layout_marginRight="6dp">
-                <ImageView android:layout_width="15dp" android:layout_height="15dp" android:src="@drawable/ic_search_line" android:tint="?attr/stitchTextColor" android:alpha="0.6" android:layout_marginRight="6dp" />
-                <TextView android:id="@+id/emoji_search_active_query" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="Buscar emojis..." android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:singleLine="true" android:gravity="center_vertical" android:alpha="0.6" />
-                <ImageView android:id="@+id/btn_clear_active_emoji_search" android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_backspace" android:tint="?attr/stitchTextColor" android:alpha="0.7" android:visibility="gone" android:clickable="true" android:focusable="true" />
-            </LinearLayout>
-            <FrameLayout android:id="@+id/btn_emoji_search_categories" android:layout_width="38dp" android:layout_height="34dp" android:background="@drawable/bg_command_pill" android:layout_marginRight="6dp" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:src="@drawable/ic_emoji_line" android:contentDescription="Categorias" />
-            </FrameLayout>
-            <TextView android:id="@+id/btn_close_emoji_search" android:layout_width="wrap_content" android:layout_height="34dp" android:background="@drawable/bg_command_pill" android:text="ABC" android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:textStyle="bold" android:gravity="center" android:paddingHorizontal="12dp" android:clickable="true" android:focusable="true" />
-        </LinearLayout>
-        <HorizontalScrollView android:id="@+id/emoji_search_results_scroll" android:layout_width="match_parent" android:layout_height="42dp" android:layout_marginTop="4dp" android:scrollbars="none">
-            <LinearLayout android:id="@+id/emoji_search_results_container" android:layout_width="wrap_content" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center_vertical" />
-        </HorizontalScrollView>
     </LinearLayout>
 
-    <LinearLayout android:id="@+id/keyboard_body_layout" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
-        <LinearLayout android:id="@+id/one_handed_left_panel" android:layout_width="48dp" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:visibility="gone" android:paddingHorizontal="4dp">
-            <FrameLayout android:id="@+id/btn_one_handed_switch_left" android:layout_width="38dp" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true" android:layout_marginBottom="16dp">
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:src="@drawable/ic_back" android:tint="?attr/stitchTextColor" android:contentDescription="Mover para Esquerda" />
-            </FrameLayout>
-            <FrameLayout android:id="@+id/btn_one_handed_expand_left" android:layout_width="38dp" android:layout_height="38dp" android:background="@drawable/bg_command_pill" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center" android:src="@drawable/ic_fullscreen" android:tint="?attr/stitchTextColor" android:contentDescription="Expandir Teclado" />
-            </FrameLayout>
-        </LinearLayout>
-    <RelativeLayout android:id="@+id/keyboard_keys_wrapper" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content">
-    <LinearLayout android:id="@+id/keys_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:splitMotionEvents="true">
-        <LinearLayout android:id="@+id/number_row_container" android:layout_width="match_parent" android:layout_height="44dp" android:orientation="horizontal" android:weightSum="10" android:gravity="center" android:visibility="gone" android:layout_marginBottom="4dp" android:splitMotionEvents="true">
-            <TextView android:id="@+id/num_row_1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="1" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-            <TextView android:id="@+id/num_row_2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="2" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-            <TextView android:id="@+id/num_row_3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="3" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-            <TextView android:id="@+id/num_row_4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="4" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-            <TextView android:id="@+id/num_row_5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="5" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-            <TextView android:id="@+id/num_row_6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="6" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-            <TextView android:id="@+id/num_row_7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="7" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-            <TextView android:id="@+id/num_row_8" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="8" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-            <TextView android:id="@+id/num_row_9" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="9" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-            <TextView android:id="@+id/num_row_0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="0" android:textColor="?attr/stitchTextColor" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        </LinearLayout>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="horizontal" android:weightSum="10" android:gravity="center" android:splitMotionEvents="true">
-        <TextView android:id="@+id/key_q" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="Q" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_w" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="W" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_e" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="E" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_r" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="R" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_t" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="T" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_y" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="Y" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_u" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="U" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_i" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="I" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_o" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="O" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_p" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="P" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-    </LinearLayout>
-
-    <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="horizontal" android:weightSum="10" android:gravity="center" android:splitMotionEvents="true">
-        <Space android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="0.5" />
-        <TextView android:id="@+id/key_a" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="A" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_s" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="S" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_d" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="D" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_f" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="F" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_g" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="G" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_h" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="H" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_j" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="J" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_k" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="K" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_l" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="L" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <Space android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="0.5" />
-    </LinearLayout>
-
-    <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="horizontal" android:weightSum="10" android:gravity="center" android:splitMotionEvents="true">
-        <FrameLayout android:id="@+id/key_shift" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.5" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true">
-            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:orientation="vertical" android:gravity="center">
-                <ImageView android:id="@+id/icon_shift" android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_shift" android:tint="?attr/stitchTextColor" android:contentDescription="Shift" />
-                <View android:id="@+id/shift_caps_lock_bar" android:layout_width="14dp" android:layout_height="2.5dp" android:layout_marginTop="2dp" android:background="?attr/stitchTextColor" android:visibility="gone" />
-            </LinearLayout>
-        </FrameLayout>
-        <TextView android:id="@+id/key_z" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="Z" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_x" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="X" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_c" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="C" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_v" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="V" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_b" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="B" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_n" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="N" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_m" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="M" android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <FrameLayout android:id="@+id/key_backspace" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.5" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true">
-            <ImageView android:layout_width="22dp" android:layout_height="22dp" android:layout_gravity="center" android:src="@drawable/ic_backspace" android:contentDescription="Delete Key" android:tint="?attr/stitchTextColor" />
-        </FrameLayout>
-    </LinearLayout>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:weightSum="10" android:gravity="center_vertical" android:splitMotionEvents="true">
-        <FrameLayout android:id="@+id/key_symbol" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.5" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true">
-            <TextView android:id="@+id/text_key_symbol" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="123" android:textColor="?attr/stitchTextColor" android:textSize="14sp" android:fontFamily="sans-serif-medium" />
-        </FrameLayout>
-        <TextView android:id="@+id/key_comma" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="," android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <TextView android:id="@+id/key_space" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="5.0" android:background="@drawable/bg_key_editorial_flat" android:text="Tessera" android:fontFamily="sans-serif-medium" android:textStyle="normal" android:textColor="?attr/stitchTextColor" android:textSize="14sp" android:gravity="center" android:clickable="true" android:focusable="true" />
-        <TextView android:id="@+id/key_period" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="." android:textColor="?attr/stitchTextColor" android:textSize="20sp" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" android:fontFamily="sans-serif" />
-        <FrameLayout android:id="@+id/key_enter" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.5" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true">
-            <ImageView android:id="@+id/key_enter_icon" android:layout_width="22dp" android:layout_height="22dp" android:layout_gravity="center" android:src="@drawable/ic_enter_line" android:contentDescription="Enter" android:tint="?attr/stitchTextColor" />
-        </FrameLayout>
-    </LinearLayout>
-
-    </LinearLayout>
-
-    <com.example.ui.widget.SwipeTrailView
-        android:id="@+id/swipe_trail_view"
+    <!-- Voice Input Overlay -->
+    <LinearLayout
+        android:id="@+id/voice_ui_root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_alignTop="@id/keys_container"
-        android:layout_alignBottom="@id/keys_container" />
+        android:orientation="vertical"
+        android:background="?attr/stitchBgColor"
+        android:gravity="center"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true"
+        android:padding="24dp">
 
-</RelativeLayout>
+        <TextView
+            android:id="@+id/voice_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Fale agora..."
+            android:textColor="?attr/stitchTextColor"
+            android:textSize="18sp"
+            android:gravity="center"
+            android:fontFamily="sans-serif-medium"
+            android:layout_marginBottom="16dp" />
+
+        <FrameLayout
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_marginBottom="16dp">
+            <View
+                android:id="@+id/voice_pulse_bg"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_circle_pulse"
+                android:alpha="0.2" />
+            <ImageButton
+                android:id="@+id/btn_mic_action"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_circle_active"
+                android:src="@drawable/ic_microphone"
+                android:tint="?attr/stitchBgColor"
+                android:scaleType="centerInside"
+                android:contentDescription="Ouvindo" />
+        </FrameLayout>
 
         <LinearLayout
-            android:id="@+id/one_handed_right_panel"
-            android:layout_width="48dp"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
+            android:id="@+id/voice_wave_container"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:orientation="horizontal"
             android:gravity="center"
-            android:visibility="gone"
-            android:paddingHorizontal="4dp">
-            <FrameLayout
-                android:id="@+id/btn_one_handed_switch_right"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:background="@drawable/bg_command_pill"
-                android:clickable="true"
-                android:focusable="true"
-                android:layout_marginBottom="16dp">
-                <ImageView
-                    android:layout_width="18dp"
-                    android:layout_height="18dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_next_line"
-                    android:tint="?attr/stitchTextColor"
-                    android:contentDescription="Mover para Direita" />
-            </FrameLayout>
-            <FrameLayout
-                android:id="@+id/btn_one_handed_expand_right"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:background="@drawable/bg_command_pill"
-                android:clickable="true"
-                android:focusable="true">
-                <ImageView
-                    android:layout_width="18dp"
-                    android:layout_height="18dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/ic_fullscreen"
-                    android:tint="?attr/stitchTextColor"
-                    android:contentDescription="Expandir Teclado" />
-            </FrameLayout>
-        </LinearLayout>
-    </LinearLayout>
-
-</LinearLayout>
-    <LinearLayout android:id="@+id/voice_ui_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="?attr/stitchBgColor" android:gravity="center" android:visibility="gone" android:clickable="true" android:focusable="true" android:padding="24dp">
-        <TextView android:id="@+id/voice_text" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Fale agora..." android:textColor="?attr/stitchTextColor" android:textSize="18sp" android:gravity="center" android:fontFamily="sans-serif-medium" android:layout_marginBottom="16dp" />
-        <FrameLayout android:layout_width="80dp" android:layout_height="80dp" android:layout_marginBottom="16dp">
-            <View android:id="@+id/voice_pulse_bg" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/bg_circle_pulse" android:alpha="0.2" />
-            <ImageButton android:id="@+id/btn_mic_action" android:layout_width="60dp" android:layout_height="60dp" android:layout_gravity="center" android:background="@drawable/bg_circle_active" android:src="@drawable/ic_microphone" android:tint="?attr/stitchBgColor" android:scaleType="centerInside" android:contentDescription="Ouvindo" />
-        </FrameLayout>
-        <LinearLayout android:id="@+id/voice_wave_container" android:layout_width="wrap_content" android:layout_height="40dp" android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="16dp">
+            android:layout_marginBottom="16dp">
             <View android:id="@+id/wave_bar_1" android:layout_width="4dp" android:layout_height="12dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill_active" />
             <View android:id="@+id/wave_bar_2" android:layout_width="4dp" android:layout_height="24dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill_active" />
             <View android:id="@+id/wave_bar_3" android:layout_width="4dp" android:layout_height="32dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill_active" />
             <View android:id="@+id/wave_bar_4" android:layout_width="4dp" android:layout_height="24dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill_active" />
             <View android:id="@+id/wave_bar_5" android:layout_width="4dp" android:layout_height="12dp" android:layout_marginHorizontal="3dp" android:background="@drawable/bg_command_pill_active" />
         </LinearLayout>
-        <ImageButton android:id="@+id/btn_close_voice" android:layout_width="48dp" android:layout_height="48dp" android:background="@drawable/bg_command_pill" android:src="@drawable/ic_backspace" android:contentDescription="Cancelar" android:tint="?attr/stitchTextColor" android:padding="12dp" android:scaleType="fitCenter" />
+
+        <ImageButton
+            android:id="@+id/btn_close_voice"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/bg_command_pill"
+            android:src="@drawable/ic_backspace"
+            android:contentDescription="Cancelar"
+            android:tint="?attr/stitchTextColor"
+            android:padding="12dp"
+            android:scaleType="fitCenter" />
     </LinearLayout>
-    <LinearLayout android:id="@+id/emoji_ui_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@android:color/transparent" android:visibility="gone" android:padding="8dp">
-        <!-- Emoji Header with Search Bar and ABC Button -->
-        <LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
-            <LinearLayout android:id="@+id/emoji_search_bar_box" android:layout_width="0dp" android:layout_weight="1" android:layout_height="34dp" android:orientation="horizontal" android:gravity="center_vertical" android:background="@drawable/bg_command_pill" android:paddingHorizontal="10dp" android:layout_marginRight="8dp" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="15dp" android:layout_height="15dp" android:src="@drawable/ic_search_line" android:tint="?attr/stitchTextColor" android:alpha="0.6" android:layout_marginRight="6dp" />
-                <TextView android:id="@+id/emoji_search_input" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:background="@null" android:text="Buscar emojis..." android:textColor="?attr/stitchTextColor" android:alpha="0.6" android:textSize="13sp" android:gravity="center_vertical" />
-                <ImageView android:id="@+id/btn_clear_emoji_search" android:layout_width="16dp" android:layout_height="16dp" android:src="@drawable/ic_backspace" android:tint="?attr/stitchTextColor" android:alpha="0.6" android:visibility="gone" android:clickable="true" android:focusable="true" />
-            </LinearLayout>
-            <TextView android:id="@+id/btn_close_emoji" android:layout_width="wrap_content" android:layout_height="34dp" android:background="@drawable/bg_command_pill" android:text="ABC" android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:textStyle="bold" android:gravity="center" android:paddingHorizontal="14dp" android:clickable="true" android:focusable="true" />
+
+    <!-- Cursor Navigation & Editing Pad Mode -->
+    <LinearLayout
+        android:id="@+id/cursor_pad_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@drawable/bg_floating_keyboard"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true"
+        android:padding="8dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_cursor_move"
+                android:tint="?attr/stitchTextColor"
+                android:layout_marginRight="6dp" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Edição e Cursor"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="14sp"
+                android:fontFamily="sans-serif-medium" />
+            <TextView
+                android:id="@+id/btn_close_cursor_pad"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_command_pill"
+                android:text="ABC"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:paddingHorizontal="14dp"
+                android:clickable="true"
+                android:focusable="true" />
         </LinearLayout>
-        
-        <!-- Search Results View (dynamically shown when searching) -->
-        <ScrollView android:id="@+id/emoji_search_scroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scrollbars="none" android:visibility="gone">
-            <GridLayout android:id="@+id/emoji_search_results_grid" android:layout_width="match_parent" android:layout_height="wrap_content" android:columnCount="8" android:useDefaultMargins="true" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="34dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="8dp">
+            <TextView
+                android:id="@+id/cursor_btn_select_all"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_command_pill"
+                android:text="Tudo"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:layout_marginHorizontal="2dp"
+                android:clickable="true"
+                android:focusable="true" />
+            <TextView
+                android:id="@+id/cursor_btn_cut"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_command_pill"
+                android:text="Recortar"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:layout_marginHorizontal="2dp"
+                android:clickable="true"
+                android:focusable="true" />
+            <TextView
+                android:id="@+id/cursor_btn_copy"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_command_pill"
+                android:text="Copiar"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:layout_marginHorizontal="2dp"
+                android:clickable="true"
+                android:focusable="true" />
+            <TextView
+                android:id="@+id/cursor_btn_paste"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_command_pill"
+                android:text="Colar"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:layout_marginHorizontal="2dp"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center">
+                <TextView
+                    android:id="@+id/cursor_btn_home"
+                    android:layout_width="72dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:text="Início"
+                    android:textColor="?attr/stitchTextColor"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:layout_marginBottom="12dp"
+                    android:clickable="true"
+                    android:focusable="true" />
+                <TextView
+                    android:id="@+id/cursor_btn_select_toggle"
+                    android:layout_width="72dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:text="Selecionar"
+                    android:textColor="?attr/stitchTextColor"
+                    android:textSize="11sp"
+                    android:gravity="center"
+                    android:clickable="true"
+                    android:focusable="true" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <FrameLayout
+                    android:id="@+id/cursor_btn_up"
+                    android:layout_width="54dp"
+                    android:layout_height="46dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_arrow_up"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Cima" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:layout_marginVertical="4dp">
+
+                    <FrameLayout
+                        android:id="@+id/cursor_btn_left"
+                        android:layout_width="54dp"
+                        android:layout_height="46dp"
+                        android:background="@drawable/bg_command_pill"
+                        android:layout_marginRight="4dp"
+                        android:clickable="true"
+                        android:focusable="true">
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_arrow_left"
+                            android:tint="?attr/stitchTextColor"
+                            android:contentDescription="Esquerda" />
+                    </FrameLayout>
+
+                    <FrameLayout
+                        android:id="@+id/cursor_btn_center"
+                        android:layout_width="46dp"
+                        android:layout_height="46dp"
+                        android:background="@drawable/bg_command_pill"
+                        android:clickable="true"
+                        android:focusable="true">
+                        <View
+                            android:layout_width="10dp"
+                            android:layout_height="10dp"
+                            android:layout_gravity="center"
+                            android:background="@drawable/bg_key_circle" />
+                    </FrameLayout>
+
+                    <FrameLayout
+                        android:id="@+id/cursor_btn_right"
+                        android:layout_width="54dp"
+                        android:layout_height="46dp"
+                        android:background="@drawable/bg_command_pill"
+                        android:layout_marginLeft="4dp"
+                        android:clickable="true"
+                        android:focusable="true">
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_arrow_right"
+                            android:tint="?attr/stitchTextColor"
+                            android:contentDescription="Direita" />
+                    </FrameLayout>
+                </LinearLayout>
+
+                <FrameLayout
+                    android:id="@+id/cursor_btn_down"
+                    android:layout_width="54dp"
+                    android:layout_height="46dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_arrow_down"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Baixo" />
+                </FrameLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center">
+                <TextView
+                    android:id="@+id/cursor_btn_end"
+                    android:layout_width="72dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:text="Fim"
+                    android:textColor="?attr/stitchTextColor"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:layout_marginBottom="12dp"
+                    android:clickable="true"
+                    android:focusable="true" />
+                <FrameLayout
+                    android:id="@+id/cursor_btn_backspace"
+                    android:layout_width="72dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_command_pill"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_backspace"
+                        android:tint="?attr/stitchTextColor"
+                        android:contentDescription="Apagar" />
+                </FrameLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Emoji View Overlay -->
+    <LinearLayout
+        android:id="@+id/emoji_ui_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@android:color/transparent"
+        android:visibility="gone"
+        android:padding="8dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <LinearLayout
+                android:id="@+id/emoji_search_bar_box"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="34dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_command_pill"
+                android:paddingHorizontal="10dp"
+                android:layout_marginRight="8dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="15dp"
+                    android:layout_height="15dp"
+                    android:src="@drawable/ic_search_line"
+                    android:tint="?attr/stitchTextColor"
+                    android:alpha="0.6"
+                    android:layout_marginRight="6dp" />
+
+                <TextView
+                    android:id="@+id/emoji_search_input"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="match_parent"
+                    android:background="@null"
+                    android:text="Buscar emojis..."
+                    android:textColor="?attr/stitchTextColor"
+                    android:alpha="0.6"
+                    android:textSize="13sp"
+                    android:gravity="center_vertical" />
+
+                <ImageView
+                    android:id="@+id/btn_clear_emoji_search"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_backspace"
+                    android:tint="?attr/stitchTextColor"
+                    android:alpha="0.6"
+                    android:visibility="gone"
+                    android:clickable="true"
+                    android:focusable="true" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/btn_close_emoji"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:background="@drawable/bg_command_pill"
+                android:text="ABC"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:paddingHorizontal="14dp"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+
+        <ScrollView
+            android:id="@+id/emoji_search_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scrollbars="none"
+            android:visibility="gone">
+            <GridLayout
+                android:id="@+id/emoji_search_results_grid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:columnCount="8"
+                android:useDefaultMargins="true" />
         </ScrollView>
 
-        <!-- Standard Categories List (shown when not searching) -->
-        <ScrollView android:id="@+id/emoji_scroll_view" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scrollbars="none">
-            <LinearLayout android:id="@+id/emoji_lists_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+        <ScrollView
+            android:id="@+id/emoji_scroll_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scrollbars="none">
+            <LinearLayout
+                android:id="@+id/emoji_lists_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
         </ScrollView>
-        
-        <HorizontalScrollView android:id="@+id/emoji_category_bar" android:layout_width="match_parent" android:layout_height="44dp" android:layout_marginTop="8dp" android:scrollbars="none">
-            <LinearLayout android:layout_width="wrap_content" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center" android:background="@drawable/bg_command_pill" android:paddingHorizontal="4dp">
-                <TextView android:id="@+id/cat_smileys" android:layout_width="44dp" android:layout_height="match_parent" android:text="😀" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
-                <TextView android:id="@+id/cat_people" android:layout_width="44dp" android:layout_height="match_parent" android:text="👋" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
-                <TextView android:id="@+id/cat_animals" android:layout_width="44dp" android:layout_height="match_parent" android:text="🐻" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
-                <TextView android:id="@+id/cat_food" android:layout_width="44dp" android:layout_height="match_parent" android:text="🍔" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
-                <TextView android:id="@+id/cat_objects" android:layout_width="44dp" android:layout_height="match_parent" android:text="💡" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
-                <TextView android:id="@+id/cat_symbols" android:layout_width="44dp" android:layout_height="match_parent" android:text="🏁" android:gravity="center" android:textSize="20sp" android:background="?android:attr/selectableItemBackgroundBorderless" android:clickable="true" />
-                
-                <ImageButton android:id="@+id/btn_emoji_backspace" android:layout_width="44dp" android:layout_height="match_parent" android:background="?android:attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_backspace" android:contentDescription="Backspace" android:tint="?attr/stitchTextColor" android:padding="10dp" android:scaleType="fitCenter" />
+
+        <HorizontalScrollView
+            android:id="@+id/emoji_category_bar"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:background="@drawable/bg_command_pill"
+                android:paddingHorizontal="4dp">
+
+                <TextView
+                    android:id="@+id/cat_recents"
+                    android:layout_width="44dp"
+                    android:layout_height="match_parent"
+                    android:text="🕒"
+                    android:gravity="center"
+                    android:textSize="18sp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:clickable="true" />
+
+                <TextView
+                    android:id="@+id/cat_smileys"
+                    android:layout_width="44dp"
+                    android:layout_height="match_parent"
+                    android:text="😀"
+                    android:gravity="center"
+                    android:textSize="20sp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:clickable="true" />
+
+                <TextView
+                    android:id="@+id/cat_people"
+                    android:layout_width="44dp"
+                    android:layout_height="match_parent"
+                    android:text="👋"
+                    android:gravity="center"
+                    android:textSize="20sp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:clickable="true" />
+
+                <TextView
+                    android:id="@+id/cat_animals"
+                    android:layout_width="44dp"
+                    android:layout_height="match_parent"
+                    android:text="🐻"
+                    android:gravity="center"
+                    android:textSize="20sp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:clickable="true" />
+
+                <TextView
+                    android:id="@+id/cat_food"
+                    android:layout_width="44dp"
+                    android:layout_height="match_parent"
+                    android:text="🍔"
+                    android:gravity="center"
+                    android:textSize="20sp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:clickable="true" />
+
+                <TextView
+                    android:id="@+id/cat_objects"
+                    android:layout_width="44dp"
+                    android:layout_height="match_parent"
+                    android:text="💡"
+                    android:gravity="center"
+                    android:textSize="20sp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:clickable="true" />
+
+                <TextView
+                    android:id="@+id/cat_symbols"
+                    android:layout_width="44dp"
+                    android:layout_height="match_parent"
+                    android:text="🏁"
+                    android:gravity="center"
+                    android:textSize="20sp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:clickable="true" />
+
+                <ImageButton
+                    android:id="@+id/btn_emoji_backspace"
+                    android:layout_width="44dp"
+                    android:layout_height="match_parent"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_backspace"
+                    android:contentDescription="Backspace"
+                    android:tint="?attr/stitchTextColor"
+                    android:padding="10dp"
+                    android:scaleType="fitCenter" />
             </LinearLayout>
         </HorizontalScrollView>
     </LinearLayout>
-    <LinearLayout android:id="@+id/numeric_keypad_root" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_floating_keyboard" android:paddingLeft="6dp" android:paddingRight="6dp" android:paddingTop="4dp" android:paddingBottom="52dp" android:visibility="gone" android:clickable="true" android:focusable="true" android:splitMotionEvents="true">
-        <!-- Tools Bar for Numeric Pad -->
-        <LinearLayout android:id="@+id/num_top_tools_bar" android:layout_width="match_parent" android:layout_height="34dp" android:orientation="horizontal" android:gravity="center" android:layout_marginBottom="4dp">
-            <FrameLayout android:id="@+id/num_key_clipboard_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="30dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="15dp" android:layout_height="15dp" android:layout_gravity="center" android:src="@drawable/ic_paste_line" android:tint="?attr/stitchTextColor" android:contentDescription="Área de Transferência" />
+
+    <!-- Numeric Keypad Overlay -->
+    <LinearLayout
+        android:id="@+id/numeric_keypad_root"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_floating_keyboard"
+        android:paddingLeft="6dp"
+        android:paddingRight="6dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="0dp"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true"
+        android:splitMotionEvents="true">
+
+        <LinearLayout
+            android:id="@+id/num_top_tools_bar"
+            android:layout_width="match_parent"
+            android:layout_height="34dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="4dp">
+
+            <FrameLayout
+                android:id="@+id/num_key_clipboard_top"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="30dp"
+                android:background="@drawable/bg_command_pill"
+                android:layout_marginHorizontal="2dp"
+                android:clickable="true"
+                android:focusable="true">
+                <ImageView
+                    android:layout_width="15dp"
+                    android:layout_height="15dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_paste_line"
+                    android:tint="?attr/stitchTextColor"
+                    android:contentDescription="Área de Transferência" />
             </FrameLayout>
-            <FrameLayout android:id="@+id/num_key_mic_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="30dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
-                <View android:layout_width="12dp" android:layout_height="12dp" android:background="@drawable/bg_key_circle" android:layout_gravity="center" />
-                <View android:layout_width="6dp" android:layout_height="6dp" android:background="@drawable/bg_circle_white" android:layout_gravity="center" />
+
+            <FrameLayout
+                android:id="@+id/num_key_mic_top"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="30dp"
+                android:background="@drawable/bg_command_pill"
+                android:layout_marginHorizontal="2dp"
+                android:clickable="true"
+                android:focusable="true">
+                <ImageView
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_mic_line"
+                    android:tint="?attr/stitchTextColor"
+                    android:contentDescription="Voz" />
             </FrameLayout>
-            <FrameLayout android:id="@+id/num_key_settings_top" android:layout_width="0dp" android:layout_weight="1" android:layout_height="30dp" android:background="@drawable/bg_command_pill" android:layout_marginHorizontal="2dp" android:clickable="true" android:focusable="true">
-                <ImageView android:layout_width="15dp" android:layout_height="15dp" android:layout_gravity="center" android:src="@drawable/ic_settings_line" android:contentDescription="Configurações" />
+
+            <FrameLayout
+                android:id="@+id/num_key_settings_top"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="30dp"
+                android:background="@drawable/bg_command_pill"
+                android:layout_marginHorizontal="2dp"
+                android:clickable="true"
+                android:focusable="true">
+                <ImageView
+                    android:layout_width="15dp"
+                    android:layout_height="15dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_settings_line"
+                    android:contentDescription="Configurações" />
             </FrameLayout>
         </LinearLayout>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:orientation="horizontal" android:gravity="center" android:weightSum="7" android:layout_marginBottom="6dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:weightSum="7"
+            android:layout_marginBottom="6dp">
             <TextView android:id="@+id/num_sym_minus" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="-" android:textColor="?attr/stitchTextColor" android:textSize="18sp" android:gravity="center" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true" />
             <TextView android:id="@+id/num_sym_slash" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="/" android:textColor="?attr/stitchTextColor" android:textSize="18sp" android:gravity="center" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true" />
             <TextView android:id="@+id/num_sym_colon" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text=":" android:textColor="?attr/stitchTextColor" android:textSize="18sp" android:gravity="center" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true" />
@@ -304,6 +1235,7 @@
             <TextView android:id="@+id/num_sym_dollar" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="$" android:textColor="?attr/stitchTextColor" android:textSize="18sp" android:gravity="center" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true" />
             <TextView android:id="@+id/num_sym_percent" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="%" android:textColor="?attr/stitchTextColor" android:textSize="18sp" android:gravity="center" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true" />
         </LinearLayout>
+
         <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="horizontal" android:weightSum="4" android:gravity="center">
             <TextView android:id="@+id/num_key_1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="1" android:textColor="?attr/stitchTextColor" android:textSize="22sp" android:fontFamily="sans-serif" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" />
             <TextView android:id="@+id/num_key_2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="2" android:textColor="?attr/stitchTextColor" android:textSize="22sp" android:fontFamily="sans-serif" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" />
@@ -312,12 +1244,14 @@
                 <ImageView android:layout_width="22dp" android:layout_height="22dp" android:layout_gravity="center" android:src="@drawable/ic_backspace" android:tint="?attr/stitchTextColor" />
             </FrameLayout>
         </LinearLayout>
+
         <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="horizontal" android:weightSum="4" android:gravity="center">
             <TextView android:id="@+id/num_key_4" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="4" android:textColor="?attr/stitchTextColor" android:textSize="22sp" android:fontFamily="sans-serif" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" />
             <TextView android:id="@+id/num_key_5" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="5" android:textColor="?attr/stitchTextColor" android:textSize="22sp" android:fontFamily="sans-serif" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" />
             <TextView android:id="@+id/num_key_6" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="6" android:textColor="?attr/stitchTextColor" android:textSize="22sp" android:fontFamily="sans-serif" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" />
             <TextView android:id="@+id/num_key_plus" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="+" android:textColor="?attr/stitchTextColor" android:textSize="22sp" android:fontFamily="sans-serif" android:gravity="center" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true" />
         </LinearLayout>
+
         <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="horizontal" android:weightSum="4" android:gravity="center">
             <TextView android:id="@+id/num_key_7" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="7" android:textColor="?attr/stitchTextColor" android:textSize="22sp" android:fontFamily="sans-serif" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" />
             <TextView android:id="@+id/num_key_8" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="8" android:textColor="?attr/stitchTextColor" android:textSize="22sp" android:fontFamily="sans-serif" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" />
@@ -326,6 +1260,7 @@
                 <ImageView android:id="@+id/num_enter_icon" android:layout_width="22dp" android:layout_height="22dp" android:layout_gravity="center" android:src="@drawable/ic_enter_line" android:tint="?attr/stitchTextColor" />
             </FrameLayout>
         </LinearLayout>
+
         <LinearLayout android:layout_width="match_parent" android:layout_height="50dp" android:orientation="horizontal" android:weightSum="4" android:gravity="center">
             <FrameLayout android:id="@+id/num_key_abc" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:background="@drawable/bg_key_action_flat" android:clickable="true" android:focusable="true">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="ABC" android:textColor="?attr/stitchTextColor" android:textSize="14sp" android:fontFamily="sans-serif-medium" />
@@ -335,29 +1270,172 @@
             <TextView android:id="@+id/num_key_dot" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="." android:textColor="?attr/stitchTextColor" android:textSize="22sp" android:fontFamily="sans-serif" android:gravity="center" android:background="@drawable/bg_key_editorial_flat" android:clickable="true" android:focusable="true" />
         </LinearLayout>
     </LinearLayout>
-    <LinearLayout android:id="@+id/clipboard_history_ui_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@drawable/bg_floating_keyboard" android:paddingLeft="8dp" android:paddingRight="8dp" android:paddingTop="12dp" android:paddingBottom="56dp" android:visibility="gone" android:clickable="true" android:focusable="false">
-        <!-- Top Toolbar -->
-        <LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
-            <ImageView android:layout_width="16dp" android:layout_height="16dp" android:src="@drawable/ic_paste_line" android:tint="?attr/stitchTextColor" android:layout_marginRight="6dp" />
-            <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Área de Transferência" android:textColor="?attr/stitchTextColor" android:textSize="14sp" android:fontFamily="sans-serif-medium" />
-            <TextView android:id="@+id/btn_clear_clipboard" android:layout_width="wrap_content" android:layout_height="30dp" android:background="@drawable/bg_command_pill" android:text="Limpar" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:gravity="center" android:paddingHorizontal="10dp" android:layout_marginRight="6dp" android:clickable="true" android:focusable="false" />
-            <TextView android:id="@+id/btn_close_clipboard" android:layout_width="wrap_content" android:layout_height="30dp" android:background="@drawable/bg_command_pill" android:text="ABC" android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:textStyle="bold" android:gravity="center" android:paddingHorizontal="14dp" android:clickable="true" android:focusable="false" />
+
+    <!-- Clipboard History Overlay -->
+    <LinearLayout
+        android:id="@+id/clipboard_history_ui_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@drawable/bg_floating_keyboard"
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="56dp"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="false">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_paste_line"
+                android:tint="?attr/stitchTextColor"
+                android:layout_marginRight="6dp" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Área de Transferência"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="14sp"
+                android:fontFamily="sans-serif-medium" />
+            <TextView
+                android:id="@+id/btn_clear_clipboard"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:background="@drawable/bg_command_pill"
+                android:text="Limpar"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:paddingHorizontal="10dp"
+                android:layout_marginRight="6dp"
+                android:clickable="true"
+                android:focusable="false" />
+            <TextView
+                android:id="@+id/btn_close_clipboard"
+                android:layout_width="wrap_content"
+                android:layout_height="30dp"
+                android:background="@drawable/bg_command_pill"
+                android:text="ABC"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:paddingHorizontal="14dp"
+                android:clickable="true"
+                android:focusable="false" />
         </LinearLayout>
 
-        <!-- Quick Editing Toolbar: Selecionar tudo, Copiar, Recortar, Colar -->
-        <LinearLayout android:id="@+id/clipboard_quick_actions" android:layout_width="match_parent" android:layout_height="32dp" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
-            <TextView android:id="@+id/btn_action_select_all" android:layout_width="0dp" android:layout_weight="1.2" android:layout_height="match_parent" android:background="@drawable/bg_command_pill" android:text="Tudo" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:gravity="center" android:clickable="true" android:focusable="false" android:layout_marginRight="4dp" />
-            <TextView android:id="@+id/btn_action_copy" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:background="@drawable/bg_command_pill" android:text="Copiar" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:gravity="center" android:clickable="true" android:focusable="false" android:layout_marginRight="4dp" />
-            <TextView android:id="@+id/btn_action_cut" android:layout_width="0dp" android:layout_weight="1.1" android:layout_height="match_parent" android:background="@drawable/bg_command_pill" android:text="Recortar" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:gravity="center" android:clickable="true" android:focusable="false" android:layout_marginRight="4dp" />
-            <TextView android:id="@+id/btn_action_paste" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:background="@drawable/bg_command_pill" android:text="Colar" android:textColor="?attr/stitchTextColor" android:textSize="12sp" android:gravity="center" android:clickable="true" android:focusable="false" />
+        <LinearLayout
+            android:id="@+id/clipboard_quick_actions"
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+            <TextView
+                android:id="@+id/btn_action_select_all"
+                android:layout_width="0dp"
+                android:layout_weight="1.2"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_command_pill"
+                android:text="Tudo"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:clickable="true"
+                android:focusable="false"
+                android:layout_marginRight="4dp" />
+            <TextView
+                android:id="@+id/btn_action_copy"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_command_pill"
+                android:text="Copiar"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:clickable="true"
+                android:focusable="false"
+                android:layout_marginRight="4dp" />
+            <TextView
+                android:id="@+id/btn_action_cut"
+                android:layout_width="0dp"
+                android:layout_weight="1.1"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_command_pill"
+                android:text="Recortar"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:clickable="true"
+                android:focusable="false"
+                android:layout_marginRight="4dp" />
+            <TextView
+                android:id="@+id/btn_action_paste"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_command_pill"
+                android:text="Colar"
+                android:textColor="?attr/stitchTextColor"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:clickable="true"
+                android:focusable="false" />
         </LinearLayout>
 
-        <TextView android:id="@+id/clipboard_empty_text" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Nenhum item copiado recentemente." android:textColor="?attr/stitchTextColor" android:textSize="13sp" android:gravity="center" android:alpha="0.5" android:layout_marginTop="24dp" android:visibility="gone" />
+        <TextView
+            android:id="@+id/clipboard_empty_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Nenhum item copiado recentemente."
+            android:textColor="?attr/stitchTextColor"
+            android:textSize="13sp"
+            android:gravity="center"
+            android:alpha="0.5"
+            android:layout_marginTop="24dp"
+            android:visibility="gone" />
 
-        <ScrollView android:id="@+id/clipboard_scroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scrollbars="none">
-            <LinearLayout android:id="@+id/clipboard_entries_container" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+        <ScrollView
+            android:id="@+id/clipboard_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scrollbars="none">
+            <LinearLayout
+                android:id="@+id/clipboard_entries_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
         </ScrollView>
     </LinearLayout>
 
-<LinearLayout android:id="@+id/key_preview_popup" android:layout_width="54dp" android:layout_height="60dp" android:orientation="vertical" android:background="@drawable/bg_preview_popup" android:gravity="center" android:visibility="gone"><TextView android:id="@+id/key_preview_text" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="?attr/stitchGlowColor" android:textSize="26sp" android:textStyle="normal" android:fontFamily="sans-serif-light" /></LinearLayout>
-</FrameLayout>
+    <LinearLayout
+        android:id="@+id/key_preview_popup"
+        android:layout_width="54dp"
+        android:layout_height="60dp"
+        android:orientation="vertical"
+        android:background="@drawable/bg_preview_popup"
+        android:gravity="center"
+        android:visibility="gone">
+        <TextView
+            android:id="@+id/key_preview_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="?attr/stitchGlowColor"
+            android:textSize="26sp"
+            android:textStyle="normal"
+            android:fontFamily="sans-serif-light" />
+    </LinearLayout>
+
+</FrameLayout>

@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.ui.widget.KeyboardLivePreview
 import com.example.ui.theme.*
 
@@ -127,7 +128,11 @@ fun TabTypingContent(
     soundFeedback: Boolean,
     onSoundFeedbackChange: (Boolean) -> Unit,
     hasMicPermission: Boolean,
-    onRequestMicPermission: () -> Unit
+    onRequestMicPermission: () -> Unit,
+    soundProfile: String = "thock",
+    onSoundProfileChange: (String) -> Unit = {},
+    adaptiveHitboxes: Boolean = true,
+    onAdaptiveHitboxesChange: (Boolean) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -142,6 +147,13 @@ fun TabTypingContent(
         )
 
         SectionCard(title = "Entrada e Automações") {
+            SettingToggle(
+                title = "Hitboxes Voronoi Inteligentes",
+                description = "Expande a área de toque em tempo real para próximas letras pelo dicionário em português",
+                checked = adaptiveHitboxes,
+                onCheckedChange = onAdaptiveHitboxesChange
+            )
+            DividerLine()
             SettingToggle(
                 title = "Correção Automática",
                 description = "Corrige palavras comuns ao pressionar a barra de espaço",
@@ -310,6 +322,36 @@ fun TabTypingContent(
                 checked = soundFeedback,
                 onCheckedChange = onSoundFeedbackChange
             )
+            if (soundFeedback) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Perfil Acústico Mecânico",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Slate300
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val profiles = listOf("thock" to "Thock", "crisp" to "Crisp", "typewriter" to "Typewriter", "system" to "Sistema")
+                    for ((id, name) in profiles) {
+                        val isSelected = soundProfile == id
+                        Button(
+                            onClick = { onSoundProfileChange(id) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isSelected) AccentSky else Slate850,
+                                contentColor = if (isSelected) Color.Black else Slate300
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                        ) {
+                            Text(name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                        }
+                    }
+                }
+            }
             if (!hasMicPermission) {
                 DividerLine()
                 Row(

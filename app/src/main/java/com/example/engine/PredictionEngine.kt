@@ -12,7 +12,7 @@ class PredictionEngine(
     context: Context? = null
 ) {
 
-    private val trie = TrieDictionary()
+    val trie = TrieDictionary()
 
     private val staticDictionary = listOf(
         // Pronomes e conectivos frequentes (alta prioridade)
@@ -251,6 +251,13 @@ class PredictionEngine(
     @Volatile
     var isLearningEnabled: Boolean = true
 
+    @Volatile
+    var isSmartAbbrEnabled: Boolean = true
+
+    fun getValidNextCharsMask(prefix: String): Int {
+        return trie.getValidNextCharsMask(prefix)
+    }
+
     fun learnWord(word: String) {
         if (!isLearningEnabled) return
         val clean = word.trim().lowercase()
@@ -305,7 +312,11 @@ class PredictionEngine(
         "copo" to "de",
         "gosto" to "de",
         "antes" to "de",
-        "depois" to "de"
+        "depois" to "de",
+        "eles" to "têm",
+        "elas" to "têm",
+        "vocês" to "têm",
+        "vcs" to "têm"
     )
 
     fun learnBigram(w1: String, w2: String) {
@@ -344,7 +355,7 @@ class PredictionEngine(
 
     private fun computePredictions(clean: String, previousWord: String? = null): List<String> {
         val lower = clean.lowercase()
-        val expansion = abbreviationsMap[lower]
+        val expansion = if (isSmartAbbrEnabled) abbreviationsMap[lower] else null
         if (expansion != null) {
             val expandedWord = TrieDictionary.matchCasing(clean, expansion)
             return listOf(expandedWord, clean)
@@ -355,8 +366,20 @@ class PredictionEngine(
         val norm = TrieDictionary.normalizeFast(clean)
         val result = mutableListOf<String>()
 
-        // 1. Camada de Restauração Imediata de Acentos (prioridade máxima)
-        val accentRestored = accentRestorationMap[lower]
+        // 1. Camada de Restauração Imediata de Acentos com desambiguação contextual
+        var accentRestored = accentRestorationMap[lower]
+        if (lower == "esta" && !previousWord.isNullOrEmpty()) {
+            val prev = previousWord.lowercase()
+            if (prev in setOf("em", "nesta", "para", "por", "com", "sobre", "durante", "toda", "todo", "de", "da")) {
+                accentRestored = null
+            }
+        }
+        if (lower == "tem" && !previousWord.isNullOrEmpty()) {
+            val prev = previousWord.lowercase()
+            if (prev in setOf("eles", "elas", "vocês", "voces", "vcs")) {
+                accentRestored = "têm"
+            }
+        }
         if (accentRestored != null) {
             result.add(TrieDictionary.matchCasing(clean, accentRestored))
         }
@@ -531,14 +554,32 @@ class PredictionEngine(
         if (clean.length < 2) return null
         val lower = clean.lowercase()
 
-        // 1. Abreviações diretas de gírias e conectivos (vc -> você, tbm -> também, etc.)
-        abbreviationsMap[lower]?.let {
-            return TrieDictionary.matchCasing(clean, it)
+        // 1. Abreviações diretas (somente se habilitado)
+        if (isSmartAbbrEnabled) {
+            abbreviationsMap[lower]?.let {
+                return TrieDictionary.matchCasing(clean, it)
+            }
         }
 
-        // 2. Restauração direta de acentos essenciais (voce -> você, estao -> estão, etc.)
-        accentRestorationMap[lower]?.let {
-            return TrieDictionary.matchCasing(clean, it)
+        // 2. Restauração direta de acentos essenciais com desambiguação contextual
+        if (lower == "esta" && !previousWord.isNullOrEmpty()) {
+            val prev = previousWord.lowercase()
+            if (prev in setOf("em", "nesta", "para", "por", "com", "sobre", "durante", "toda", "todo", "de", "da")) {
+                // Preserva demonstrativo "esta"
+            } else {
+                accentRestorationMap[lower]?.let {
+                    return TrieDictionary.matchCasing(clean, it)
+                }
+            }
+        } else if (lower == "tem" && !previousWord.isNullOrEmpty()) {
+            val prev = previousWord.lowercase()
+            if (prev in setOf("eles", "elas", "vocês", "voces", "vcs")) {
+                return TrieDictionary.matchCasing(clean, "têm")
+            }
+        } else {
+            accentRestorationMap[lower]?.let {
+                return TrieDictionary.matchCasing(clean, it)
+            }
         }
 
         // 3. Consulta de predições imediatas
@@ -555,7 +596,10 @@ class PredictionEngine(
         // Se a palavra digitada NÃO existe no dicionário e temos uma correção de proximidade plausível
         val exactWord = trie.findExactWord(clean)
         if (exactWord == null && !top.equals(clean, ignoreCase = true)) {
-            return top
+            // Requer diferença de comprimento <= 1 para evitar sequestro de prefixos curtos ("dig" -> "digitando")
+            if (kotlin.math.abs(top.length - clean.length) <= 1 && clean.length >= 3) {
+                return top
+            }
         }
 
         return null

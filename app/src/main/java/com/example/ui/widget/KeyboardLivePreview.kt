@@ -116,6 +116,7 @@ fun KeyboardLivePreview(
             ) {
                 Text(text = "🎤", fontSize = 11.sp, color = animatedText.copy(alpha = 0.7f))
                 Text(text = "📋", fontSize = 11.sp, color = animatedText.copy(alpha = 0.7f))
+                Text(text = "🎯", fontSize = 11.sp, color = animatedText.copy(alpha = 0.7f))
                 Text(text = "😊", fontSize = 11.sp, color = animatedText.copy(alpha = 0.7f))
                 Text(text = "📱", fontSize = 11.sp, color = animatedText.copy(alpha = 0.7f))
                 Text(text = "⚙️", fontSize = 11.sp, color = animatedText.copy(alpha = 0.7f))
@@ -235,7 +236,8 @@ private fun RowScope.MiniKey(
             .weight(weight)
             .fillMaxHeight()
             .clip(RoundedCornerShape(cornerRadius))
-            .background(bg),
+            .background(bg)
+            .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(cornerRadius)),
         contentAlignment = Alignment.Center
     ) {
         Row(
@@ -276,7 +278,8 @@ private fun RowScope.MiniPill(
             .weight(weight)
             .fillMaxHeight()
             .clip(RoundedCornerShape(cornerRadius))
-            .background(bg),
+            .background(bg)
+            .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(cornerRadius)),
         contentAlignment = Alignment.Center
     ) {
         Text(

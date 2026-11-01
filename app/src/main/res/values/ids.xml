@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="key_q" type="id" />
+    <item name="key_w" type="id" />
+    <item name="key_e" type="id" />
+    <item name="key_r" type="id" />
+    <item name="key_t" type="id" />
+    <item name="key_y" type="id" />
+    <item name="key_u" type="id" />
+    <item name="key_i" type="id" />
+    <item name="key_o" type="id" />
+    <item name="key_p" type="id" />
+    <item name="key_a" type="id" />
+    <item name="key_s" type="id" />
+    <item name="key_d" type="id" />
+    <item name="key_f" type="id" />
+    <item name="key_g" type="id" />
+    <item name="key_h" type="id" />
+    <item name="key_j" type="id" />
+    <item name="key_k" type="id" />
+    <item name="key_l" type="id" />
+    <item name="key_z" type="id" />
+    <item name="key_x" type="id" />
+    <item name="key_c" type="id" />
+    <item name="key_v" type="id" />
+    <item name="key_b" type="id" />
+    <item name="key_n" type="id" />
+    <item name="key_m" type="id" />
+    <item name="key_comma" type="id" />
+    <item name="key_period" type="id" />
+    <item name="key_shift" type="id" />
+    <item name="key_backspace" type="id" />
+    <item name="key_symbol" type="id" />
+    <item name="key_space" type="id" />
+    <item name="key_enter" type="id" />
+    <item name="key_enter_icon" type="id" />
+    <item name="text_key_symbol" type="id" />
+    <item name="shift_caps_lock_bar" type="id" />
+    <item name="icon_shift" type="id" />
+</resources>

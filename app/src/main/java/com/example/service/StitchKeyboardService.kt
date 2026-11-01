@@ -1,5 +1,16 @@
 package com.example.service
 
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import com.example.manager.HapticEngine
+import com.example.manager.AcousticSoundEngine
+import com.example.manager.RecentEmojiManager
+import com.example.engine.InlineCalculatorEngine
+import com.example.ui.keyboard.TesseraKeyPlaneView
+import com.example.ui.keyboard.DynamicThemeResolver
+import com.example.ui.keyboard.KeyboardLayoutMode
+import com.example.ui.keyboard.KeyAction
+
 import com.example.R
 import com.example.BuildConfig
 import com.example.engine.PredictionEngine
@@ -74,6 +85,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 class StitchKeyboardService : InputMethodService() {
+
+    private var tesseraKeyPlane: TesseraKeyPlaneView? = null
+    private lateinit var hapticEngine: HapticEngine
+    private lateinit var acousticSoundEngine: AcousticSoundEngine
+    private lateinit var recentEmojiManager: RecentEmojiManager
+    private lateinit var cursorPadRoot: View
+    private var isCursorSelecting = false
+    private var lastGlideThrottleTime = 0L
+    private val swipeTrajectory = mutableListOf<com.example.engine.TrajectoryPoint>()
+
 
     private var isShifted = false
     private var isCapsLock = false
@@ -261,6 +282,10 @@ class StitchKeyboardService : InputMethodService() {
 
             localDict = com.example.manager.LocalDictionaryManager(this)
             predictionEngine = com.example.engine.PredictionEngine(localDict, this)
+            hapticEngine = HapticEngine(this)
+            acousticSoundEngine = AcousticSoundEngine(this)
+            acousticSoundEngine.init()
+            recentEmojiManager = RecentEmojiManager(this)
             clipboardHistoryManager = ClipboardHistoryManager(this)
             try {
                 val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -292,6 +317,19 @@ class StitchKeyboardService : InputMethodService() {
         prefHapticDurationMs = sp.getInt("PREF_HAPTIC_DURATION_MS", 15)
         prefNumberRow = sp.getBoolean("PREF_NUMBER_ROW", false)
         prefGlideTyping = sp.getBoolean("PREF_GLIDE_TYPING", true)
+        if (::hapticEngine.isInitialized) {
+            hapticEngine.isEnabled = prefHapticFeedback
+            hapticEngine.durationMs = prefHapticDurationMs
+        }
+        if (::acousticSoundEngine.isInitialized) {
+            val soundProfile = sp.getString("PREF_SOUND_PROFILE", "thock") ?: "thock"
+            val soundVolume = sp.getInt("PREF_SOUND_VOLUME", 50) / 100f
+            acousticSoundEngine.profile = soundProfile
+            acousticSoundEngine.volume = soundVolume
+            acousticSoundEngine.isEnabled = prefSoundFeedback
+        }
+        val adaptiveHitboxes = sp.getBoolean("PREF_ADAPTIVE_HITBOXES", true)
+        tesseraKeyPlane?.isAdaptiveHitboxesEnabled = adaptiveHitboxes
         prefSoundFeedback = sp.getBoolean("PREF_SOUND_FEEDBACK", false)
         prefKeyPopup = sp.getBoolean("PREF_KEY_POPUP", true)
         prefAutocorrect = sp.getBoolean("PREF_AUTOCORRECT", true)
@@ -337,6 +375,20 @@ class StitchKeyboardService : InputMethodService() {
             numericRoot = keyboardView.findViewById(R.id.numeric_keypad_root)
             dragPill = keyboardView.findViewById(R.id.drag_pill)
             topCommandsBar = keyboardView.findViewById(R.id.top_commands_bar)
+
+            ViewCompat.setOnApplyWindowInsetsListener(keyboardRoot) { v, insets ->
+                val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+                v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, navBars.bottom.coerceAtLeast(0))
+                insets
+            }
+
+            cursorPadRoot = keyboardView.findViewById(R.id.cursor_pad_root)
+            keyboardView.findViewById<View>(R.id.key_cursor_top)?.setOnClickListener {
+                if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(keyboardRoot)
+                if (::acousticSoundEngine.isInitialized) acousticSoundEngine.playSound(isSpecialKey = true)
+                showCursorPad()
+            }
+            setupCursorPad(keyboardView)
 
             // Emoji Search mode views
             emojiSearchModeContainer = keyboardView.findViewById(R.id.emoji_search_mode_container)
@@ -761,6 +813,20 @@ class StitchKeyboardService : InputMethodService() {
         }
         if (newSelStart != oldSelStart || newSelEnd != oldSelEnd) {
             composingBuffer.setLength(0)
+            if (newSelStart == newSelEnd) {
+                val ic = currentInputConnection
+                if (ic != null) {
+                    val before = ic.getTextBeforeCursor(25, 0)?.toString() ?: ""
+                    val after = ic.getTextAfterCursor(25, 0)?.toString() ?: ""
+                    val wordBefore = before.takeLastWhile { it.isLetter() }
+                    val wordAfter = after.takeWhile { it.isLetter() }
+                    val fullWord = wordBefore + wordAfter
+                    if (fullWord.length >= 2) {
+                        scheduleAsyncPrediction(fullWord, "")
+                        return
+                    }
+                }
+            }
             clearPredictionsUi()
         }
     }
@@ -1362,6 +1428,17 @@ class StitchKeyboardService : InputMethodService() {
         val editorInfo = currentInputEditorInfo
         if (editorInfo != null && isPasswordField(editorInfo)) {
             clearPredictionsUi()
+            return
+        }
+
+        val beforeText = currentInputConnection?.getTextBeforeCursor(40, 0)?.toString() ?: ""
+        val calc = InlineCalculatorEngine.tryEvaluate(beforeText)
+        if (calc != null) {
+            predictionJob?.cancel()
+            updateSuggestionView(suggestion1, calc.expression)
+            updateSuggestionView(suggestion2, "= ${calc.formatted}")
+            updateSuggestionView(suggestion3, calc.formatted)
+            updateTopStripVisibility()
             return
         }
 
@@ -2006,7 +2083,433 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     @SuppressLint("ClickableViewAccessibility")
+    private fun setupTesseraKeyPlane(plane: TesseraKeyPlaneView) {
+        plane.setPalette(DynamicThemeResolver.resolve(this, currentTheme))
+        val sp = getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE)
+        plane.isAdaptiveHitboxesEnabled = sp.getBoolean("PREF_ADAPTIVE_HITBOXES", true)
+        plane.keyboardScale = cachedKeyboardScale
+        plane.showNumberRow = false
+        plane.isGlideEnabled = prefGlideTyping
+
+        plane.listener = object : TesseraKeyPlaneView.KeyPlaneListener {
+            override fun onChar(char: String) {
+                if (::hapticEngine.isInitialized) hapticEngine.performKeyPress(plane)
+                if (::acousticSoundEngine.isInitialized) acousticSoundEngine.playSound(isSpecialKey = false)
+                handleCharacterClick(char)
+                updateTrieNextMask()
+            }
+
+            override fun onBackspace() {
+                if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(plane)
+                if (::acousticSoundEngine.isInitialized) acousticSoundEngine.playSound(isSpecialKey = true)
+                handleBackspace()
+                updateTrieNextMask()
+            }
+
+            override fun onSpace() {
+                if (::hapticEngine.isInitialized) hapticEngine.performKeyPress(plane)
+                if (::acousticSoundEngine.isInitialized) acousticSoundEngine.playSound(isSpecialKey = true)
+                handleSpace()
+                updateTrieNextMask()
+            }
+
+            override fun onEnter() {
+                if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(plane)
+                if (::acousticSoundEngine.isInitialized) acousticSoundEngine.playSound(isSpecialKey = true)
+                handleEnter()
+                updateTrieNextMask()
+            }
+
+            override fun onShiftClick(isDoubleClick: Boolean) {
+                if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(plane)
+                if (::acousticSoundEngine.isInitialized) acousticSoundEngine.playSound(isSpecialKey = true)
+                handleShiftAction(isDoubleClick)
+            }
+
+            override fun onModeToggle() {
+                if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(plane)
+                if (::acousticSoundEngine.isInitialized) acousticSoundEngine.playSound(isSpecialKey = true)
+                toggleKeyboardMode()
+            }
+
+            override fun onExtendedModeToggle() {
+                if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(plane)
+                if (::acousticSoundEngine.isInitialized) acousticSoundEngine.playSound(isSpecialKey = true)
+                toggleExtendedSymbols()
+            }
+
+            override fun onFlickUp(char: String) {
+                if (::hapticEngine.isInitialized) hapticEngine.performKeyPress(plane)
+                if (::acousticSoundEngine.isInitialized) acousticSoundEngine.playSound(isSpecialKey = false)
+                handleCharacterClick(char)
+                updateTrieNextMask()
+            }
+
+            override fun onSpaceTrackpad(deltaSteps: Int, isSelecting: Boolean) {
+                if (::hapticEngine.isInitialized) hapticEngine.performMicroTick(plane)
+                handleTrackpadMovement(deltaSteps, isSelecting)
+            }
+
+            override fun onGlideStart(x: Float, y: Float) {
+                if (!prefGlideTyping) return
+                swipeTrailView?.fadeAndClear()
+                swipeTrajectory.clear()
+                swipeTrajectory.add(com.example.engine.TrajectoryPoint(x, y, android.os.SystemClock.uptimeMillis()))
+                swipeTrailView?.addPoint(x, y)
+            }
+
+            override fun onGlideMove(x: Float, y: Float, time: Long) {
+                if (!prefGlideTyping) return
+                swipeTrajectory.add(com.example.engine.TrajectoryPoint(x, y, time))
+                swipeTrailView?.addPoint(x, y)
+                throttleGlideLivePreview()
+            }
+
+            override fun onGlideEnd() {
+                if (!prefGlideTyping) return
+                swipeTrailView?.fadeAndClear()
+                commitGlideGesture()
+            }
+
+            override fun onKeyTouchDown() {}
+
+            override fun onAccentSelectedTick() {
+                if (::hapticEngine.isInitialized) hapticEngine.performMicroTick(plane)
+            }
+        }
+    }
+
+    private fun updateTrieNextMask() {
+        val plane = tesseraKeyPlane ?: return
+        if (!plane.isAdaptiveHitboxesEnabled) {
+            plane.validNextCharsMask = 0
+            return
+        }
+        val prefix = composingBuffer.toString()
+        plane.validNextCharsMask = predictionEngine.getValidNextCharsMask(prefix)
+    }
+
+    private fun handleShiftAction(isDoubleClick: Boolean) {
+        val ic = currentInputConnection
+        val selectedText = ic?.getSelectedText(0)?.toString()
+        if (!selectedText.isNullOrEmpty()) {
+            val newText = when {
+                selectedText.all { it.isUpperCase() || !it.isLetter() } -> selectedText.lowercase()
+                selectedText.all { it.isLowerCase() || !it.isLetter() } -> {
+                    selectedText.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                }
+                else -> selectedText.uppercase()
+            }
+            ic.beginBatchEdit()
+            localEditCount++
+            ic.commitText(newText, 1)
+            ic.setSelection(ic.getTextBeforeCursor(1000, 0)?.length ?: 0, ic.getTextBeforeCursor(1000, 0)?.length ?: 0)
+            ic.endBatchEdit()
+            return
+        }
+
+        val plane = tesseraKeyPlane
+        if (plane != null) {
+            if (isDoubleClick) {
+                plane.isCapsLock = !plane.isCapsLock
+                plane.isShifted = plane.isCapsLock
+            } else {
+                if (plane.isCapsLock) {
+                    plane.isCapsLock = false
+                    plane.isShifted = false
+                } else {
+                    plane.isShifted = !plane.isShifted
+                }
+            }
+            isShifted = plane.isShifted
+            isCapsLock = plane.isCapsLock
+        } else {
+            handleShiftClick()
+        }
+    }
+
+    private fun handleSpace() {
+        if (isEmojiSearchMode) {
+            emojiSearchQuery += " "
+            updateEmojiSearchUi()
+            return
+        }
+        val ic = currentInputConnection
+        val editorInfo = currentInputEditorInfo
+        val lastWord = composingBuffer.toString()
+        val centerCandidate = suggestion2?.text?.toString()?.trim() ?: ""
+
+        val textBeforeCursor = ic?.getTextBeforeCursor(50, 0)?.toString() ?: ""
+        val tokenBeforeCursor = textBeforeCursor.takeLastWhile { !it.isWhitespace() }
+
+        val snippetQuery = when {
+            lastWord.isNotEmpty() && snippetManager.findExpansion(lastWord) != null -> lastWord
+            tokenBeforeCursor.isNotEmpty() && snippetManager.findExpansion(tokenBeforeCursor) != null -> tokenBeforeCursor
+            else -> null
+        }
+
+        if (snippetQuery != null) {
+            val snippetExp = snippetManager.findExpansion(snippetQuery)
+            if (snippetExp != null) {
+                val deleteLen = if (tokenBeforeCursor.isNotEmpty()) tokenBeforeCursor.length else snippetQuery.length
+                ic?.beginBatchEdit()
+                localEditCount++
+                ic?.deleteSurroundingText(deleteLen, 0)
+                ic?.commitText(snippetExp + " ", 1)
+                ic?.endBatchEdit()
+                composingBuffer.setLength(0)
+                lastCommittedWord = null
+                justCommittedSpace = true
+                lastAutocorrection = null
+                clearPredictionsUi()
+                return
+            }
+        }
+
+        val now = android.os.SystemClock.uptimeMillis()
+        val doubleSpacePref = prefDoubleSpacePeriod
+        if (doubleSpacePref && now - lastSpaceTime < 350L && lastWord.isEmpty() && justCommittedSpace) {
+            ic?.beginBatchEdit()
+            localEditCount++
+            ic?.deleteSurroundingText(1, 0)
+            ic?.commitText(". ", 1)
+            ic?.endBatchEdit()
+            setShiftState(true)
+            lastSpaceTime = 0L
+            justCommittedSpace = true
+            lastAutocorrection = null
+            lastCommittedWord = null
+            return
+        }
+        lastSpaceTime = now
+        justCommittedSpace = true
+
+        val directAutocorrect = if (lastWord.length in 2..30) predictionEngine.getTopAutocorrect(lastWord, lastCommittedWord) else null
+        val candidateToUse = directAutocorrect ?: centerCandidate
+
+        val doAutocorrect = shouldAutocorrect(editorInfo) &&
+                lastWord.length in 2..30 &&
+                candidateToUse.isNotEmpty() &&
+                !candidateToUse.equals(lastWord, ignoreCase = true) &&
+                lastWord != lastUndoneWord
+
+        if (doAutocorrect) {
+            ic?.beginBatchEdit()
+            localEditCount++
+            ic?.deleteSurroundingText(lastWord.length, 0)
+            ic?.commitText(candidateToUse + " ", 1)
+            ic?.endBatchEdit()
+            lastAutocorrection = LastAutocorrection(lastWord, candidateToUse)
+            
+            if (!isIncognitoActive && isWordLearningEnabled && !isPrivateOrPassword(currentInputEditorInfo)) {
+                if (lastCommittedWord != null && lastCommittedWord != candidateToUse) {
+                    predictionEngine.learnBigram(lastCommittedWord!!, candidateToUse)
+                }
+                predictionEngine.learnWord(candidateToUse)
+            }
+            lastCommittedWord = candidateToUse
+        } else {
+            localEditCount++
+            ic?.commitText(" ", 1)
+            lastAutocorrection = null
+            if (lastWord.isNotEmpty()) {
+                if (!isIncognitoActive && isWordLearningEnabled && !isPrivateOrPassword(currentInputEditorInfo)) {
+                    if (lastCommittedWord != null && lastCommittedWord != lastWord) {
+                        predictionEngine.learnBigram(lastCommittedWord!!, lastWord)
+                    }
+                    predictionEngine.learnWord(lastWord)
+                }
+                lastCommittedWord = lastWord
+            }
+        }
+        composingBuffer.setLength(0)
+        scheduleAsyncPrediction("", lastCommittedWord)
+    }
+
+    private fun handleTrackpadMovement(deltaSteps: Int, isSelecting: Boolean) {
+        val isLeft = deltaSteps < 0
+        val count = kotlin.math.abs(deltaSteps).coerceIn(1, 8)
+        for (i in 0 until count) {
+            if (isSelecting) {
+                val downTime = android.os.SystemClock.uptimeMillis()
+                currentInputConnection?.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SHIFT_LEFT, 0, KeyEvent.META_SHIFT_ON))
+                val dpadKey = if (isLeft) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT
+                currentInputConnection?.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, dpadKey, 0, KeyEvent.META_SHIFT_ON))
+                currentInputConnection?.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_UP, dpadKey, 0, KeyEvent.META_SHIFT_ON))
+                currentInputConnection?.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0))
+            } else {
+                sendDownUpKeyEvents(if (isLeft) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT)
+            }
+        }
+    }
+
+    private fun toggleKeyboardMode() {
+        val plane = tesseraKeyPlane ?: return
+        when (plane.layoutMode) {
+            KeyboardLayoutMode.ALPHA -> {
+                plane.layoutMode = KeyboardLayoutMode.SYMBOLS
+                isSymbolMode = true
+            }
+            KeyboardLayoutMode.SYMBOLS, KeyboardLayoutMode.EXTENDED_SYMBOLS -> {
+                plane.layoutMode = KeyboardLayoutMode.ALPHA
+                isSymbolMode = false
+            }
+        }
+    }
+
+    private fun toggleExtendedSymbols() {
+        val plane = tesseraKeyPlane ?: return
+        when (plane.layoutMode) {
+            KeyboardLayoutMode.SYMBOLS -> {
+                plane.layoutMode = KeyboardLayoutMode.EXTENDED_SYMBOLS
+            }
+            KeyboardLayoutMode.EXTENDED_SYMBOLS -> {
+                plane.layoutMode = KeyboardLayoutMode.SYMBOLS
+            }
+            KeyboardLayoutMode.ALPHA -> {
+                plane.layoutMode = KeyboardLayoutMode.EXTENDED_SYMBOLS
+                isSymbolMode = true
+            }
+        }
+    }
+
+    private fun throttleGlideLivePreview() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastGlideThrottleTime < 45L) return
+        lastGlideThrottleTime = now
+
+        val plane = tesseraKeyPlane ?: return
+        val keyBounds = plane.getKeyBoundsMap()
+        if (keyBounds.isEmpty() || swipeTrajectory.size < 4) return
+
+        val copy = ArrayList(swipeTrajectory)
+        scope.launch(Dispatchers.Default) {
+            val candidates = predictionEngine.getSwipePredictions(copy, keyBounds, lastCommittedWord)
+            if (candidates.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    suggestion2?.text = candidates[0]
+                    suggestion2?.isSelected = true
+                }
+            }
+        }
+    }
+
+    private fun commitGlideGesture() {
+        val plane = tesseraKeyPlane ?: return
+        val keyBounds = plane.getKeyBoundsMap()
+        if (keyBounds.isEmpty() || swipeTrajectory.size < 3) return
+
+        val copy = ArrayList(swipeTrajectory)
+        scope.launch(Dispatchers.Default) {
+            val candidates = predictionEngine.getSwipePredictions(copy, keyBounds, lastCommittedWord)
+            withContext(Dispatchers.Main) {
+                if (candidates.isNotEmpty()) {
+                    val best = candidates[0]
+                    val ic = currentInputConnection
+                    if (ic != null) {
+                        ic.beginBatchEdit()
+                        localEditCount++
+                        ic.commitText("$best ", 1)
+                        ic.endBatchEdit()
+                        if (::hapticEngine.isInitialized) hapticEngine.performGlideCommit(plane)
+                        if (::acousticSoundEngine.isInitialized) acousticSoundEngine.playSound(isSpecialKey = false)
+                        lastCommittedWord = best
+                        composingBuffer.setLength(0)
+                        scheduleAsyncPrediction("", best)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun showCursorPad() {
+        if (::cursorPadRoot.isInitialized) {
+            keyboardRoot.visibility = View.GONE
+            cursorPadRoot.visibility = View.VISIBLE
+            isCursorSelecting = false
+            updateCursorSelectButton()
+        }
+    }
+
+    private fun hideCursorPad() {
+        if (::cursorPadRoot.isInitialized) {
+            cursorPadRoot.visibility = View.GONE
+            keyboardRoot.visibility = View.VISIBLE
+        }
+    }
+
+    private fun updateCursorSelectButton() {
+        val btn = cursorPadRoot.findViewById<TextView>(R.id.cursor_btn_select_toggle) ?: return
+        btn.text = if (isCursorSelecting) "✓ Seleção" else "Selecionar"
+        btn.setBackgroundResource(if (isCursorSelecting) R.drawable.bg_command_pill_active else R.drawable.bg_command_pill)
+    }
+
+    private fun setupCursorPad(view: View) {
+        view.findViewById<View>(R.id.btn_close_cursor_pad)?.setOnClickListener {
+            if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(it)
+            hideCursorPad()
+        }
+        view.findViewById<View>(R.id.cursor_btn_select_all)?.setOnClickListener {
+            if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(it)
+            performSelectAll()
+        }
+        view.findViewById<View>(R.id.cursor_btn_cut)?.setOnClickListener {
+            if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(it)
+            performCut()
+        }
+        view.findViewById<View>(R.id.cursor_btn_copy)?.setOnClickListener {
+            if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(it)
+            performCopy()
+        }
+        view.findViewById<View>(R.id.cursor_btn_paste)?.setOnClickListener {
+            if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(it)
+            performPaste()
+        }
+        view.findViewById<View>(R.id.cursor_btn_backspace)?.setOnClickListener {
+            if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(it)
+            handleBackspace()
+        }
+        view.findViewById<View>(R.id.cursor_btn_select_toggle)?.setOnClickListener {
+            isCursorSelecting = !isCursorSelecting
+            if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(it)
+            updateCursorSelectButton()
+        }
+        view.findViewById<View>(R.id.cursor_btn_home)?.setOnClickListener {
+            if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(it)
+            sendDownUpKeyEvents(KeyEvent.KEYCODE_MOVE_HOME)
+        }
+        view.findViewById<View>(R.id.cursor_btn_end)?.setOnClickListener {
+            if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(it)
+            sendDownUpKeyEvents(KeyEvent.KEYCODE_MOVE_END)
+        }
+
+        fun sendDpad(keyCode: Int) {
+            if (::hapticEngine.isInitialized) hapticEngine.performMicroTick(view)
+            if (::acousticSoundEngine.isInitialized) acousticSoundEngine.playSound(isSpecialKey = true)
+            if (isCursorSelecting) {
+                val downTime = android.os.SystemClock.uptimeMillis()
+                currentInputConnection?.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SHIFT_LEFT, 0, KeyEvent.META_SHIFT_ON))
+                currentInputConnection?.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, keyCode, 0, KeyEvent.META_SHIFT_ON))
+                currentInputConnection?.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_UP, keyCode, 0, KeyEvent.META_SHIFT_ON))
+                currentInputConnection?.sendKeyEvent(KeyEvent(downTime, downTime, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0))
+            } else {
+                sendDownUpKeyEvents(keyCode)
+            }
+        }
+
+        view.findViewById<View>(R.id.cursor_btn_up)?.setOnClickListener { sendDpad(KeyEvent.KEYCODE_DPAD_UP) }
+        view.findViewById<View>(R.id.cursor_btn_down)?.setOnClickListener { sendDpad(KeyEvent.KEYCODE_DPAD_DOWN) }
+        view.findViewById<View>(R.id.cursor_btn_left)?.setOnClickListener { sendDpad(KeyEvent.KEYCODE_DPAD_LEFT) }
+        view.findViewById<View>(R.id.cursor_btn_right)?.setOnClickListener { sendDpad(KeyEvent.KEYCODE_DPAD_RIGHT) }
+    }
+
     private fun setupKeys(view: View) {
+        val plane = view.findViewById<TesseraKeyPlaneView>(R.id.tessera_key_plane)
+        if (plane != null) {
+            tesseraKeyPlane = plane
+            setupTesseraKeyPlane(plane)
+            return
+        }
         alphabetKeys.clear()
         keyViewMap.clear()
 
@@ -2412,6 +2915,9 @@ class StitchKeyboardService : InputMethodService() {
                     composingBuffer.setLength(0)
                     val ic = currentInputConnection
                     ic?.commitText(emoji, 1)
+                    if (::recentEmojiManager.isInitialized) {
+                        recentEmojiManager.recordEmojiUsage(emoji, isIncognitoActive || isPrivateOrPassword(currentInputEditorInfo))
+                    }
                 }
                 grid.addView(tv)
             }
@@ -2446,6 +2952,7 @@ class StitchKeyboardService : InputMethodService() {
             }
         }
 
+        view.findViewById<View>(R.id.cat_recents)?.setOnClickListener { scrollToCategory("Smileys") }
         view.findViewById<View>(R.id.cat_smileys)?.setOnClickListener { scrollToCategory("Smileys") }
         view.findViewById<View>(R.id.cat_people)?.setOnClickListener { scrollToCategory("People") }
         view.findViewById<View>(R.id.cat_animals)?.setOnClickListener { scrollToCategory("Animals") }
@@ -3627,6 +4134,9 @@ class StitchKeyboardService : InputMethodService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (::acousticSoundEngine.isInitialized) {
+            acousticSoundEngine.release()
+        }
         try {
             val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             clipboardListener?.let { cm?.removePrimaryClipChangedListener(it) }

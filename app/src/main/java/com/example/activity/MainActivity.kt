@@ -181,6 +181,12 @@ fun TesseraDashboardContainer(
         val raw = try { prefs.getInt("PREF_HAPTIC_DURATION_MS", 15) } catch (_: Exception) { 15 }
         mutableStateOf(raw.coerceIn(1, 50))
     }
+    var soundProfile by remember {
+        mutableStateOf(prefs.getString("PREF_SOUND_PROFILE", "thock") ?: "thock")
+    }
+    var adaptiveHitboxes by remember {
+        mutableStateOf(prefs.getBoolean("PREF_ADAPTIVE_HITBOXES", true))
+    }
     var soundFeedback by remember { mutableStateOf(try { prefs.getBoolean("PREF_SOUND_FEEDBACK", false) } catch (_: Exception) { false }) }
 
     // Tema, Formato, Trilha e Escala
@@ -1201,38 +1207,174 @@ fun WordChip(
 
 @Composable
 fun PlaygroundSection(isEnabled: Boolean) {
-    var generalText by remember { mutableStateOf("") }
+    val challengePhrases = remember {
+        listOf(
+            "O teclado Tessera foi concebido para máxima eficiência e precisão.",
+            "A tecnologia eleva a produtividade humana com fluidez e velocidade.",
+            "O rápido morcego marrom salta sobre o cão preguiçoso no jardim.",
+            "Digitação silenciosa e ágil com física de toque de altíssima latência.",
+            "Escrever mensagens com clareza transforma nossa comunicação diária."
+        )
+    }
+
+    var challengeIndex by remember { mutableStateOf(0) }
+    val targetSentence = challengePhrases[challengeIndex % challengePhrases.size]
+
+    var typedText by remember { mutableStateOf("") }
+    var startTime by remember { mutableStateOf(0L) }
     var numberText by remember { mutableStateOf("") }
 
-    SectionCard(title = "Laboratório de Digitação") {
+    val now = System.currentTimeMillis()
+    val elapsedSec = if (startTime > 0L) ((now - startTime) / 1000L).coerceAtLeast(1L) else 1L
+    val charsCount = typedText.length
+    val wpm = if (startTime > 0L && charsCount > 0) {
+        (((charsCount / 5f) / (elapsedSec / 60f))).toInt().coerceIn(0, 250)
+    } else 0
+    val cpm = if (startTime > 0L && charsCount > 0) {
+        ((charsCount / (elapsedSec / 60f))).toInt().coerceIn(0, 1200)
+    } else 0
+
+    val accuracy = remember(typedText, targetSentence) {
+        if (typedText.isEmpty()) 100
+        else {
+            var correct = 0
+            val minLen = minOf(typedText.length, targetSentence.length)
+            for (i in 0 until minLen) {
+                if (typedText[i] == targetSentence[i]) correct++
+            }
+            ((correct.toFloat() / typedText.length.coerceAtLeast(1)) * 100f).toInt().coerceIn(0, 100)
+        }
+    }
+
+    SectionCard(title = "Laboratório de Digitação & Benchmark") {
         Text(
-            text = "Experimente a latência imediata e a troca inteligente de teclado:",
+            text = "Teste a física tátil, a precisão Voronoi e meça seu WPM em tempo real:",
             style = MaterialTheme.typography.bodyMedium,
             color = Slate400
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Campo 1: Texto Geral (QWERTY)
-        Text(
-            text = "Campo Geral (QWERTY + Abreviações)",
-            style = MaterialTheme.typography.labelMedium,
-            color = Slate300
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(Slate850, RoundedCornerShape(10.dp))
+                    .border(1.dp, Slate700, RoundedCornerShape(10.dp))
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "$wpm",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = AccentSky
+                    )
+                    Text("WPM", style = MaterialTheme.typography.labelSmall, color = Slate400)
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(Slate850, RoundedCornerShape(10.dp))
+                    .border(1.dp, Slate700, RoundedCornerShape(10.dp))
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "$accuracy%",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = if (accuracy >= 90) Color(0xFF10B981) else Color(0xFFF59E0B)
+                    )
+                    Text("Precisão", style = MaterialTheme.typography.labelSmall, color = Slate400)
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(Slate850, RoundedCornerShape(10.dp))
+                    .border(1.dp, Slate700, RoundedCornerShape(10.dp))
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "$cpm",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = Slate100
+                    )
+                    Text("CPM", style = MaterialTheme.typography.labelSmall, color = Slate400)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Slate850, RoundedCornerShape(10.dp))
+                .border(1.dp, Slate700, RoundedCornerShape(10.dp))
+                .padding(12.dp)
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Frase Desafio:",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AccentSky
+                    )
+                    TextButton(
+                        onClick = {
+                            challengeIndex = (challengeIndex + 1) % challengePhrases.size
+                            typedText = ""
+                            startTime = 0L
+                        },
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text("Próxima ↻", style = MaterialTheme.typography.labelSmall, color = AccentSky)
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = targetSentence,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = Slate100
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         OutlinedTextField(
-            value = generalText,
-            onValueChange = { generalText = it },
+            value = typedText,
+            onValueChange = {
+                if (startTime == 0L && it.isNotEmpty()) {
+                    startTime = System.currentTimeMillis()
+                }
+                typedText = it
+            },
             placeholder = {
                 Text(
-                    "Digite 'vc', 'tbm', 'pq' ou símbolos como '/'...",
-                    style = MaterialTheme.typography.bodyLarge,
+                    "Digite a frase desafio acima para calcular WPM...",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = Slate600
                 )
             },
             enabled = isEnabled,
             modifier = Modifier
                 .fillMaxWidth()
-                .alpha(if (isEnabled) 1.0f else 0.45f), // DISABLED STATE
+                .alpha(if (isEnabled) 1.0f else 0.45f),
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = Slate100),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = AccentSky,
@@ -1243,9 +1385,8 @@ fun PlaygroundSection(isEnabled: Boolean) {
             shape = RoundedCornerShape(8.dp)
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Campo 2: Campo Numérico (Abre automaticamente o teclado numérico estilo Gboard!)
         Text(
             text = "Campo Numérico (Abre modo 1 2 3 dedicado)",
             style = MaterialTheme.typography.labelMedium,
@@ -1265,7 +1406,7 @@ fun PlaygroundSection(isEnabled: Boolean) {
             enabled = isEnabled,
             modifier = Modifier
                 .fillMaxWidth()
-                .alpha(if (isEnabled) 1.0f else 0.45f), // DISABLED STATE
+                .alpha(if (isEnabled) 1.0f else 0.45f),
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = Slate100),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = AccentSky,
@@ -1277,7 +1418,7 @@ fun PlaygroundSection(isEnabled: Boolean) {
         )
 
         if (!isEnabled) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "Ative e selecione o Tessera para testar neste laboratório.",
                 style = MaterialTheme.typography.bodyMedium,

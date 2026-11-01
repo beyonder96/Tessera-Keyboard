@@ -143,6 +143,29 @@ class TrieDictionary {
             .take(maxCount)
     }
 
+    fun getValidNextCharsMask(prefix: String): Int = synchronized(this) {
+        val cleanPrefix = prefix.trim()
+        if (cleanPrefix.isEmpty()) return@synchronized 0
+        val normalized = normalizeFast(cleanPrefix)
+        if (normalized.isEmpty()) return@synchronized 0
+
+        var current = root
+        for (i in 0 until normalized.length) {
+            val c = normalized[i]
+            if (c !in 'a'..'z') return@synchronized 0
+            val next = current.children[c - 'a'] ?: return@synchronized 0
+            current = next
+        }
+
+        var mask = 0
+        for (i in 0..25) {
+            if (current.children[i] != null) {
+                mask = mask or (1 shl i)
+            }
+        }
+        return@synchronized mask
+    }
+
     fun findExactWord(word: String): WordEntry? = synchronized(this) {
         val normalized = normalizeFast(word)
         if (normalized.isEmpty()) return@synchronized null
