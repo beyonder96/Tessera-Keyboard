@@ -66,6 +66,7 @@ import com.example.ui.widget.KeyboardLivePreview
 import androidx.compose.ui.res.painterResource
 import com.example.R
 import com.example.ui.theme.*
+import com.example.ui.lumina.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -84,16 +85,11 @@ class MainActivity : ComponentActivity() {
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize().imePadding(),
-                    containerColor = Slate950
+                    containerColor = Color.Transparent
                 ) { innerPadding ->
-                    Box(
+                    LuminaAtmosphere(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(Slate950, Slate900)
-                                )
-                            )
                             .padding(innerPadding)
                     ) {
                         if (fatalError != null) {
@@ -488,33 +484,19 @@ fun TesseraDashboardContent(
         modifier = modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         bottomBar = {
-            NavigationBar(
-                containerColor = Slate900.copy(alpha = 0.95f),
-                contentColor = Slate100,
-                tonalElevation = 0.dp
-            ) {
-                val tabs = listOf(
-                    Triple("Início", Icons.Default.Home, 0),
-                    Triple("Digitação", Icons.Default.Edit, 1),
-                    Triple("Aparência", Icons.Default.Palette, 2),
-                    Triple("Dicionário", Icons.Default.MenuBook, 3)
+            val tabs = remember {
+                listOf(
+                    DockTabItem("Início", Icons.Default.Home, 0),
+                    DockTabItem("Digitação", Icons.Default.Edit, 1),
+                    DockTabItem("Aparência", Icons.Default.Palette, 2),
+                    DockTabItem("Dicionário", Icons.Default.MenuBook, 3)
                 )
-                tabs.forEach { (title, icon, index) ->
-                    NavigationBarItem(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        icon = { Icon(icon, contentDescription = title, modifier = Modifier.size(20.dp)) },
-                        label = { Text(title, style = MaterialTheme.typography.labelSmall) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = AccentSky,
-                            selectedTextColor = AccentSky,
-                            indicatorColor = AccentSkyMuted,
-                            unselectedIconColor = Slate400,
-                            unselectedTextColor = Slate400
-                        )
-                    )
-                }
             }
+            KineticCapsuleDock(
+                tabs = tabs,
+                selectedIndex = selectedTab,
+                onTabSelected = { selectedTab = it }
+            )
         }
     ) { paddingValues ->
         Crossfade(
@@ -633,29 +615,7 @@ fun TesseraLogoBadge(modifier: Modifier = Modifier) {
 
 @Composable
 fun TesseraHeader() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        TesseraLogoBadge()
-        Text(
-            text = "TESSERA",
-            style = MaterialTheme.typography.titleLarge.copy(
-                letterSpacing = 2.sp,
-                fontWeight = FontWeight.Bold
-            ),
-            color = Slate100
-        )
-        Text(
-            text = "Teclado minimalista com latência ultra-baixa",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Slate400,
-            textAlign = TextAlign.Center
-        )
-    }
+    MonolithKeycapVisualizer()
 }
 
 @Composable
@@ -671,12 +631,10 @@ fun KeyboardStatusCard(
         else -> Quadruple("Teclado Pronto para Uso", "O Tessera está selecionado como seu teclado padrão.", StateSuccess, true)
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Slate900, RoundedCornerShape(12.dp))
-            .border(1.dp, if (isReady) Slate800 else statusColor.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-            .padding(16.dp)
+    MonolithSurface(
+        modifier = Modifier.fillMaxWidth(),
+        isActive = isReady,
+        cornerRadius = 18.dp
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
@@ -760,21 +718,22 @@ fun SectionCard(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Slate900, RoundedCornerShape(12.dp))
-            .border(1.dp, Slate800, RoundedCornerShape(12.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    MonolithSurface(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 18.dp
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = Slate100
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        content()
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.2).sp
+                ),
+                color = LuminaTokens.TextPureLight
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            content()
+        }
     }
 }
 
@@ -785,40 +744,12 @@ fun SettingToggle(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = Slate100
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Slate400
-            )
-        }
-        Spacer(modifier = Modifier.width(16.dp))
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Slate950,
-                checkedTrackColor = AccentSky,
-                uncheckedThumbColor = Slate400,
-                uncheckedTrackColor = Slate800,
-                uncheckedBorderColor = Slate700
-            )
-        )
-    }
+    LuminaSettingRow(
+        title = title,
+        description = description,
+        checked = checked,
+        onCheckedChange = onCheckedChange
+    )
 }
 
 @Composable
@@ -828,22 +759,25 @@ fun ThemeOptionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val bgColor = if (isSelected) AccentSkyMuted else Slate850
-    val borderColor = if (isSelected) AccentSky else Slate700
-    val textColor = if (isSelected) AccentSky else Slate300
+    val bgColor = if (isSelected) Color(0x2638BDF8) else LuminaTokens.ObsidianGlassSubtle
+    val borderColor = if (isSelected) LuminaTokens.LuminaCyan else Color(0x22FFFFFF)
+    val textColor = if (isSelected) LuminaTokens.LuminaCyan else LuminaTokens.TextMutedSecondary
 
     Box(
         modifier = modifier
-            .background(bgColor, RoundedCornerShape(8.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+            .background(bgColor, RoundedCornerShape(12.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            .padding(vertical = 12.dp, horizontal = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.labelMedium,
-            color = textColor
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+            ),
+            color = textColor,
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -1255,64 +1189,11 @@ fun PlaygroundSection(isEnabled: Boolean) {
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(Slate850, RoundedCornerShape(10.dp))
-                    .border(1.dp, Slate700, RoundedCornerShape(10.dp))
-                    .padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "$wpm",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = AccentSky
-                    )
-                    Text("WPM", style = MaterialTheme.typography.labelSmall, color = Slate400)
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(Slate850, RoundedCornerShape(10.dp))
-                    .border(1.dp, Slate700, RoundedCornerShape(10.dp))
-                    .padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "$accuracy%",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = if (accuracy >= 90) Color(0xFF10B981) else Color(0xFFF59E0B)
-                    )
-                    Text("Precisão", style = MaterialTheme.typography.labelSmall, color = Slate400)
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(Slate850, RoundedCornerShape(10.dp))
-                    .border(1.dp, Slate700, RoundedCornerShape(10.dp))
-                    .padding(vertical = 10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "$cpm",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = Slate100
-                    )
-                    Text("CPM", style = MaterialTheme.typography.labelSmall, color = Slate400)
-                }
-            }
-        }
+        WpmTachometerView(
+            wpm = wpm,
+            accuracy = accuracy,
+            cpm = cpm
+        )
 
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -1473,7 +1354,7 @@ fun LoadingSkeletonView(modifier: Modifier = Modifier) {
 @Composable
 fun DividerLine() {
     HorizontalDivider(
-        color = Slate800,
+        color = Color(0x1AFFFFFF),
         thickness = 1.dp
     )
 }

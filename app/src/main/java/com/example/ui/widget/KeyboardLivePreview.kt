@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -98,7 +99,8 @@ fun KeyboardLivePreview(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(animatedBg)
-            .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp))
+            .shadow(12.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.5f), spotColor = Color(0x3338BDF8))
+            .border(1.dp, androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0x4DFFFFFF), Color(0x1AFFFFFF), Color(0x05000000))), RoundedCornerShape(16.dp))
             .padding(horizontal = 8.dp, vertical = (10 * safeScale).dp)
     ) {
         Column(

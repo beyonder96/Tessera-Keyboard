@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.widget.KeyboardLivePreview
 import com.example.ui.theme.*
+import com.example.ui.lumina.*
 
 @Composable
 fun TabHeader(title: String, subtitle: String) {
@@ -275,82 +276,28 @@ fun TabTypingContent(
             )
         }
 
-        SectionCard(title = "Resposta e Feedback") {
+        SectionCard(title = "Resposta e Feedback Sensorial") {
             SettingToggle(
                 title = "Resposta tátil (vibração)",
-                description = "Clique háptico mecânico a cada tecla tocada",
+                description = "Clique háptico mecânico calibrado com precisão de primitivas",
                 checked = hapticFeedback,
                 onCheckedChange = onHapticFeedbackChange
             )
-            if (hapticFeedback) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Intensidade da Vibração",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Slate300
-                    )
-                    Text(
-                        text = "${hapticDurationMs}ms",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = AccentSky
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Slider(
-                    value = hapticDurationMs.toFloat().coerceIn(1f, 50f),
-                    onValueChange = { newValue ->
-                        onHapticDurationChange(newValue.toInt().coerceIn(1, 50))
-                    },
-                    valueRange = 1f..50f,
-                    steps = 49,
-                    colors = SliderDefaults.colors(
-                        thumbColor = AccentSky,
-                        activeTrackColor = AccentSky,
-                        inactiveTrackColor = Slate800
-                    )
-                )
-            }
             DividerLine()
             SettingToggle(
                 title = "Som ao tocar",
-                description = "Clique de áudio leve e assíncrono (sem atraso na digitação)",
+                description = "Síntese acústica PCM em tempo real (latência zero, sem arquivos extras)",
                 checked = soundFeedback,
                 onCheckedChange = onSoundFeedbackChange
             )
-            if (soundFeedback) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Perfil Acústico Mecânico",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Slate300
+            if (soundFeedback || hapticFeedback) {
+                Spacer(modifier = Modifier.height(10.dp))
+                AcousticHarmonicDeck(
+                    currentProfile = soundProfile,
+                    onProfileSelected = onSoundProfileChange,
+                    hapticDurationMs = hapticDurationMs,
+                    onHapticDurationChange = onHapticDurationChange
                 )
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val profiles = listOf("thock" to "Thock", "crisp" to "Crisp", "typewriter" to "Typewriter", "system" to "Sistema")
-                    for ((id, name) in profiles) {
-                        val isSelected = soundProfile == id
-                        Button(
-                            onClick = { onSoundProfileChange(id) },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) AccentSky else Slate850,
-                                contentColor = if (isSelected) Color.Black else Slate300
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
-                        ) {
-                            Text(name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                        }
-                    }
-                }
             }
             if (!hasMicPermission) {
                 DividerLine()
