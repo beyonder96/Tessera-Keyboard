@@ -1558,9 +1558,21 @@ class StitchKeyboardService : InputMethodService() {
         if (text.isEmpty()) {
             if (tv.visibility != View.INVISIBLE) tv.visibility = View.INVISIBLE
             if (tv.text.isNotEmpty()) tv.text = ""
+            if (tv == suggestion2) {
+                tv.setBackgroundResource(android.R.color.transparent)
+            }
         } else {
             if (tv.text != text) tv.text = text
             if (tv.visibility != View.VISIBLE) tv.visibility = View.VISIBLE
+            if (tv == suggestion2) {
+                val isAutocorrectGlow = text.startsWith("=") || text.startsWith("↩") ||
+                        (composingBuffer.isNotEmpty() && predictionEngine.getTopAutocorrect(composingBuffer.toString()) != null)
+                if (isAutocorrectGlow) {
+                    tv.setBackgroundResource(R.drawable.bg_autocorrect_glow_pill)
+                } else {
+                    tv.setBackgroundResource(android.R.color.transparent)
+                }
+            }
         }
     }
 
@@ -2504,12 +2516,7 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun setupKeys(view: View) {
-        val plane = view.findViewById<TesseraKeyPlaneView>(R.id.tessera_key_plane)
-        if (plane != null) {
-            tesseraKeyPlane = plane
-            setupTesseraKeyPlane(plane)
-            return
-        }
+        tesseraKeyPlane = null
         alphabetKeys.clear()
         keyViewMap.clear()
 
@@ -2551,7 +2558,7 @@ class StitchKeyboardService : InputMethodService() {
                         playClickFeedback()
                         showKeyPopup(keyView, uppercaseChar)
                         v.isPressed = true
-                        v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(40).start()
+                        v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(35).start()
 
                         longPressRunnable = Runnable {
                             isLongPress = true
@@ -2630,7 +2637,7 @@ class StitchKeyboardService : InputMethodService() {
                         longPressRunnable?.let { mainHandler.removeCallbacks(it) }
                         hideKeyPopup()
                         v.isPressed = false
-                        v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(60).start()
+                        v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(45).start()
 
                         if (isFlickHandled) {
                             return@setOnTouchListener true
@@ -2972,10 +2979,12 @@ class StitchKeyboardService : InputMethodService() {
                 MotionEvent.ACTION_DOWN -> {
                     handleShiftClick()
                     v.isPressed = true
+                    v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(35).start()
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     v.isPressed = false
+                    v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(45).start()
                     true
                 }
                 else -> false
@@ -2989,10 +2998,12 @@ class StitchKeyboardService : InputMethodService() {
                 MotionEvent.ACTION_DOWN -> {
                     handleShiftClick()
                     v.isPressed = true
+                    v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(35).start()
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     v.isPressed = false
+                    v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(45).start()
                     true
                 }
                 else -> false
@@ -3131,7 +3142,7 @@ class StitchKeyboardService : InputMethodService() {
                         val spaceRes = when (prefKeyShape) {
                             "borderless" -> R.drawable.bg_key_borderless
                             "pill" -> R.drawable.bg_key_circle
-                            else -> R.drawable.bg_key_editorial_flat
+                            else -> R.drawable.bg_key_sculpted_squircle
                         }
                         spaceKey?.setBackgroundResource(spaceRes)
                         v.isPressed = false
@@ -3263,10 +3274,12 @@ class StitchKeyboardService : InputMethodService() {
                     handleEnter()
                     triggerVibration()
                     v.isPressed = true
+                    v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(35).start()
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     v.isPressed = false
+                    v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(45).start()
                     true
                 }
                 else -> false
@@ -3311,9 +3324,11 @@ class StitchKeyboardService : InputMethodService() {
                 }
                 updateKeyLabels()
                 v.isPressed = true
+                v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(35).start()
                 true
             } else if (event.action == android.view.MotionEvent.ACTION_UP || event.action == android.view.MotionEvent.ACTION_CANCEL) {
                 v.isPressed = false
+                v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(45).start()
                 true
             } else {
                 false
@@ -3498,12 +3513,12 @@ class StitchKeyboardService : InputMethodService() {
         val keyRes = when (prefKeyShape) {
             "borderless" -> R.drawable.bg_key_borderless
             "pill" -> R.drawable.bg_key_circle
-            else -> R.drawable.bg_key_editorial_flat
+            else -> R.drawable.bg_key_sculpted_squircle
         }
         val cmdRes = when (prefKeyShape) {
             "borderless" -> R.drawable.bg_command_borderless
             "pill" -> R.drawable.bg_command_pill
-            else -> R.drawable.bg_key_action_flat
+            else -> R.drawable.bg_key_action_sculpted
         }
 
         // 1. Teclas alfabéticas (Q-P, A-L, Z-M, vírgula e ponto)
@@ -3537,7 +3552,7 @@ class StitchKeyboardService : InputMethodService() {
         // 5. Teclas de comando / ação (Shift, Backspace, 123, Enter, ferramentas)
         val commandIds = listOf(
             R.id.key_shift, R.id.key_backspace, R.id.key_symbol, R.id.key_enter,
-            R.id.key_mic_top, R.id.key_clipboard_top, R.id.key_emoji_top,
+            R.id.key_mic_top, R.id.key_clipboard_top, R.id.key_cursor_top, R.id.key_emoji_top,
             R.id.key_one_handed_top, R.id.key_settings_top,
             R.id.num_key_clipboard_top, R.id.num_key_mic_top, R.id.num_key_settings_top,
             R.id.num_sym_minus, R.id.num_sym_slash, R.id.num_sym_colon,
