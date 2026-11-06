@@ -29,75 +29,82 @@ data class AiSuggestionResult(
     val suggestionText: String,
     val displayLabel: String,
     val mode: AiIntentMode,
-    val charsToDelete: Int
+    val charsToDelete: Int,
+    val isError: Boolean = false
 )
 
 object ParticipativeAiEngine {
 
-    // Regex para detecção flexível de tags com ou sem '@' ou '/'
+    // Regex para detecção flexível de tags com ou sem '@' ou '/' no início ou após espaços
     private val TAG_CORRECTION_REGEX = Regex(
-        """^[@/](corrigir|correcao|correção|c|fix)\s+(.+)""",
+        """(?:^|\s)[@/](corrigir|correcao|correção|c|fix)\s+(.+)""",
         RegexOption.IGNORE_CASE
     )
     private val TAG_VERSE_REGEX = Regex(
-        """^[@/](versiculo|versículo|v|biblia|bíblia)\s+(.+)""",
+        """(?:^|\s)[@/](versiculo|versículo|v|biblia|bíblia)\s+(.+)""",
         RegexOption.IGNORE_CASE
     )
     private val TAG_GENERIC_AI_REGEX = Regex(
-        """^[@/](ia|ai|copiloto)\s+(.+)""",
+        """(?:^|\s)[@/](ia|ai|copiloto)\s+(.+)""",
         RegexOption.IGNORE_CASE
     )
 
     fun parseTrigger(text: String, isPassiveModeEnabled: Boolean = false): ParsedAiTrigger? {
-        val trimmed = text.trimStart()
-        if (trimmed.isEmpty()) return null
+        if (text.isBlank()) return null
 
-        TAG_CORRECTION_REGEX.find(trimmed)?.let { match ->
+        TAG_CORRECTION_REGEX.find(text)?.let { match ->
             val tag = match.groupValues[1]
             val content = match.groupValues[2].trim()
             if (content.isNotEmpty()) {
+                val tagStartIndex = if (match.value.startsWith(" ")) match.range.first + 1 else match.range.first
+                val deleteLen = text.length - tagStartIndex
                 return ParsedAiTrigger(
                     mode = AiIntentMode.GRAMMAR_CORRECTION,
                     matchedTag = tag,
                     userContent = content,
-                    fullPrefixLength = trimmed.length
+                    fullPrefixLength = deleteLen
                 )
             }
         }
 
-        TAG_VERSE_REGEX.find(trimmed)?.let { match ->
+        TAG_VERSE_REGEX.find(text)?.let { match ->
             val tag = match.groupValues[1]
             val content = match.groupValues[2].trim()
             if (content.isNotEmpty()) {
+                val tagStartIndex = if (match.value.startsWith(" ")) match.range.first + 1 else match.range.first
+                val deleteLen = text.length - tagStartIndex
                 return ParsedAiTrigger(
                     mode = AiIntentMode.BIBLE_VERSE_LOOKUP,
                     matchedTag = tag,
                     userContent = content,
-                    fullPrefixLength = trimmed.length
+                    fullPrefixLength = deleteLen
                 )
             }
         }
 
-        TAG_GENERIC_AI_REGEX.find(trimmed)?.let { match ->
+        TAG_GENERIC_AI_REGEX.find(text)?.let { match ->
             val tag = match.groupValues[1]
             val content = match.groupValues[2].trim()
             if (content.isNotEmpty()) {
+                val tagStartIndex = if (match.value.startsWith(" ")) match.range.first + 1 else match.range.first
+                val deleteLen = text.length - tagStartIndex
                 return ParsedAiTrigger(
                     mode = AiIntentMode.SMART_ASSISTANT,
                     matchedTag = tag,
                     userContent = content,
-                    fullPrefixLength = trimmed.length
+                    fullPrefixLength = deleteLen
                 )
             }
         }
 
         // Modo passivo/contínuo ativado: analisa frases sem tag explícita
+        val trimmed = text.trimStart()
         if (isPassiveModeEnabled && trimmed.length >= 10 && !trimmed.startsWith("@") && !trimmed.startsWith("/")) {
             return ParsedAiTrigger(
                 mode = AiIntentMode.SEMANTIC_REPAIR,
                 matchedTag = "",
                 userContent = trimmed,
-                fullPrefixLength = trimmed.length
+                fullPrefixLength = text.length
             )
         }
 
@@ -143,7 +150,8 @@ object ParticipativeAiEngine {
         provider: String,
         apiKey: String
     ): AiSuggestionResult? = withContext(Dispatchers.IO) {
-        if (apiKey.isBlank()) return@withContext null
+        val cleanApiKey = apiKey.trim().removePrefix("Bearer ").removePrefix("bearer ").trim()
+        if (cleanApiKey.isBlank()) return@withContext null
 
         val trigger = parseTrigger(rawInput, isPassiveModeEnabled) ?: return@withContext null
         val systemPrompt = buildSystemPrompt(trigger.mode)
@@ -151,8 +159,8 @@ object ParticipativeAiEngine {
 
         try {
             val generatedText = when (provider.lowercase()) {
-                "gemini" -> callGemini(apiKey, systemPrompt, userPrompt)
-                else -> callGroq(apiKey, systemPrompt, userPrompt)
+                "gemini" -> callGemini(cleanApiKey, systemPrompt, userPrompt)
+                else -> callGroq(cleanApiKey, systemPrompt, userPrompt)
             }
 
             val cleaned = cleanOutput(generatedText, trigger.mode)
@@ -172,10 +180,36 @@ object ParticipativeAiEngine {
                 suggestionText = cleaned,
                 displayLabel = displayLabel,
                 mode = trigger.mode,
-                charsToDelete = trigger.fullPrefixLength
+                charsToDelete = trigger.fullPrefixLength,
+                isError = false
             )
-        } catch (_: Exception) {
-            null
+        } catch (httpEx: retrofit2.HttpException) {
+            val code = httpEx.code()
+            android.util.Log.e("TesseraAI", "Erro HTTP na chamada de IA: $code", httpEx)
+            val errorLabel = when (code) {
+                401, 403 -> "⚠️ Chave de API inválida (${provider.uppercase()})"
+                429 -> "⚠️ Limite da Groq atingido. Aguarde."
+                404 -> "⚠️ Modelo de IA indisponível"
+                else -> "⚠️ Erro na IA (HTTP $code)"
+            }
+            AiSuggestionResult(
+                originalText = rawInput,
+                suggestionText = errorLabel,
+                displayLabel = errorLabel,
+                mode = trigger.mode,
+                charsToDelete = 0,
+                isError = true
+            )
+        } catch (t: Throwable) {
+            android.util.Log.e("TesseraAI", "Falha de rede ou exceção na IA: ${t.message}", t)
+            AiSuggestionResult(
+                originalText = rawInput,
+                suggestionText = "⚠️ Falha de conexão com a IA",
+                displayLabel = "⚠️ Falha de conexão com a IA",
+                mode = trigger.mode,
+                charsToDelete = 0,
+                isError = true
+            )
         }
     }
 

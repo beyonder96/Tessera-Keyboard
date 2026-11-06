@@ -339,13 +339,15 @@ fun TesseraDashboardContainer(
                 },
                 groqApiKey = groqApiKey,
                 onGroqApiKeyChange = {
-                    groqApiKey = it
-                    prefs.edit().putString("PREF_GROQ_API_KEY", it).apply()
+                    val sanitized = it.trim().removePrefix("Bearer ").removePrefix("bearer ").trim()
+                    groqApiKey = sanitized
+                    prefs.edit().putString("PREF_GROQ_API_KEY", sanitized).apply()
                 },
                 geminiApiKey = geminiApiKey,
                 onGeminiApiKeyChange = {
-                    geminiApiKey = it
-                    prefs.edit().putString("PREF_GEMINI_API_KEY", it).apply()
+                    val sanitized = it.trim().removePrefix("Bearer ").removePrefix("bearer ").trim()
+                    geminiApiKey = sanitized
+                    prefs.edit().putString("PREF_GEMINI_API_KEY", sanitized).apply()
                 },
                 hapticFeedback = hapticFeedback,
                 onHapticFeedbackChange = {

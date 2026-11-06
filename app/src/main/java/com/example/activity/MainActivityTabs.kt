@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.widget.KeyboardLivePreview
 import com.example.ui.theme.*
 import com.example.ui.lumina.*
+import kotlinx.coroutines.launch
 
 @Composable
 fun TabHeader(title: String, subtitle: String) {
@@ -230,8 +231,9 @@ fun TabTypingContent(
                 OutlinedTextField(
                     value = currentKeyInput,
                     onValueChange = {
-                        currentKeyInput = it
-                        if (aiProvider == "groq") onGroqApiKeyChange(it) else onGeminiApiKeyChange(it)
+                        val cleaned = it.trim().removePrefix("Bearer ").removePrefix("bearer ").trim()
+                        currentKeyInput = cleaned
+                        if (aiProvider == "groq") onGroqApiKeyChange(cleaned) else onGeminiApiKeyChange(cleaned)
                     },
                     placeholder = { Text(if (aiProvider == "groq") "gsk_..." else "AIzaSy...", color = Slate600) },
                     singleLine = true,
@@ -245,6 +247,60 @@ fun TabTypingContent(
                         cursorColor = AccentSky
                     )
                 )
+
+                var testStatus by remember { mutableStateOf<String?>(null) }
+                var isTesting by remember { mutableStateOf(false) }
+                val coroutineScope = rememberCoroutineScope()
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        val activeKey = currentKeyInput.trim()
+                        if (activeKey.isBlank()) {
+                            testStatus = "⚠️ Insira a chave antes de testar"
+                            return@Button
+                        }
+                        isTesting = true
+                        testStatus = "Testando conexão com a IA..."
+                        coroutineScope.launch {
+                            try {
+                                val result = com.example.engine.ParticipativeAiEngine.processText(
+                                    rawInput = "@versiculo posso todas as coisas",
+                                    isPassiveModeEnabled = false,
+                                    provider = aiProvider,
+                                    apiKey = activeKey
+                                )
+                                isTesting = false
+                                testStatus = if (result != null && !result.isError) {
+                                    "✓ Conexão OK! Resposta: ${result.suggestionText.take(45)}..."
+                                } else {
+                                    result?.displayLabel ?: "⚠️ Erro ao conectar com o provedor"
+                                }
+                            } catch (e: Exception) {
+                                isTesting = false
+                                testStatus = "⚠️ Falha: ${e.message}"
+                            }
+                        }
+                    },
+                    enabled = !isTesting && currentKeyInput.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentSky.copy(alpha = 0.2f),
+                        contentColor = AccentSky
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (isTesting) "Testando conexão..." else "Testar Conexão com a IA")
+                }
+
+                if (testStatus != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = testStatus!!,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (testStatus!!.startsWith("✓")) StateSuccess else StateError
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(

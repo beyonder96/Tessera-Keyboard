@@ -58,6 +58,16 @@ class ParticipativeAiEngineTest {
     }
 
     @Test
+    fun parseTrigger_detectsMidSentenceTags() {
+        val input = "olá meu amigo @versiculo posso todas as coisas"
+        val parsed = ParticipativeAiEngine.parseTrigger(input, isPassiveModeEnabled = false)
+        assertNotNull(parsed)
+        assertEquals(AiIntentMode.BIBLE_VERSE_LOOKUP, parsed?.mode)
+        assertEquals("posso todas as coisas", parsed?.userContent)
+        assertEquals("@versiculo posso todas as coisas".length, parsed?.fullPrefixLength)
+    }
+
+    @Test
     fun parseTrigger_respectsPassiveMode() {
         val normalText = "ontem nos fomos na praia de manha"
         
@@ -82,4 +92,37 @@ class ParticipativeAiEngineTest {
         assertTrue(grammarPrompt.contains("português do Brasil"))
         assertTrue(grammarPrompt.contains("ESTRITAMENTE APENAS o texto final corrigido"))
     }
+
+    @Test
+    fun groqApi_serializationAndDeserializationWorks() {
+        val moshi = com.squareup.moshi.Moshi.Builder().build()
+        val reqAdapter = moshi.adapter(com.example.api.GroqChatRequest::class.java)
+        val req = com.example.api.GroqChatRequest(
+            messages = listOf(com.example.api.GroqMessage(role = "user", content = "teste"))
+        )
+        val json = reqAdapter.toJson(req)
+        assertTrue(json.contains("llama-3.1-8b-instant"))
+        assertTrue(json.contains("teste"))
+
+        val respAdapter = moshi.adapter(com.example.api.GroqChatResponse::class.java)
+        val sampleJson = """
+            {
+              "id": "chatcmpl-123",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": "Posso todas as coisas naquele que me fortalece. — Filipenses 4:13"
+                  },
+                  "finish_reason": "stop"
+                }
+              ]
+            }
+        """.trimIndent()
+        val parsedResp = respAdapter.fromJson(sampleJson)
+        assertNotNull(parsedResp)
+        assertEquals("Posso todas as coisas naquele que me fortalece. — Filipenses 4:13", parsedResp?.choices?.firstOrNull()?.message?.content)
+    }
 }
+

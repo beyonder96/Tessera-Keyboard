@@ -3,6 +3,7 @@ package com.example.api
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.Body
@@ -20,8 +21,8 @@ data class GroqChatRequest(
 
 @JsonClass(generateAdapter = true)
 data class GroqMessage(
-    @Json(name = "role") val role: String,
-    @Json(name = "content") val content: String
+    @Json(name = "role") val role: String = "user",
+    @Json(name = "content") val content: String? = ""
 )
 
 @JsonClass(generateAdapter = true)
@@ -46,18 +47,15 @@ interface GroqApiService {
 object GroqClient {
     private const val BASE_URL = "https://api.groq.com/openai/v1/"
 
+    private val loggingInterceptor = HttpLoggingInterceptor().apply {
+        level = HttpLoggingInterceptor.Level.BASIC
+    }
+
     private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
-        .addInterceptor { chain ->
-            val request = chain.request().newBuilder()
-                .header("User-Agent", "TesseraKeyboard/1.0")
-                .header("Accept", "application/json")
-                .header("Content-Type", "application/json")
-                .build()
-            chain.proceed(request)
-        }
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
+        .writeTimeout(12, TimeUnit.SECONDS)
+        .addInterceptor(loggingInterceptor)
         .build()
 
     val service: GroqApiService by lazy {

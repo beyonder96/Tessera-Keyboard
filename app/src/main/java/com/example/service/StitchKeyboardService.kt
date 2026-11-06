@@ -233,6 +233,7 @@ class StitchKeyboardService : InputMethodService() {
     private var aiWatcherJob: kotlinx.coroutines.Job? = null
     private var activeAiSuggestion: AiSuggestionResult? = null
     private var lastAiReplacedText: String? = null
+    private var lastAiInsertedLength: Int = 0
     private var lastAiQuery: String? = null
     private var aiUndoDismissRunnable: Runnable? = null
 
@@ -370,14 +371,25 @@ class StitchKeyboardService : InputMethodService() {
     }
 
     private fun getActiveAiApiKey(): String {
-        return if (prefAiProvider.equals("gemini", ignoreCase = true)) {
-            if (prefGeminiApiKey.isNotBlank()) prefGeminiApiKey
-            else if (BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY") BuildConfig.GEMINI_API_KEY
-            else ""
-        } else {
-            if (prefGroqApiKey.isNotBlank()) prefGroqApiKey
-            else if (BuildConfig.GROQ_API_KEY != "MY_GROQ_API_KEY") BuildConfig.GROQ_API_KEY
-            else ""
+        return try {
+            val sp = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
+            val provider = sp.getString("PREF_AI_PROVIDER", prefAiProvider) ?: prefAiProvider
+            prefAiProvider = provider
+            if (provider.equals("gemini", ignoreCase = true)) {
+                val key = sp.getString("PREF_GEMINI_API_KEY", prefGeminiApiKey)?.trim() ?: ""
+                val clean = key.removePrefix("Bearer ").removePrefix("bearer ").trim()
+                if (clean.isNotBlank()) clean
+                else if (BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY") BuildConfig.GEMINI_API_KEY.trim()
+                else ""
+            } else {
+                val key = sp.getString("PREF_GROQ_API_KEY", prefGroqApiKey)?.trim() ?: ""
+                val clean = key.removePrefix("Bearer ").removePrefix("bearer ").trim()
+                if (clean.isNotBlank()) clean
+                else if (BuildConfig.GROQ_API_KEY != "MY_GROQ_API_KEY") BuildConfig.GROQ_API_KEY.trim()
+                else ""
+            }
+        } catch (_: Exception) {
+            ""
         }
     }
 
@@ -1602,64 +1614,106 @@ class StitchKeyboardService : InputMethodService() {
 
     private fun scheduleParticipativeAiWatcher() {
         aiWatcherJob?.cancel()
-        if (!prefAiParticipative || isPrivateOrPassword(currentInputEditorInfo)) return
+        val sp = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
+        val isAiActive = sp.getBoolean("PREF_AI_PARTICIPATIVE", prefAiParticipative)
+        val isPassive = sp.getBoolean("PREF_AI_PASSIVE_CONTINUOUS", prefAiPassiveContinuous)
+        prefAiParticipative = isAiActive
+        prefAiPassiveContinuous = isPassive
+
+        if (!isAiActive || isPrivateOrPassword(currentInputEditorInfo)) return
 
         val ic = currentInputConnection ?: return
         val textBefore = ic.getTextBeforeCursor(300, 0)?.toString() ?: ""
-        val currentLine = textBefore.takeLastWhile { it != '\n' }.trim()
-        if (currentLine.isEmpty()) {
+        val currentLine = textBefore.takeLastWhile { it != '\n' }
+        if (currentLine.isBlank()) {
             activeAiSuggestion = null
             return
         }
 
-        val trigger = ParticipativeAiEngine.parseTrigger(currentLine, prefAiPassiveContinuous)
+        val trigger = ParticipativeAiEngine.parseTrigger(currentLine, isPassive)
         if (trigger == null) {
             activeAiSuggestion = null
             return
         }
 
-        if (currentLine == lastAiQuery) return
+        if (currentLine.trim() == lastAiQuery) return
 
         aiWatcherJob = scope.launch(Dispatchers.Main) {
-            delay(prefAiDebounceMs)
+            delay(1000L)
             val checkBefore = currentInputConnection?.getTextBeforeCursor(300, 0)?.toString() ?: ""
-            val checkLine = checkBefore.takeLastWhile { it != '\n' }.trim()
+            val checkLine = checkBefore.takeLastWhile { it != '\n' }
             if (checkLine != currentLine) return@launch
 
             val apiKey = getActiveAiApiKey()
-            if (apiKey.isBlank()) return@launch
+            if (apiKey.isBlank()) {
+                predictionJob?.cancel()
+                updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
+                updateSuggestionView(suggestion2, "⚙️ Configure a chave Groq nas opções")
+                updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
+                updateTopStripVisibility()
+                activeAiSuggestion = AiSuggestionResult(
+                    originalText = currentLine,
+                    suggestionText = "⚙️ Configure a chave Groq nas opções",
+                    displayLabel = "⚙️ Configure a chave Groq nas opções",
+                    mode = trigger.mode,
+                    charsToDelete = 0,
+                    isError = true
+                )
+                return@launch
+            }
 
-            lastAiQuery = currentLine
+            // Exibe indicador visual de carregamento no centro
+            val loadingLabel = when (trigger.mode) {
+                AiIntentMode.BIBLE_VERSE_LOOKUP -> "📖 Buscando versículo..."
+                AiIntentMode.GRAMMAR_CORRECTION -> "✨ Analisando frase..."
+                AiIntentMode.SEMANTIC_REPAIR -> "✨ Verificando texto..."
+                AiIntentMode.SMART_ASSISTANT -> "⚡ Consultando IA..."
+            }
+            predictionJob?.cancel()
+            updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
+            updateSuggestionView(suggestion2, loadingLabel)
+            updateSuggestionView(suggestion3, "", hideWhenEmpty = true)
+            updateTopStripVisibility()
+
             val result = withContext(Dispatchers.IO) {
                 ParticipativeAiEngine.processText(
                     rawInput = currentLine,
-                    isPassiveModeEnabled = prefAiPassiveContinuous,
+                    isPassiveModeEnabled = isPassive,
                     provider = prefAiProvider,
                     apiKey = apiKey
                 )
             }
 
-            if (result != null && !result.suggestionText.equals(result.originalText, ignoreCase = true)) {
-                activeAiSuggestion = result
-                val headerBadge = when (result.mode) {
-                    AiIntentMode.BIBLE_VERSE_LOOKUP -> "📖 Versículo"
-                    AiIntentMode.GRAMMAR_CORRECTION -> "✨ Correção"
-                    AiIntentMode.SEMANTIC_REPAIR -> "✨ Correção"
-                    AiIntentMode.SMART_ASSISTANT -> "⚡ Copiloto"
+            if (result != null) {
+                if (result.isError) {
+                    lastAiQuery = null
+                    activeAiSuggestion = result
+                    predictionJob?.cancel()
+                    updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
+                    updateSuggestionView(suggestion2, result.displayLabel)
+                    updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
+                    updateTopStripVisibility()
+                } else if (!result.suggestionText.equals(result.originalText, ignoreCase = true)) {
+                    lastAiQuery = currentLine.trim()
+                    activeAiSuggestion = result
+                    predictionJob?.cancel()
+                    updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
+                    updateSuggestionView(suggestion2, result.displayLabel)
+                    updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
+                    updateTopStripVisibility()
+                } else {
+                    lastAiQuery = currentLine.trim()
                 }
-                predictionJob?.cancel()
-                updateSuggestionView(suggestion1, headerBadge)
-                updateSuggestionView(suggestion2, result.suggestionText)
-                updateSuggestionView(suggestion3, "✕ Ignorar")
-                updateTopStripVisibility()
+            } else {
+                lastAiQuery = null
             }
         }
     }
 
     private fun showAiUndoPill() {
-        updateSuggestionView(suggestion1, "")
+        updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
         updateSuggestionView(suggestion2, "↩ Desfazer IA")
-        updateSuggestionView(suggestion3, "")
+        updateSuggestionView(suggestion3, "", hideWhenEmpty = true)
         updateTopStripVisibility()
         aiUndoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
         aiUndoDismissRunnable = Runnable {
@@ -1667,13 +1721,14 @@ class StitchKeyboardService : InputMethodService() {
                 clearPredictionsUi()
             }
         }
-        mainHandler.postDelayed(aiUndoDismissRunnable!!, 4000L)
+        mainHandler.postDelayed(aiUndoDismissRunnable!!, 5000L)
     }
 
-    private fun updateSuggestionView(tv: TextView?, text: String) {
+    private fun updateSuggestionView(tv: TextView?, text: String, hideWhenEmpty: Boolean = false) {
         if (tv == null) return
         if (text.isEmpty()) {
-            if (tv.visibility != View.INVISIBLE) tv.visibility = View.INVISIBLE
+            val targetVis = if (hideWhenEmpty) View.GONE else View.INVISIBLE
+            if (tv.visibility != targetVis) tv.visibility = targetVis
             if (tv.text.isNotEmpty()) tv.text = ""
             if (tv == suggestion2) {
                 tv.setBackgroundResource(android.R.color.transparent)
@@ -1684,6 +1739,7 @@ class StitchKeyboardService : InputMethodService() {
             if (tv == suggestion2) {
                 val isAutocorrectGlow = text.startsWith("=") || text.startsWith("↩") ||
                         text.startsWith("✨") || text.startsWith("📖") || text.startsWith("⚡") ||
+                        text.startsWith("⚠️") || text.startsWith("⚙️") ||
                         (composingBuffer.isNotEmpty() && predictionEngine.getTopAutocorrect(composingBuffer.toString()) != null)
                 if (isAutocorrectGlow) {
                     tv.setBackgroundResource(R.drawable.bg_autocorrect_glow_pill)
@@ -3541,34 +3597,54 @@ class StitchKeyboardService : InputMethodService() {
                         val ic = currentInputConnection
                         ic?.beginBatchEdit()
                         localEditCount++
+                        if (lastAiInsertedLength > 0) {
+                            ic?.deleteSurroundingText(lastAiInsertedLength, 0)
+                        }
                         ic?.commitText(toRestore, 1)
                         ic?.endBatchEdit()
                         triggerVibration()
                         playClickFeedback()
                     }
                     lastAiReplacedText = null
+                    lastAiInsertedLength = 0
                     lastSwipeDeletedText = null
                     clearPredictionsUi()
                     return@OnClickListener
                 }
 
                 if (activeAiSuggestion != null) {
+                    val aiResult = activeAiSuggestion!!
                     if (v == suggestion2 || v == suggestion1) {
-                        val aiResult = activeAiSuggestion!!
+                        if (aiResult.isError || selectedSuggestion.startsWith("⚙️") || selectedSuggestion.startsWith("⚠️")) {
+                            playClickFeedback()
+                            triggerVibration()
+                            try {
+                                val intent = android.content.Intent(this@StitchKeyboardService, com.example.activity.MainActivity::class.java)
+                                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                startActivity(intent)
+                            } catch (_: Exception) {}
+                            clearPredictionsUi()
+                            return@OnClickListener
+                        }
+
                         val ic = currentInputConnection ?: return@OnClickListener
                         ic.beginBatchEdit()
                         localEditCount++
-                        ic.deleteSurroundingText(aiResult.charsToDelete, 0)
-                        ic.commitText(aiResult.suggestionText + " ", 1)
+                        if (aiResult.charsToDelete > 0) {
+                            ic.deleteSurroundingText(aiResult.charsToDelete, 0)
+                        }
+                        val textToCommit = aiResult.suggestionText + " "
+                        ic.commitText(textToCommit, 1)
                         ic.endBatchEdit()
                         triggerVibration()
                         playClickFeedback()
                         lastAiReplacedText = aiResult.originalText
+                        lastAiInsertedLength = textToCommit.length
                         activeAiSuggestion = null
                         composingBuffer.setLength(0)
                         showAiUndoPill()
                         return@OnClickListener
-                    } else if (v == suggestion3 && (selectedSuggestion == "✕ Ignorar" || selectedSuggestion.contains("Ignorar"))) {
+                    } else if (v == suggestion3) {
                         activeAiSuggestion = null
                         clearPredictionsUi()
                         triggerVibration()
