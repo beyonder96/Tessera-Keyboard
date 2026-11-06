@@ -133,7 +133,17 @@ fun TabTypingContent(
     soundProfile: String = "thock",
     onSoundProfileChange: (String) -> Unit = {},
     adaptiveHitboxes: Boolean = true,
-    onAdaptiveHitboxesChange: (Boolean) -> Unit = {}
+    onAdaptiveHitboxesChange: (Boolean) -> Unit = {},
+    aiParticipative: Boolean = true,
+    onAiParticipativeChange: (Boolean) -> Unit = {},
+    aiPassiveContinuous: Boolean = false,
+    onAiPassiveContinuousChange: (Boolean) -> Unit = {},
+    aiProvider: String = "groq",
+    onAiProviderChange: (String) -> Unit = {},
+    groqApiKey: String = "",
+    onGroqApiKeyChange: (String) -> Unit = {},
+    geminiApiKey: String = "",
+    onGeminiApiKeyChange: (String) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -146,6 +156,104 @@ fun TabTypingContent(
             title = "Digitação",
             subtitle = "Entrada de texto, gestos, automações e feedback tátil"
         )
+
+        SectionCard(title = "IA Participativa (Copiloto)") {
+            SettingToggle(
+                title = "Ativar IA Participativa",
+                description = "Lê o contexto e sugere correções ou versículos bíblicos ao pausar a digitação",
+                checked = aiParticipative,
+                onCheckedChange = onAiParticipativeChange
+            )
+            if (aiParticipative) {
+                DividerLine()
+                SettingToggle(
+                    title = "Participação Contínua (Sem Tags)",
+                    description = "Quando ativado, analisa frases e sugere correções ao pausar mesmo sem digitar @corrigir ou @versiculo",
+                    checked = aiPassiveContinuous,
+                    onCheckedChange = onAiPassiveContinuousChange
+                )
+                DividerLine()
+                Text(
+                    text = "Modelo e Provedor de IA",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Slate100
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Escolha o provedor de processamento:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Slate400
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ThemeOptionButton(
+                        title = "Groq (Llama 3 8B)",
+                        isSelected = aiProvider == "groq",
+                        onClick = { onAiProviderChange("groq") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    ThemeOptionButton(
+                        title = "Google Gemini",
+                        isSelected = aiProvider == "gemini",
+                        onClick = { onAiProviderChange("gemini") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                DividerLine()
+                Spacer(modifier = Modifier.height(8.dp))
+
+                var currentKeyInput by remember(if (aiProvider == "groq") groqApiKey else geminiApiKey) {
+                    mutableStateOf(if (aiProvider == "groq") groqApiKey else geminiApiKey)
+                }
+
+                Text(
+                    text = if (aiProvider == "groq") "Chave de API da Groq" else "Chave de API do Google Gemini",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Slate100
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (aiProvider == "groq")
+                        "Obtenha sua chave gratuita em console.groq.com (Llama 3 8B Instant)"
+                    else
+                        "Obtenha sua chave gratuita em aistudio.google.com",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Slate400
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = currentKeyInput,
+                    onValueChange = {
+                        currentKeyInput = it
+                        if (aiProvider == "groq") onGroqApiKeyChange(it) else onGeminiApiKeyChange(it)
+                    },
+                    placeholder = { Text(if (aiProvider == "groq") "gsk_..." else "AIzaSy...", color = Slate600) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentSky,
+                        unfocusedBorderColor = Slate700,
+                        focusedTextColor = Slate100,
+                        unfocusedTextColor = Slate300,
+                        cursorColor = AccentSky
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Dica: Digite @ no início da frase para escolher @corrigir, @versiculo ou @ia.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AccentSky
+                )
+            }
+        }
 
         SectionCard(title = "Entrada e Automações") {
             SettingToggle(

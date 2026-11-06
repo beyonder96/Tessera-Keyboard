@@ -229,6 +229,11 @@ fun TesseraDashboardContainer(
     var flickAccents by remember { mutableStateOf(try { prefs.getBoolean("PREF_FLICK_ACCENTS", true) } catch (_: Exception) { true }) }
     var swipeDownHide by remember { mutableStateOf(try { prefs.getBoolean("PREF_SWIPE_DOWN_HIDE", true) } catch (_: Exception) { true }) }
     var undoDelete by remember { mutableStateOf(try { prefs.getBoolean("PREF_UNDO_DELETE", true) } catch (_: Exception) { true }) }
+    var aiParticipative by remember { mutableStateOf(try { prefs.getBoolean("PREF_AI_PARTICIPATIVE", true) } catch (_: Exception) { true }) }
+    var aiPassiveContinuous by remember { mutableStateOf(try { prefs.getBoolean("PREF_AI_PASSIVE_CONTINUOUS", false) } catch (_: Exception) { false }) }
+    var aiProvider by remember { mutableStateOf(try { prefs.getString("PREF_AI_PROVIDER", "groq") ?: "groq" } catch (_: Exception) { "groq" }) }
+    var groqApiKey by remember { mutableStateOf(try { prefs.getString("PREF_GROQ_API_KEY", "") ?: "" } catch (_: Exception) { "" }) }
+    var geminiApiKey by remember { mutableStateOf(try { prefs.getString("PREF_GEMINI_API_KEY", "") ?: "" } catch (_: Exception) { "" }) }
 
     // Polling contínuo de status com delay suave
     LaunchedEffect(Unit) {
@@ -316,6 +321,31 @@ fun TesseraDashboardContainer(
                 onUndoDeleteChange = {
                     undoDelete = it
                     prefs.edit().putBoolean("PREF_UNDO_DELETE", it).apply()
+                },
+                aiParticipative = aiParticipative,
+                onAiParticipativeChange = {
+                    aiParticipative = it
+                    prefs.edit().putBoolean("PREF_AI_PARTICIPATIVE", it).apply()
+                },
+                aiPassiveContinuous = aiPassiveContinuous,
+                onAiPassiveContinuousChange = {
+                    aiPassiveContinuous = it
+                    prefs.edit().putBoolean("PREF_AI_PASSIVE_CONTINUOUS", it).apply()
+                },
+                aiProvider = aiProvider,
+                onAiProviderChange = {
+                    aiProvider = it
+                    prefs.edit().putString("PREF_AI_PROVIDER", it).apply()
+                },
+                groqApiKey = groqApiKey,
+                onGroqApiKeyChange = {
+                    groqApiKey = it
+                    prefs.edit().putString("PREF_GROQ_API_KEY", it).apply()
+                },
+                geminiApiKey = geminiApiKey,
+                onGeminiApiKeyChange = {
+                    geminiApiKey = it
+                    prefs.edit().putString("PREF_GEMINI_API_KEY", it).apply()
                 },
                 hapticFeedback = hapticFeedback,
                 onHapticFeedbackChange = {
@@ -448,6 +478,16 @@ fun TesseraDashboardContent(
     onSwipeDownHideChange: (Boolean) -> Unit,
     undoDelete: Boolean,
     onUndoDeleteChange: (Boolean) -> Unit,
+    aiParticipative: Boolean = true,
+    onAiParticipativeChange: (Boolean) -> Unit = {},
+    aiPassiveContinuous: Boolean = false,
+    onAiPassiveContinuousChange: (Boolean) -> Unit = {},
+    aiProvider: String = "groq",
+    onAiProviderChange: (String) -> Unit = {},
+    groqApiKey: String = "",
+    onGroqApiKeyChange: (String) -> Unit = {},
+    geminiApiKey: String = "",
+    onGeminiApiKeyChange: (String) -> Unit = {},
     hapticFeedback: Boolean,
     onHapticFeedbackChange: (Boolean) -> Unit,
     hapticDurationMs: Int,
@@ -551,7 +591,17 @@ fun TesseraDashboardContent(
                     soundFeedback = soundFeedback,
                     onSoundFeedbackChange = onSoundFeedbackChange,
                     hasMicPermission = hasMicPermission,
-                    onRequestMicPermission = onRequestMicPermission
+                    onRequestMicPermission = onRequestMicPermission,
+                    aiParticipative = aiParticipative,
+                    onAiParticipativeChange = onAiParticipativeChange,
+                    aiPassiveContinuous = aiPassiveContinuous,
+                    onAiPassiveContinuousChange = onAiPassiveContinuousChange,
+                    aiProvider = aiProvider,
+                    onAiProviderChange = onAiProviderChange,
+                    groqApiKey = groqApiKey,
+                    onGroqApiKeyChange = onGroqApiKeyChange,
+                    geminiApiKey = geminiApiKey,
+                    onGeminiApiKeyChange = onGeminiApiKeyChange
                 )
                 2 -> TabAppearanceContent(
                     keyboardTheme = keyboardTheme,

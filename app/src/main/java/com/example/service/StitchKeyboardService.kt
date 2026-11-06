@@ -15,6 +15,9 @@ import com.example.R
 import com.example.BuildConfig
 import com.example.engine.PredictionEngine
 import com.example.manager.GhostTextManager
+import com.example.engine.ParticipativeAiEngine
+import com.example.engine.AiIntentMode
+import com.example.engine.AiSuggestionResult
 import com.example.activity.MainActivity
 import android.annotation.SuppressLint
 import android.inputmethodservice.InputMethodService
@@ -219,6 +222,20 @@ class StitchKeyboardService : InputMethodService() {
     private var oneHandedRightPanel: View? = null
     private var lastCommittedWord: String? = null
 
+    // IA Participativa (Copiloto Inteligente)
+    private var prefAiParticipative = true
+    private var prefAiPassiveContinuous = false
+    private var prefAiProvider = "groq"
+    private var prefGroqApiKey = ""
+    private var prefGeminiApiKey = ""
+    private var prefAiDebounceMs = 1200L
+
+    private var aiWatcherJob: kotlinx.coroutines.Job? = null
+    private var activeAiSuggestion: AiSuggestionResult? = null
+    private var lastAiReplacedText: String? = null
+    private var lastAiQuery: String? = null
+    private var aiUndoDismissRunnable: Runnable? = null
+
     private val keyHintsMap = mapOf(
         R.id.key_q to "1", R.id.key_w to "2", R.id.key_e to "3", R.id.key_r to "4", R.id.key_t to "5",
         R.id.key_y to "6", R.id.key_u to "7", R.id.key_i to "8", R.id.key_o to "9", R.id.key_p to "0",
@@ -344,6 +361,24 @@ class StitchKeyboardService : InputMethodService() {
         prefFlickAccents = sp.getBoolean("PREF_FLICK_ACCENTS", true)
         prefSwipeDownHide = sp.getBoolean("PREF_SWIPE_DOWN_HIDE", true)
         prefUndoDelete = sp.getBoolean("PREF_UNDO_DELETE", true)
+        prefAiParticipative = sp.getBoolean("PREF_AI_PARTICIPATIVE", true)
+        prefAiPassiveContinuous = sp.getBoolean("PREF_AI_PASSIVE_CONTINUOUS", false)
+        prefAiProvider = sp.getString("PREF_AI_PROVIDER", "groq") ?: "groq"
+        prefGroqApiKey = sp.getString("PREF_GROQ_API_KEY", "") ?: ""
+        prefGeminiApiKey = sp.getString("PREF_GEMINI_API_KEY", "") ?: ""
+        prefAiDebounceMs = sp.getLong("PREF_AI_DEBOUNCE_MS", 1200L)
+    }
+
+    private fun getActiveAiApiKey(): String {
+        return if (prefAiProvider.equals("gemini", ignoreCase = true)) {
+            if (prefGeminiApiKey.isNotBlank()) prefGeminiApiKey
+            else if (BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY") BuildConfig.GEMINI_API_KEY
+            else ""
+        } else {
+            if (prefGroqApiKey.isNotBlank()) prefGroqApiKey
+            else if (BuildConfig.GROQ_API_KEY != "MY_GROQ_API_KEY") BuildConfig.GROQ_API_KEY
+            else ""
+        }
     }
 
     override fun onCreateInputView(): View {
@@ -1442,6 +1477,18 @@ class StitchKeyboardService : InputMethodService() {
             return
         }
 
+        if (beforeText.endsWith("@") || beforeText.trim() == "@") {
+            predictionJob?.cancel()
+            activeAiSuggestion = null
+            updateSuggestionView(suggestion1, "@corrigir")
+            updateSuggestionView(suggestion2, "@versiculo")
+            updateSuggestionView(suggestion3, "@ia")
+            updateTopStripVisibility()
+            return
+        }
+
+        scheduleParticipativeAiWatcher()
+
         if (word.isEmpty()) {
             predictionJob?.cancel()
             lastQueriedWord = ""
@@ -1553,6 +1600,76 @@ class StitchKeyboardService : InputMethodService() {
         }
     }
 
+    private fun scheduleParticipativeAiWatcher() {
+        aiWatcherJob?.cancel()
+        if (!prefAiParticipative || isPrivateOrPassword(currentInputEditorInfo)) return
+
+        val ic = currentInputConnection ?: return
+        val textBefore = ic.getTextBeforeCursor(300, 0)?.toString() ?: ""
+        val currentLine = textBefore.takeLastWhile { it != '\n' }.trim()
+        if (currentLine.isEmpty()) {
+            activeAiSuggestion = null
+            return
+        }
+
+        val trigger = ParticipativeAiEngine.parseTrigger(currentLine, prefAiPassiveContinuous)
+        if (trigger == null) {
+            activeAiSuggestion = null
+            return
+        }
+
+        if (currentLine == lastAiQuery) return
+
+        aiWatcherJob = scope.launch(Dispatchers.Main) {
+            delay(prefAiDebounceMs)
+            val checkBefore = currentInputConnection?.getTextBeforeCursor(300, 0)?.toString() ?: ""
+            val checkLine = checkBefore.takeLastWhile { it != '\n' }.trim()
+            if (checkLine != currentLine) return@launch
+
+            val apiKey = getActiveAiApiKey()
+            if (apiKey.isBlank()) return@launch
+
+            lastAiQuery = currentLine
+            val result = withContext(Dispatchers.IO) {
+                ParticipativeAiEngine.processText(
+                    rawInput = currentLine,
+                    isPassiveModeEnabled = prefAiPassiveContinuous,
+                    provider = prefAiProvider,
+                    apiKey = apiKey
+                )
+            }
+
+            if (result != null && !result.suggestionText.equals(result.originalText, ignoreCase = true)) {
+                activeAiSuggestion = result
+                val headerBadge = when (result.mode) {
+                    AiIntentMode.BIBLE_VERSE_LOOKUP -> "📖 Versículo"
+                    AiIntentMode.GRAMMAR_CORRECTION -> "✨ Correção"
+                    AiIntentMode.SEMANTIC_REPAIR -> "✨ Correção"
+                    AiIntentMode.SMART_ASSISTANT -> "⚡ Copiloto"
+                }
+                predictionJob?.cancel()
+                updateSuggestionView(suggestion1, headerBadge)
+                updateSuggestionView(suggestion2, result.suggestionText)
+                updateSuggestionView(suggestion3, "✕ Ignorar")
+                updateTopStripVisibility()
+            }
+        }
+    }
+
+    private fun showAiUndoPill() {
+        updateSuggestionView(suggestion1, "")
+        updateSuggestionView(suggestion2, "↩ Desfazer IA")
+        updateSuggestionView(suggestion3, "")
+        updateTopStripVisibility()
+        aiUndoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
+        aiUndoDismissRunnable = Runnable {
+            if (suggestion2?.text?.toString() == "↩ Desfazer IA") {
+                clearPredictionsUi()
+            }
+        }
+        mainHandler.postDelayed(aiUndoDismissRunnable!!, 4000L)
+    }
+
     private fun updateSuggestionView(tv: TextView?, text: String) {
         if (tv == null) return
         if (text.isEmpty()) {
@@ -1566,6 +1683,7 @@ class StitchKeyboardService : InputMethodService() {
             if (tv.visibility != View.VISIBLE) tv.visibility = View.VISIBLE
             if (tv == suggestion2) {
                 val isAutocorrectGlow = text.startsWith("=") || text.startsWith("↩") ||
+                        text.startsWith("✨") || text.startsWith("📖") || text.startsWith("⚡") ||
                         (composingBuffer.isNotEmpty() && predictionEngine.getTopAutocorrect(composingBuffer.toString()) != null)
                 if (isAutocorrectGlow) {
                     tv.setBackgroundResource(R.drawable.bg_autocorrect_glow_pill)
@@ -1579,6 +1697,7 @@ class StitchKeyboardService : InputMethodService() {
     private fun clearPredictionsUi() {
         predictionJob?.cancel()
         lastQueriedWord = ""
+        activeAiSuggestion = null
         updateSuggestionView(suggestion1, "")
         updateSuggestionView(suggestion2, "")
         updateSuggestionView(suggestion3, "")
@@ -3417,7 +3536,7 @@ class StitchKeyboardService : InputMethodService() {
                 if (selectedSuggestion.isEmpty() || selectedSuggestion == "📋 Snippet") return@OnClickListener
                 
                 if (selectedSuggestion.startsWith("↩ Desfazer")) {
-                    val toRestore = lastSwipeDeletedText ?: ""
+                    val toRestore = lastAiReplacedText ?: lastSwipeDeletedText ?: ""
                     if (toRestore.isNotEmpty()) {
                         val ic = currentInputConnection
                         ic?.beginBatchEdit()
@@ -3427,7 +3546,49 @@ class StitchKeyboardService : InputMethodService() {
                         triggerVibration()
                         playClickFeedback()
                     }
+                    lastAiReplacedText = null
                     lastSwipeDeletedText = null
+                    clearPredictionsUi()
+                    return@OnClickListener
+                }
+
+                if (activeAiSuggestion != null) {
+                    if (v == suggestion2 || v == suggestion1) {
+                        val aiResult = activeAiSuggestion!!
+                        val ic = currentInputConnection ?: return@OnClickListener
+                        ic.beginBatchEdit()
+                        localEditCount++
+                        ic.deleteSurroundingText(aiResult.charsToDelete, 0)
+                        ic.commitText(aiResult.suggestionText + " ", 1)
+                        ic.endBatchEdit()
+                        triggerVibration()
+                        playClickFeedback()
+                        lastAiReplacedText = aiResult.originalText
+                        activeAiSuggestion = null
+                        composingBuffer.setLength(0)
+                        showAiUndoPill()
+                        return@OnClickListener
+                    } else if (v == suggestion3 && (selectedSuggestion == "✕ Ignorar" || selectedSuggestion.contains("Ignorar"))) {
+                        activeAiSuggestion = null
+                        clearPredictionsUi()
+                        triggerVibration()
+                        return@OnClickListener
+                    }
+                }
+
+                if (selectedSuggestion in listOf("@corrigir", "@versiculo", "@ia", "@correcao", "@biblia")) {
+                    val ic = currentInputConnection ?: return@OnClickListener
+                    val beforeText = ic.getTextBeforeCursor(20, 0)?.toString() ?: ""
+                    val deleteLen = if (beforeText.endsWith("@")) 1 else 0
+                    ic.beginBatchEdit()
+                    localEditCount++
+                    if (deleteLen > 0) {
+                        ic.deleteSurroundingText(deleteLen, 0)
+                    }
+                    ic.commitText(selectedSuggestion + " ", 1)
+                    ic.endBatchEdit()
+                    triggerVibration()
+                    playClickFeedback()
                     clearPredictionsUi()
                     return@OnClickListener
                 }
@@ -4158,7 +4319,9 @@ class StitchKeyboardService : InputMethodService() {
         } catch (_: Exception) {}
         unregisterScreenshotObserver()
         clipboardDismissRunnable?.let { mainHandler.removeCallbacks(it) }
+        aiUndoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
         predictionJob?.cancel()
+        aiWatcherJob?.cancel()
         waveJob?.cancel()
         mainHandler.removeCallbacksAndMessages(null)
         backspaceRunnable?.let { backspaceHandler.removeCallbacks(it) }
