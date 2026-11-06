@@ -17,8 +17,8 @@ android {
     applicationId = "com.example"
     minSdk = 24
     targetSdk = 36
-    versionCode = 38
-    versionName = "1.1.0"
+    versionCode = 39
+    versionName = "1.2.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -56,6 +56,9 @@ android {
     unitTests {
       isIncludeAndroidResources = true
       isReturnDefaultValues = true
+      all {
+        it.jvmArgs("-Djavax.net.ssl.trustStore=/home/antigravity/cacerts", "-Djavax.net.ssl.trustStorePassword=changeit")
+      }
     }
   }
 }

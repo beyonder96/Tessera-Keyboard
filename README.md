@@ -7,8 +7,9 @@
 
 ---
 
-## ✨ Funcionalidades Principais (v1.1.0)
+## ✨ Funcionalidades Principais (v1.2.0)
 
+* 🤖 **IA Participativa (Copiloto Inteligente):** Correção ortográfica/gramatical em tempo real e autocompletar inteligente de citações e versículos bíblicos (com referência exata) ao pausar a digitação. Suporta comandos com tags (`@corrigir`, `@versiculo`, `@ia`), modo contínuo sutil sem tags, pílula brilhante centralizada na barra de sugestões e botão instantâneo de desfazer.
 * 🎨 **Nova Identidade Visual & Ícones Adaptativos:** Novo logotipo com keycap mecânica tátil e monograma caligráfico "T" em alto contraste minimalista, com suporte nativo a ícones adaptativos do Android (API 26+), tema dinâmico monocromático (Android 13+) e mipmaps de alta densidade.
 * 🔤 **Abertura Padrão Sempre em Modo Texto:** Garantia estrita de inicialização no modo alfabético QWERTY, com reset automático de modos de símbolos e numéricos ao abrir novos campos ou reabrir o teclado.
 * 🖼️ **Colar Fotos Direto do Clipboard (Estilo Gboard):** Suporte nativo à API de Rich Content (`commitContent`) do Android. Ao copiar uma imagem, o teclado apresenta um chip minimalista "Colar foto" e a insere diretamente em apps compatíveis (WhatsApp, Telegram, Discord, etc.).
@@ -34,8 +35,8 @@ Para usar o Tessera Keyboard no seu celular sem precisar compilar o código:
 
 1. Baixe a versão mais recente clicando diretamente nos botões abaixo:
 
-   [![Baixar APK Release](https://img.shields.io/badge/Baixar-APK_Release_v1.1.0-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/releases/download/v1.1.0/app-release-v1.1.0.apk)
-   [![Baixar APK Debug](https://img.shields.io/badge/Baixar-APK_Debug_v1.1.0-0095D5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/releases/download/v1.1.0/app-debug-v1.1.0.apk)
+   [![Baixar APK Release](https://img.shields.io/badge/Baixar-APK_Release_v1.2.0-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/releases/download/v1.2.0/app-release-v1.2.0.apk)
+   [![Baixar APK Debug](https://img.shields.io/badge/Baixar-APK_Debug_v1.2.0-0095D5?style=for-the-badge&logo=android&logoColor=white)](https://github.com/beyonder96/Tessera-Keyboard/releases/download/v1.2.0/app-debug-v1.2.0.apk)
 3. Instale o APK no seu dispositivo (talvez seja necessário habilitar a "Instalação de Fontes Desconhecidas" nas configurações do seu aparelho).
 4. Ao final da instalação, abra o aplicativo **Tessera** ou vá até as configurações do seu Android em `Sistema > Idiomas e entrada > Teclado na tela`.
 5. Ative o Tessera Keyboard e o defina como o teclado padrão.
