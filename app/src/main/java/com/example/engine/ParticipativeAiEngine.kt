@@ -21,132 +21,197 @@ data class ParsedAiTrigger(
     val mode: AiIntentMode,
     val matchedTag: String,
     val userContent: String,
-    val fullPrefixLength: Int
-)
+    val targetSpanText: String,
+    val deleteBeforeCount: Int,
+    val deleteAfterCount: Int = 0
+) {
+    val fullPrefixLength: Int get() = deleteBeforeCount
+}
 
 data class AiSuggestionResult(
     val originalText: String,
+    val targetSpanText: String = "",
     val suggestionText: String,
     val displayLabel: String,
     val mode: AiIntentMode,
-    val charsToDelete: Int,
+    val deleteBeforeCount: Int = 0,
+    val deleteAfterCount: Int = 0,
     val isError: Boolean = false,
     val modelUsed: String? = null
-)
+) {
+    val charsToDelete: Int get() = deleteBeforeCount
+}
 
 object ParticipativeAiEngine {
 
-    // Regex para detecção flexível de tags com ou sem '@' ou '/' no início ou após espaços
-    private val TAG_CORRECTION_REGEX = Regex(
-        """(?:^|\s)[@/](corrigir|correcao|correção|c|fix)\s+(.+)""",
-        RegexOption.IGNORE_CASE
-    )
-    private val TAG_VERSE_REGEX = Regex(
-        """(?:^|\s)[@/](versiculo|versículo|v|biblia|bíblia)\s+(.+)""",
-        RegexOption.IGNORE_CASE
-    )
-    private val TAG_GENERIC_AI_REGEX = Regex(
-        """(?:^|\s)[@/](ia|ai|copiloto)\s+(.+)""",
-        RegexOption.IGNORE_CASE
-    )
+    private val CORRECTION_TAGS = listOf("corrigir", "correcao", "correção", "c", "fix")
+    private val VERSE_TAGS = listOf("versiculo", "versículo", "v", "biblia", "bíblia")
+    private val AI_TAGS = listOf("ia", "ai", "copiloto")
 
-    fun parseTrigger(text: String, isPassiveModeEnabled: Boolean = false): ParsedAiTrigger? {
-        if (text.isBlank()) return null
-
-        TAG_CORRECTION_REGEX.find(text)?.let { match ->
-            val tag = match.groupValues[1]
-            val content = match.groupValues[2].trim()
+    fun parseTrigger(
+        textBefore: String,
+        textAfter: String = "",
+        selectedText: String? = null,
+        isPassiveModeEnabled: Boolean = false
+    ): ParsedAiTrigger? {
+        // 1. Se o usuário selecionou texto manualmente, prioridade total na seleção
+        if (!selectedText.isNullOrBlank()) {
+            val content = selectedText.trim()
             if (content.isNotEmpty()) {
-                val tagStartIndex = if (match.value.startsWith(" ")) match.range.first + 1 else match.range.first
-                val deleteLen = text.length - tagStartIndex
                 return ParsedAiTrigger(
                     mode = AiIntentMode.GRAMMAR_CORRECTION,
-                    matchedTag = tag,
+                    matchedTag = "selection",
                     userContent = content,
-                    fullPrefixLength = deleteLen
+                    targetSpanText = selectedText,
+                    deleteBeforeCount = 0,
+                    deleteAfterCount = 0
                 )
             }
         }
 
-        TAG_VERSE_REGEX.find(text)?.let { match ->
-            val tag = match.groupValues[1]
-            val content = match.groupValues[2].trim()
-            if (content.isNotEmpty()) {
-                val tagStartIndex = if (match.value.startsWith(" ")) match.range.first + 1 else match.range.first
-                val deleteLen = text.length - tagStartIndex
-                return ParsedAiTrigger(
-                    mode = AiIntentMode.BIBLE_VERSE_LOOKUP,
-                    matchedTag = tag,
-                    userContent = content,
-                    fullPrefixLength = deleteLen
-                )
+        if (textBefore.isBlank() && textAfter.isBlank()) return null
+
+        // 2. Detecção de tags no final do texto: ex: "frase digitada @corrigir"
+        for ((mode, tags) in listOf(
+            AiIntentMode.GRAMMAR_CORRECTION to CORRECTION_TAGS,
+            AiIntentMode.BIBLE_VERSE_LOOKUP to VERSE_TAGS,
+            AiIntentMode.SMART_ASSISTANT to AI_TAGS
+        )) {
+            val tagPattern = tags.joinToString("|")
+            val endRegex = Regex("""(?:^|[\n.?!;])?\s*(.+?)\s+[@/]($tagPattern)[.?!]?\s*$""", RegexOption.IGNORE_CASE)
+            endRegex.find(textBefore)?.let { match ->
+                val content = match.groupValues[1].trim()
+                val tag = match.groupValues[2]
+                if (content.isNotEmpty()) {
+                    val fullTarget = match.value.trimStart()
+                    val tagStartInBefore = textBefore.lastIndexOf(fullTarget).takeIf { it >= 0 } ?: 0
+                    val deleteBefore = textBefore.length - tagStartInBefore
+                    return ParsedAiTrigger(
+                        mode = mode,
+                        matchedTag = tag,
+                        userContent = content,
+                        targetSpanText = fullTarget,
+                        deleteBeforeCount = deleteBefore,
+                        deleteAfterCount = 0
+                    )
+                }
             }
         }
 
-        TAG_GENERIC_AI_REGEX.find(text)?.let { match ->
-            val tag = match.groupValues[1]
-            val content = match.groupValues[2].trim()
-            if (content.isNotEmpty()) {
-                val tagStartIndex = if (match.value.startsWith(" ")) match.range.first + 1 else match.range.first
-                val deleteLen = text.length - tagStartIndex
-                return ParsedAiTrigger(
-                    mode = AiIntentMode.SMART_ASSISTANT,
-                    matchedTag = tag,
-                    userContent = content,
-                    fullPrefixLength = deleteLen
-                )
+        // 3. Detecção de tags no início do texto: ex: "@corrigir frase digitada"
+        for ((mode, tags) in listOf(
+            AiIntentMode.GRAMMAR_CORRECTION to CORRECTION_TAGS,
+            AiIntentMode.BIBLE_VERSE_LOOKUP to VERSE_TAGS,
+            AiIntentMode.SMART_ASSISTANT to AI_TAGS
+        )) {
+            val tagPattern = tags.joinToString("|")
+            val startRegex = Regex("""(?:^|[\n\s])[@/]($tagPattern)\s+(.+)""", RegexOption.IGNORE_CASE)
+            startRegex.find(textBefore)?.let { match ->
+                val tag = match.groupValues[1]
+                val contentBefore = match.groupValues[2]
+                // Se houver texto após o cursor na mesma linha/oração, une para dar contexto total
+                val contentAfter = textAfter.takeWhile { it != '\n' && it != '.' && it != '!' && it != '?' }
+                val fullContent = (contentBefore + contentAfter).trim()
+                if (fullContent.isNotEmpty()) {
+                    val tagIndexInBefore = textBefore.lastIndexOf("@$tag").takeIf { it >= 0 }
+                        ?: textBefore.lastIndexOf("/$tag").takeIf { it >= 0 }
+                        ?: match.range.first
+                    val deleteBefore = textBefore.length - tagIndexInBefore
+                    val deleteAfter = contentAfter.length
+                    val fullTarget = textBefore.substring(tagIndexInBefore) + contentAfter
+                    return ParsedAiTrigger(
+                        mode = mode,
+                        matchedTag = tag,
+                        userContent = fullContent,
+                        targetSpanText = fullTarget,
+                        deleteBeforeCount = deleteBefore,
+                        deleteAfterCount = deleteAfter
+                    )
+                }
             }
         }
 
-        // Modo passivo/contínuo ativado: analisa frases sem tag explícita
-        val trimmed = text.trimStart()
-        if (isPassiveModeEnabled && trimmed.length >= 10 && !trimmed.startsWith("@") && !trimmed.startsWith("/")) {
-            return ParsedAiTrigger(
-                mode = AiIntentMode.SEMANTIC_REPAIR,
-                matchedTag = "",
-                userContent = trimmed,
-                fullPrefixLength = text.length
+        // 4. Modo passivo contínuo (Sem tags): captura a oração completa ao redor do cursor
+        if (isPassiveModeEnabled) {
+            val sentenceStartInBefore = maxOf(
+                textBefore.lastIndexOf('\n'),
+                textBefore.lastIndexOf(". "),
+                textBefore.lastIndexOf("! "),
+                textBefore.lastIndexOf("? ")
+            ).let { if (it == -1) 0 else if (textBefore[it] == '\n') it + 1 else it + 2 }
+
+            val sentencePartBefore = textBefore.substring(sentenceStartInBefore)
+            val sentenceEndInAfter = minOf(
+                textAfter.indexOf('\n').takeIf { it != -1 } ?: textAfter.length,
+                textAfter.indexOf('.').takeIf { it != -1 } ?: textAfter.length,
+                textAfter.indexOf('!').takeIf { it != -1 } ?: textAfter.length,
+                textAfter.indexOf('?').takeIf { it != -1 } ?: textAfter.length
             )
+            val sentencePartAfter = textAfter.substring(0, sentenceEndInAfter)
+            val fullSentence = (sentencePartBefore + sentencePartAfter).trim()
+
+            if (fullSentence.length >= 12 && !fullSentence.startsWith("@") && !fullSentence.startsWith("/")) {
+                val words = fullSentence.split(Regex("""\s+""")).filter { it.isNotBlank() }
+                if (words.size >= 2) {
+                    return ParsedAiTrigger(
+                        mode = AiIntentMode.SEMANTIC_REPAIR,
+                        matchedTag = "",
+                        userContent = fullSentence,
+                        targetSpanText = sentencePartBefore + sentencePartAfter,
+                        deleteBeforeCount = sentencePartBefore.length,
+                        deleteAfterCount = sentencePartAfter.length
+                    )
+                }
+            }
         }
 
         return null
+    }
+
+    fun parseTrigger(text: String, isPassiveModeEnabled: Boolean = false): ParsedAiTrigger? {
+        return parseTrigger(
+            textBefore = text,
+            textAfter = "",
+            selectedText = null,
+            isPassiveModeEnabled = isPassiveModeEnabled
+        )
     }
 
     fun buildSystemPrompt(mode: AiIntentMode): String {
         return when (mode) {
             AiIntentMode.GRAMMAR_CORRECTION ->
                 "Você é o revisor gramatical e ortográfico de alta precisão do teclado Tessera em português do Brasil. " +
-                "Sua única tarefa é corrigir rigorosamente erros ortográficos, concordância verbal/nominal, pontuação, acentuação e fluidez da frase. " +
-                "Mantenha fielmente o significado e intenção original do usuário. " +
-                "Retorne ESTRITAMENTE APENAS o texto final corrigido, sem aspas, explicações, saudações ou comentários."
+                "Sua única tarefa é reescrever a oração/frase inteira corrigindo com rigor erros de ortografia, concordância verbal/nominal, pontuação, acentuação e clareza. " +
+                "Mantenha fielmente o significado, o contexto e a intenção original do usuário. " +
+                "Retorne ESTRITAMENTE APENAS o texto completo e corrigido para substituição, sem aspas, explicações, saudações ou comentários."
 
             AiIntentMode.BIBLE_VERSE_LOOKUP ->
-                "Você é um especialista em citações bíblicas e sabedoria para o teclado Tessera. " +
+                "Você é um especialista em citações bíblicas e referências para o teclado Tessera. " +
                 "Ao receber um trecho imperfeito, incompleto ou palavras-chave de uma passagem bíblica em português, " +
                 "identifique a passagem correta (versão ARA ou NVI) e retorne ESTRITAMENTE no formato:\n" +
                 "[Texto do versículo corrigido]. — [Livro] [Capítulo]:[Versículo]\n" +
-                "Exemplo para 'tudo posso naquele': Posso todas as coisas naquele que me fortalece. — Filipenses 4:13\n" +
                 "Exemplo para 'o senhor e meu pastor': O Senhor é o meu pastor; nada me faltará. — Salmos 23:1\n" +
                 "Se for uma citação célebre não-bíblica, retorne no formato: [Citação]. — [Autor]\n" +
                 "Retorne APENAS o texto puro sem aspas adicionais no início/fim e sem explicações."
 
             AiIntentMode.SEMANTIC_REPAIR ->
-                "Você é o assistente de clareza do teclado Tessera em português do Brasil. " +
-                "Se a frase digitada tiver erros de digitação, palavras sem sentido ou truncadas, reconstrua-a para o sentido correto e natural mais provável. " +
-                "Se já estiver correta, devolva a frase inalterada ou com a pontuação polida. " +
-                "Retorne ESTRITAMENTE APENAS o texto a ser digitado, sem aspas ou notas."
+                "Você é o assistente de escrita e clareza do teclado Tessera em português do Brasil. " +
+                "Analise a oração recebida no contexto completo. Se houver digitação incorreta, palavras trocadas, truncadas ou falta de pontuação, reescreva a oração inteira de forma natural e correta. " +
+                "Se já estiver correta, devolva a frase inalterada com a pontuação polida. " +
+                "Retorne ESTRITAMENTE APENAS o texto final completo, sem aspas, notas ou introduções."
 
             AiIntentMode.SMART_ASSISTANT ->
-                "Você é o copiloto de escrita inteligente do teclado Tessera. " +
-                "Se o texto for um versículo ou citação, complete com a referência correspondente. " +
-                "Se for uma frase com erros, corrija o português. " +
-                "Se for uma pergunta direta muito curta, responda de forma ultra-concisa. " +
+                "Você é o copiloto de escrita inteligente do teclado Tessera em português do Brasil. " +
+                "Se for um pedido de texto ou pergunta, responda de forma ultra-concisa e direta para ser inserido na mensagem. " +
+                "Se for um texto com erros, devolva-o corrigido por completo. " +
                 "Retorne ESTRITAMENTE APENAS o resultado final a ser inserido no campo de texto."
         }
     }
 
     suspend fun processText(
-        rawInput: String,
+        textBefore: String,
+        textAfter: String = "",
+        selectedText: String? = null,
         isPassiveModeEnabled: Boolean,
         provider: String,
         apiKey: String
@@ -154,7 +219,13 @@ object ParticipativeAiEngine {
         val cleanApiKey = apiKey.trim().removePrefix("Bearer ").removePrefix("bearer ").trim()
         if (cleanApiKey.isBlank()) return@withContext null
 
-        val trigger = parseTrigger(rawInput, isPassiveModeEnabled) ?: return@withContext null
+        val trigger = parseTrigger(
+            textBefore = textBefore,
+            textAfter = textAfter,
+            selectedText = selectedText,
+            isPassiveModeEnabled = isPassiveModeEnabled
+        ) ?: return@withContext null
+
         val systemPrompt = buildSystemPrompt(trigger.mode)
         val userPrompt = trigger.userContent
 
@@ -177,11 +248,13 @@ object ParticipativeAiEngine {
             }
 
             AiSuggestionResult(
-                originalText = rawInput,
+                originalText = trigger.userContent,
+                targetSpanText = trigger.targetSpanText,
                 suggestionText = cleaned,
                 displayLabel = displayLabel,
                 mode = trigger.mode,
-                charsToDelete = trigger.fullPrefixLength,
+                deleteBeforeCount = trigger.deleteBeforeCount,
+                deleteAfterCount = trigger.deleteAfterCount,
                 isError = false,
                 modelUsed = modelUsed
             )
@@ -202,25 +275,43 @@ object ParticipativeAiEngine {
                 else -> if (!apiMsg.isNullOrBlank()) "⚠️ $apiMsg" else "⚠️ Erro na IA (HTTP $code)"
             }
             AiSuggestionResult(
-                originalText = rawInput,
+                originalText = trigger.userContent,
+                targetSpanText = trigger.targetSpanText,
                 suggestionText = errorLabel,
                 displayLabel = errorLabel,
                 mode = trigger.mode,
-                charsToDelete = 0,
+                deleteBeforeCount = 0,
+                deleteAfterCount = 0,
                 isError = true
             )
         } catch (t: Throwable) {
             android.util.Log.e("TesseraAI", "Falha de rede ou exceção na IA: ${t.message}", t)
             AiSuggestionResult(
-                originalText = rawInput,
+                originalText = trigger.userContent,
+                targetSpanText = trigger.targetSpanText,
                 suggestionText = "⚠️ Falha de conexão com a IA",
                 displayLabel = "⚠️ Falha de conexão com a IA",
                 mode = trigger.mode,
-                charsToDelete = 0,
+                deleteBeforeCount = 0,
+                deleteAfterCount = 0,
                 isError = true
             )
         }
     }
+
+    suspend fun processText(
+        rawInput: String,
+        isPassiveModeEnabled: Boolean,
+        provider: String,
+        apiKey: String
+    ): AiSuggestionResult? = processText(
+        textBefore = rawInput,
+        textAfter = "",
+        selectedText = null,
+        isPassiveModeEnabled = isPassiveModeEnabled,
+        provider = provider,
+        apiKey = apiKey
+    )
 
     private val CANDIDATE_GROQ_MODELS = listOf(
         "qwen/qwen3.8-27b",

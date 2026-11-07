@@ -1515,6 +1515,8 @@ class StitchKeyboardService : InputMethodService() {
                     }
 
                     withContext(Dispatchers.Main) {
+                        activeAiSuggestion = null
+                        configureAiBannerLayout(false)
                         updateSuggestionView(suggestion1, left)
                         updateSuggestionView(suggestion2, center)
                         updateSuggestionView(suggestion3, right)
@@ -1596,6 +1598,7 @@ class StitchKeyboardService : InputMethodService() {
             }
 
             withContext(Dispatchers.Main) {
+                activeAiSuggestion = null
                 configureAiBannerLayout(false)
                 updateSuggestionView(suggestion1, left)
                 updateSuggestionView(suggestion2, center)
@@ -1683,26 +1686,36 @@ class StitchKeyboardService : InputMethodService() {
         if (!isAiActive || isPrivateOrPassword(currentInputEditorInfo)) return
 
         val ic = currentInputConnection ?: return
-        val textBefore = ic.getTextBeforeCursor(300, 0)?.toString() ?: ""
-        val currentLine = textBefore.takeLastWhile { it != '\n' }
-        if (currentLine.isBlank()) {
-            activeAiSuggestion = null
-            return
-        }
+        val selectedText = ic.getSelectedText(0)?.toString()
+        val textBefore = ic.getTextBeforeCursor(1000, 0)?.toString() ?: ""
+        val textAfter = ic.getTextAfterCursor(1000, 0)?.toString() ?: ""
 
-        val trigger = ParticipativeAiEngine.parseTrigger(currentLine, isPassive)
+        val trigger = ParticipativeAiEngine.parseTrigger(
+            textBefore = textBefore,
+            textAfter = textAfter,
+            selectedText = selectedText,
+            isPassiveModeEnabled = isPassive
+        )
         if (trigger == null) {
-            activeAiSuggestion = null
+            if (!isAiBannerLayoutActive) {
+                activeAiSuggestion = null
+            }
             return
         }
 
-        if (currentLine.trim() == lastAiQuery) return
+        val querySignature = "${trigger.mode}|${trigger.targetSpanText}"
+        if (querySignature == lastAiQuery) return
 
         aiWatcherJob = scope.launch(Dispatchers.Main) {
-            delay(1000L)
-            val checkBefore = currentInputConnection?.getTextBeforeCursor(300, 0)?.toString() ?: ""
-            val checkLine = checkBefore.takeLastWhile { it != '\n' }
-            if (checkLine != currentLine) return@launch
+            delay(prefAiDebounceMs)
+            val checkBefore = currentInputConnection?.getTextBeforeCursor(1000, 0)?.toString() ?: ""
+            val checkAfter = currentInputConnection?.getTextAfterCursor(1000, 0)?.toString() ?: ""
+            val checkCombined = checkBefore + checkAfter
+
+            // Se o texto original mudou substancialmente antes do debounce concluir, aborta
+            if (trigger.targetSpanText.isNotEmpty() && !checkCombined.contains(trigger.targetSpanText)) {
+                return@launch
+            }
 
             val apiKey = getActiveAiApiKey()
             if (apiKey.isBlank()) {
@@ -1713,11 +1726,13 @@ class StitchKeyboardService : InputMethodService() {
                 updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
                 updateTopStripVisibility()
                 activeAiSuggestion = AiSuggestionResult(
-                    originalText = currentLine,
+                    originalText = trigger.userContent,
+                    targetSpanText = trigger.targetSpanText,
                     suggestionText = "⚙️ Configure a chave Groq nas opções",
                     displayLabel = "⚙️ Configure a chave Groq nas opções",
                     mode = trigger.mode,
-                    charsToDelete = 0,
+                    deleteBeforeCount = 0,
+                    deleteAfterCount = 0,
                     isError = true
                 )
                 return@launch
@@ -1739,7 +1754,9 @@ class StitchKeyboardService : InputMethodService() {
 
             val result = withContext(Dispatchers.IO) {
                 ParticipativeAiEngine.processText(
-                    rawInput = currentLine,
+                    textBefore = checkBefore,
+                    textAfter = checkAfter,
+                    selectedText = selectedText,
                     isPassiveModeEnabled = isPassive,
                     provider = prefAiProvider,
                     apiKey = apiKey
@@ -1747,6 +1764,19 @@ class StitchKeyboardService : InputMethodService() {
             }
 
             if (result != null) {
+                // Se o usuário estiver compondo letras de uma palavra no teclado, NÃO sequestra a barra
+                if (composingBuffer.isNotEmpty()) {
+                    return@launch
+                }
+
+                val nowBefore = currentInputConnection?.getTextBeforeCursor(1000, 0)?.toString() ?: ""
+                val nowAfter = currentInputConnection?.getTextAfterCursor(1000, 0)?.toString() ?: ""
+                val nowCombined = nowBefore + nowAfter
+
+                if (result.targetSpanText.isNotEmpty() && !nowCombined.contains(result.targetSpanText)) {
+                    return@launch
+                }
+
                 if (result.isError) {
                     lastAiQuery = null
                     activeAiSuggestion = result
@@ -1757,7 +1787,7 @@ class StitchKeyboardService : InputMethodService() {
                     updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
                     updateTopStripVisibility()
                 } else if (!result.suggestionText.equals(result.originalText, ignoreCase = true)) {
-                    lastAiQuery = currentLine.trim()
+                    lastAiQuery = querySignature
                     activeAiSuggestion = result
                     predictionJob?.cancel()
                     configureAiBannerLayout(true)
@@ -1766,7 +1796,7 @@ class StitchKeyboardService : InputMethodService() {
                     updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
                     updateTopStripVisibility()
                 } else {
-                    lastAiQuery = currentLine.trim()
+                    lastAiQuery = querySignature
                     clearPredictionsUi()
                 }
             } else {
@@ -3680,9 +3710,20 @@ class StitchKeyboardService : InputMethodService() {
                     return@OnClickListener
                 }
 
-                if (activeAiSuggestion != null) {
+                // Modo IA: só intercepta cliques se o banner da IA estiver comprovadamente ativo no layout
+                if (isAiBannerLayoutActive && activeAiSuggestion != null) {
                     val aiResult = activeAiSuggestion!!
-                    if (v == suggestion2 || v == suggestion1) {
+
+                    // 1. Botão de fechar/dispensar IA ('✕' no suggestion3)
+                    if (v == suggestion3 && (selectedSuggestion == "✕" || isAiBannerLayoutActive)) {
+                        activeAiSuggestion = null
+                        clearPredictionsUi()
+                        triggerVibration()
+                        return@OnClickListener
+                    }
+
+                    // 2. Toque na sugestão da IA (suggestion2)
+                    if (v == suggestion2 && (selectedSuggestion == aiResult.displayLabel || selectedSuggestion == aiResult.suggestionText || isAiBannerLayoutActive)) {
                         if (aiResult.isError || selectedSuggestion.startsWith("⚙️") || selectedSuggestion.startsWith("⚠️")) {
                             playClickFeedback()
                             triggerVibration()
@@ -3696,26 +3737,46 @@ class StitchKeyboardService : InputMethodService() {
                         }
 
                         val ic = currentInputConnection ?: return@OnClickListener
+                        val currentBefore = ic.getTextBeforeCursor(1000, 0)?.toString() ?: ""
+                        val currentAfter = ic.getTextAfterCursor(1000, 0)?.toString() ?: ""
+                        val combined = currentBefore + currentAfter
+                        val cursorIndex = currentBefore.length
+                        val target = aiResult.targetSpanText
+
                         ic.beginBatchEdit()
                         localEditCount++
-                        if (aiResult.charsToDelete > 0) {
-                            ic.deleteSurroundingText(aiResult.charsToDelete, 0)
+
+                        var deleteBefore = aiResult.deleteBeforeCount
+                        var deleteAfter = aiResult.deleteAfterCount
+
+                        // Localiza dinamicamente a posição exata da frase alvo ao redor do cursor
+                        if (target.isNotEmpty() && combined.contains(target)) {
+                            val targetIndex = combined.lastIndexOf(target)
+                            if (targetIndex >= 0 && targetIndex <= cursorIndex && targetIndex + target.length >= cursorIndex) {
+                                deleteBefore = cursorIndex - targetIndex
+                                deleteAfter = (targetIndex + target.length) - cursorIndex
+                            }
                         }
+
+                        deleteBefore = deleteBefore.coerceIn(0, currentBefore.length)
+                        deleteAfter = deleteAfter.coerceIn(0, currentAfter.length)
+
+                        if (deleteBefore > 0 || deleteAfter > 0) {
+                            ic.deleteSurroundingText(deleteBefore, deleteAfter)
+                        }
+
                         val textToCommit = aiResult.suggestionText + " "
                         ic.commitText(textToCommit, 1)
                         ic.endBatchEdit()
+
                         triggerVibration()
                         playClickFeedback()
                         lastAiReplacedText = aiResult.originalText
                         lastAiInsertedLength = textToCommit.length
                         activeAiSuggestion = null
+                        configureAiBannerLayout(false)
                         composingBuffer.setLength(0)
                         showAiUndoPill()
-                        return@OnClickListener
-                    } else if (v == suggestion3) {
-                        activeAiSuggestion = null
-                        clearPredictionsUi()
-                        triggerVibration()
                         return@OnClickListener
                     }
                 }
