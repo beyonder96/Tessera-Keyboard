@@ -195,10 +195,10 @@ fun TesseraSwitchRow(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(if (checked) LuminaCyan.copy(alpha = 0.14f) else TesseraIconCircleBg)
+                .background(if (checked) Color(0xFF282834) else TesseraIconCircleBg)
                 .border(
                     0.5.dp,
-                    if (checked) LuminaCyan.copy(alpha = 0.35f) else Color(0x18FFFFFF),
+                    if (checked) Color(0xFF3A3A48) else Color(0x18FFFFFF),
                     CircleShape
                 ),
             contentAlignment = Alignment.Center
@@ -206,7 +206,7 @@ fun TesseraSwitchRow(
             Icon(
                 imageVector = icon,
                 contentDescription = title,
-                tint = if (checked) LuminaCyan else iconTint,
+                tint = if (checked) TextPureLight else iconTint,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -324,13 +324,13 @@ fun TactileSwitch(
     )
 
     val trackColor by animateColorAsState(
-        targetValue = if (checked) Color(0xFF232C3B) else ObsidianGlassSubtle,
+        targetValue = if (checked) Color(0xFF282834) else ObsidianGlassSubtle,
         animationSpec = tween(durationMillis = 180),
         label = "TrackColor"
     )
 
     val ledColor by animateColorAsState(
-        targetValue = if (checked) LuminaCyan else Color(0xFF52525E),
+        targetValue = if (checked) Color(0xFFF5F5F7) else Color(0xFF52525E),
         animationSpec = tween(durationMillis = 180),
         label = "LedColor"
     )

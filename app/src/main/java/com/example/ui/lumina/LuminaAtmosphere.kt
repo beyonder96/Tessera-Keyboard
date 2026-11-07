@@ -56,7 +56,7 @@ fun LuminaAtmosphere(
                 val width = size.width
                 val height = size.height
 
-                // Orbe 1: Ciano sutil no topo direito (simula luz ambiente superior)
+                // Orbe 1: Luz ambiente superior sutil em prata monocromático
                 val orb1Center = Offset(
                     x = width * 0.85f,
                     y = height * 0.12f + verticalDrift
@@ -64,15 +64,15 @@ fun LuminaAtmosphere(
                 val orb1Radius = width * 0.65f
                 val orb1Brush = Brush.radialGradient(
                     colors = listOf(
-                        LuminaCyan.copy(alpha = 0.08f + pulsePhase * 0.04f),
-                        LuminaCyan.copy(alpha = 0.02f),
+                        Color(0xFFFFFFFF).copy(alpha = 0.035f + pulsePhase * 0.015f),
+                        Color(0xFFFFFFFF).copy(alpha = 0.008f),
                         Color.Transparent
                     ),
                     center = orb1Center,
                     radius = orb1Radius
                 )
 
-                // Orbe 2: Violeta harmônico na parte intermediária esquerda
+                // Orbe 2: Luz suave na parte intermediária
                 val orb2Center = Offset(
                     x = width * 0.10f,
                     y = height * 0.45f - verticalDrift * 0.8f
@@ -80,8 +80,8 @@ fun LuminaAtmosphere(
                 val orb2Radius = width * 0.55f
                 val orb2Brush = Brush.radialGradient(
                     colors = listOf(
-                        LuminaViolet.copy(alpha = 0.05f + (1f - pulsePhase) * 0.03f),
-                        LuminaViolet.copy(alpha = 0.01f),
+                        Color(0xFFFFFFFF).copy(alpha = 0.025f + (1f - pulsePhase) * 0.010f),
+                        Color(0xFFFFFFFF).copy(alpha = 0.005f),
                         Color.Transparent
                     ),
                     center = orb2Center,

@@ -76,40 +76,36 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         try {
-            enableEdgeToEdge()
+            enableEdgeToEdge(
+                statusBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+                navigationBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+            )
         } catch (_: Exception) {}
 
         setContent {
             MyApplicationTheme {
                 var fatalError by remember { mutableStateOf<String?>(null) }
 
-                Scaffold(
-                    modifier = Modifier.fillMaxSize().imePadding(),
-                    containerColor = Color.Transparent
-                ) { innerPadding ->
-                    LuminaAtmosphere(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                    ) {
-                        if (fatalError != null) {
-                            CrashRecoveryScreen(
-                                errorMessage = fatalError!!,
-                                onRetry = { fatalError = null },
-                                onResetPreferences = {
-                                    try {
-                                        getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE).edit().clear().apply()
-                                        getSharedPreferences("LocalDictionary", Context.MODE_PRIVATE).edit().clear().apply()
-                                    } catch (_: Exception) {}
-                                    fatalError = null
-                                }
-                            )
-                        } else {
-                            TesseraDashboardContainer(
-                                modifier = Modifier.fillMaxSize(),
-                                onError = { fatalError = it }
-                            )
-                        }
+                LuminaAtmosphere(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    if (fatalError != null) {
+                        CrashRecoveryScreen(
+                            errorMessage = fatalError!!,
+                            onRetry = { fatalError = null },
+                            onResetPreferences = {
+                                try {
+                                    getSharedPreferences("StitchPrefs", Context.MODE_PRIVATE).edit().clear().apply()
+                                    getSharedPreferences("LocalDictionary", Context.MODE_PRIVATE).edit().clear().apply()
+                                } catch (_: Exception) {}
+                                fatalError = null
+                            }
+                        )
+                    } else {
+                        TesseraDashboardContainer(
+                            modifier = Modifier.fillMaxSize(),
+                            onError = { fatalError = it }
+                        )
                     }
                 }
             }
@@ -565,8 +561,9 @@ fun TesseraDashboardContent(
     var selectedTab by remember { mutableIntStateOf(0) }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().imePadding(),
         containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             val tabs = remember {
                 listOf(
@@ -582,12 +579,10 @@ fun TesseraDashboardContent(
                 onTabSelected = { selectedTab = it }
             )
         }
-    ) { paddingValues ->
+    ) { _ ->
         Crossfade(
             targetState = selectedTab,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
+            modifier = Modifier.fillMaxSize(),
             label = "TabCrossfade"
         ) { tab ->
             when (tab) {
@@ -999,35 +994,35 @@ fun SnippetsSection(
             OutlinedTextField(
                 value = shortcutInput,
                 onValueChange = { shortcutInput = it },
-                placeholder = { Text("!atalho", color = Slate600) },
+                placeholder = { Text("!atalho", color = LuminaTokens.TextDimTertiary) },
                 label = { Text("Atalho") },
                 modifier = Modifier.weight(0.4f),
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Slate100),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = LuminaTokens.TextPureLight),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentSky,
-                    unfocusedBorderColor = Slate700,
-                    focusedContainerColor = Slate850,
-                    unfocusedContainerColor = Slate850
+                    focusedBorderColor = Color(0x60FFFFFF),
+                    unfocusedBorderColor = LuminaTokens.TesseraCardBorder,
+                    focusedContainerColor = LuminaTokens.TesseraPillTrackBg,
+                    unfocusedContainerColor = LuminaTokens.TesseraPillTrackBg
                 ),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(12.dp)
             )
 
             OutlinedTextField(
                 value = textInput,
                 onValueChange = { textInput = it },
-                placeholder = { Text("Texto...", color = Slate600) },
+                placeholder = { Text("Texto...", color = LuminaTokens.TextDimTertiary) },
                 label = { Text("Conteúdo") },
                 modifier = Modifier.weight(0.6f),
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Slate100),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = LuminaTokens.TextPureLight),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentSky,
-                    unfocusedBorderColor = Slate700,
-                    focusedContainerColor = Slate850,
-                    unfocusedContainerColor = Slate850
+                    focusedBorderColor = Color(0x60FFFFFF),
+                    unfocusedBorderColor = LuminaTokens.TesseraCardBorder,
+                    focusedContainerColor = LuminaTokens.TesseraPillTrackBg,
+                    unfocusedContainerColor = LuminaTokens.TesseraPillTrackBg
                 ),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(12.dp)
             )
 
             Button(
@@ -1044,12 +1039,13 @@ fun SnippetsSection(
                 modifier = Modifier.height(56.dp),
                 enabled = shortcutInput.isNotBlank() && textInput.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AccentSky,
-                    contentColor = Slate950,
-                    disabledContainerColor = Slate800,
-                    disabledContentColor = Slate600
+                    containerColor = Color(0xFF282834),
+                    contentColor = LuminaTokens.TextPureLight,
+                    disabledContainerColor = Color(0xFF16161C),
+                    disabledContentColor = Color(0xFF52525E)
                 ),
-                shape = RoundedCornerShape(8.dp)
+                border = BorderStroke(1.dp, Color(0xFF3A3A48)),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Adicionar Snippet", modifier = Modifier.size(20.dp))
             }
@@ -1061,15 +1057,15 @@ fun SnippetsSection(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Slate850, RoundedCornerShape(8.dp))
-                    .border(1.dp, Slate800, RoundedCornerShape(8.dp))
+                    .background(LuminaTokens.TesseraCardBg, RoundedCornerShape(14.dp))
+                    .border(1.dp, LuminaTokens.TesseraCardBorder, RoundedCornerShape(14.dp))
                     .padding(20.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "Nenhum atalho cadastrado. Crie atalhos rápidos como !pix, !email ou !tel acima!",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Slate400,
+                    color = LuminaTokens.TextMutedSecondary,
                     textAlign = TextAlign.Center
                 )
             }
@@ -1079,9 +1075,9 @@ fun SnippetsSection(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Slate850, RoundedCornerShape(8.dp))
-                            .border(1.dp, Slate700, RoundedCornerShape(8.dp))
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                            .background(LuminaTokens.TesseraCardBg, RoundedCornerShape(14.dp))
+                            .border(1.dp, LuminaTokens.TesseraCardBorder, RoundedCornerShape(14.dp))
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1089,14 +1085,14 @@ fun SnippetsSection(
                             Text(
                                 text = shortcut,
                                 style = MaterialTheme.typography.labelLarge,
-                                color = AccentSky,
+                                color = LuminaTokens.TextPureLight,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = expansion,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Slate300,
+                                color = LuminaTokens.TextMutedSecondary,
                                 maxLines = 2
                             )
                         }
@@ -1107,7 +1103,7 @@ fun SnippetsSection(
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Excluir Snippet",
-                                tint = Slate400,
+                                tint = LuminaTokens.TextMutedSecondary,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -1140,19 +1136,19 @@ fun DictionarySection(
                     Text(
                         "Adicionar palavra...",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = Slate600
+                        color = LuminaTokens.TextDimTertiary
                     )
                 },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Slate100),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = LuminaTokens.TextPureLight),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AccentSky,
-                    unfocusedBorderColor = Slate700,
-                    focusedContainerColor = Slate850,
-                    unfocusedContainerColor = Slate850
+                    focusedBorderColor = Color(0x60FFFFFF),
+                    unfocusedBorderColor = LuminaTokens.TesseraCardBorder,
+                    focusedContainerColor = LuminaTokens.TesseraPillTrackBg,
+                    unfocusedContainerColor = LuminaTokens.TesseraPillTrackBg
                 ),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(12.dp)
             )
 
             Button(
@@ -1166,12 +1162,13 @@ fun DictionarySection(
                 modifier = Modifier.height(52.dp),
                 enabled = newWordInput.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AccentSky,
-                    contentColor = Slate950,
-                    disabledContainerColor = Slate800,
-                    disabledContentColor = Slate600
+                    containerColor = Color(0xFF282834),
+                    contentColor = LuminaTokens.TextPureLight,
+                    disabledContainerColor = Color(0xFF16161C),
+                    disabledContentColor = Color(0xFF52525E)
                 ),
-                shape = RoundedCornerShape(8.dp)
+                border = BorderStroke(1.dp, Color(0xFF3A3A48)),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Adicionar", modifier = Modifier.size(20.dp))
             }
@@ -1184,8 +1181,8 @@ fun DictionarySection(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Slate850, RoundedCornerShape(8.dp))
-                    .border(1.dp, Slate800, RoundedCornerShape(8.dp))
+                    .background(LuminaTokens.TesseraCardBg, RoundedCornerShape(14.dp))
+                    .border(1.dp, LuminaTokens.TesseraCardBorder, RoundedCornerShape(14.dp))
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -1196,12 +1193,12 @@ fun DictionarySection(
                     Text(
                         text = "Nenhuma palavra adicionada",
                         style = MaterialTheme.typography.titleSmall,
-                        color = Slate300
+                        color = LuminaTokens.TextPureLight
                     )
                     Text(
                         text = "Adicione termos, gírias ou nomes próprios usando o campo acima para que o teclado os reconheça e sugira com prioridade.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Slate400,
+                        color = LuminaTokens.TextMutedSecondary,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -1215,7 +1212,7 @@ fun DictionarySection(
                 Text(
                     text = "${words.size} palavras no dicionário manual",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Slate400
+                    color = LuminaTokens.TextMutedSecondary
                 )
                 Text(
                     text = "Limpar tudo",
@@ -1262,16 +1259,16 @@ fun WordChip(
 ) {
     Row(
         modifier = modifier
-            .background(Slate850, RoundedCornerShape(6.dp))
-            .border(1.dp, Slate700, RoundedCornerShape(6.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .background(LuminaTokens.TesseraPillTrackBg, RoundedCornerShape(10.dp))
+            .border(1.dp, LuminaTokens.TesseraCardBorder, RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = word,
             style = MaterialTheme.typography.bodyMedium,
-            color = Slate100,
+            color = LuminaTokens.TextPureLight,
             maxLines = 1
         )
         Icon(
@@ -1346,9 +1343,9 @@ fun PlaygroundSection(isEnabled: Boolean) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Slate850, RoundedCornerShape(10.dp))
-                .border(1.dp, Slate700, RoundedCornerShape(10.dp))
-                .padding(12.dp)
+                .background(LuminaTokens.TesseraCardBg, RoundedCornerShape(14.dp))
+                .border(1.dp, LuminaTokens.TesseraCardBorder, RoundedCornerShape(14.dp))
+                .padding(14.dp)
         ) {
             Column {
                 Row(
@@ -1358,8 +1355,8 @@ fun PlaygroundSection(isEnabled: Boolean) {
                 ) {
                     Text(
                         text = "Frase Desafio:",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = AccentSky
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = LuminaTokens.TextPureLight
                     )
                     TextButton(
                         onClick = {
@@ -1369,14 +1366,14 @@ fun PlaygroundSection(isEnabled: Boolean) {
                         },
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Text("Próxima ↻", style = MaterialTheme.typography.labelSmall, color = AccentSky)
+                        Text("Próxima ↻", style = MaterialTheme.typography.labelSmall, color = LuminaTokens.TextMutedSecondary)
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = targetSentence,
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                    color = Slate100
+                    color = LuminaTokens.TextPureLight
                 )
             }
         }
@@ -1395,29 +1392,29 @@ fun PlaygroundSection(isEnabled: Boolean) {
                 Text(
                     "Digite a frase desafio acima para calcular WPM...",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Slate600
+                    color = LuminaTokens.TextDimTertiary
                 )
             },
             enabled = isEnabled,
             modifier = Modifier
                 .fillMaxWidth()
                 .alpha(if (isEnabled) 1.0f else 0.45f),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = Slate100),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = LuminaTokens.TextPureLight),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AccentSky,
-                unfocusedBorderColor = Slate700,
-                focusedContainerColor = Slate850,
-                unfocusedContainerColor = Slate850
+                focusedBorderColor = Color(0x60FFFFFF),
+                unfocusedBorderColor = LuminaTokens.TesseraCardBorder,
+                focusedContainerColor = LuminaTokens.TesseraPillTrackBg,
+                unfocusedContainerColor = LuminaTokens.TesseraPillTrackBg
             ),
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(14.dp)
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
             text = "Campo Numérico (Abre modo 1 2 3 dedicado)",
-            style = MaterialTheme.typography.labelMedium,
-            color = Slate300
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = LuminaTokens.TextPureLight
         )
         OutlinedTextField(
             value = numberText,
@@ -1426,7 +1423,7 @@ fun PlaygroundSection(isEnabled: Boolean) {
                 Text(
                     "Toque aqui para abrir o teclado numérico...",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Slate600
+                    color = LuminaTokens.TextDimTertiary
                 )
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -1434,14 +1431,14 @@ fun PlaygroundSection(isEnabled: Boolean) {
             modifier = Modifier
                 .fillMaxWidth()
                 .alpha(if (isEnabled) 1.0f else 0.45f),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = Slate100),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = LuminaTokens.TextPureLight),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AccentSky,
-                unfocusedBorderColor = Slate700,
-                focusedContainerColor = Slate850,
-                unfocusedContainerColor = Slate850
+                focusedBorderColor = Color(0x60FFFFFF),
+                unfocusedBorderColor = LuminaTokens.TesseraCardBorder,
+                focusedContainerColor = LuminaTokens.TesseraPillTrackBg,
+                unfocusedContainerColor = LuminaTokens.TesseraPillTrackBg
             ),
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(14.dp)
         )
 
         if (!isEnabled) {

@@ -68,7 +68,7 @@ fun TesseraCoreTopBar(
                     }
                     withStyle(
                         SpanStyle(
-                            color = LuminaTokens.LuminaCyan,
+                            color = LuminaTokens.TextPureLight,
                             fontWeight = FontWeight.Black,
                             fontFamily = FontFamily.Serif
                         )
@@ -92,7 +92,7 @@ fun TesseraCoreTopBar(
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 9.5.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.2.sp
+                        letterSpacing = 1.3.sp
                     ),
                     color = LuminaTokens.TextMutedSecondary
                 )
@@ -124,7 +124,7 @@ fun TabHeader(title: String, subtitle: String) {
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.5.sp
                 ),
-                color = LuminaTokens.LuminaCyan
+                color = LuminaTokens.TextMutedSecondary
             )
         }
         Spacer(modifier = Modifier.height(2.dp))
@@ -164,7 +164,9 @@ fun TabHomeContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .statusBarsPadding()
+            .padding(horizontal = 18.dp)
+            .padding(top = 8.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         TesseraCoreTopBar(
@@ -266,7 +268,9 @@ fun TabTypingContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .statusBarsPadding()
+            .padding(horizontal = 18.dp)
+            .padding(top = 8.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         TabHeader(
@@ -754,7 +758,9 @@ fun TabAppearanceContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .statusBarsPadding()
+            .padding(horizontal = 18.dp)
+            .padding(top = 8.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         TabHeader(
@@ -1096,7 +1102,9 @@ fun TabDictionaryContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .statusBarsPadding()
+            .padding(horizontal = 18.dp)
+            .padding(top = 8.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         TabHeader(

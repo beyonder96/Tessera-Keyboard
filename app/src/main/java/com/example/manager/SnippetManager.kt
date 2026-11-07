@@ -9,6 +9,7 @@ class SnippetManager(context: Context) {
 
     companion object {
         private const val PREF_SNIPPETS_JSON = "PREF_SNIPPETS_JSON"
+        private const val PREF_SNIPPETS_SEEDED = "PREF_SNIPPETS_SEEDED_ONCE"
         val DEFAULT_SNIPPETS = mapOf(
             "!pix" to "chave.pix.exemplo@tessera.app",
             "!email" to "contato@exemplo.com",
@@ -18,9 +19,15 @@ class SnippetManager(context: Context) {
 
     fun getSnippets(): Map<String, String> {
         return try {
-            if (!prefs.contains(PREF_SNIPPETS_JSON)) {
-                saveSnippets(DEFAULT_SNIPPETS)
-                return DEFAULT_SNIPPETS
+            // Semeia atalhos padrão apenas uma única vez na primeira execução
+            if (!prefs.getBoolean(PREF_SNIPPETS_SEEDED, false)) {
+                if (!prefs.contains(PREF_SNIPPETS_JSON)) {
+                    saveSnippets(DEFAULT_SNIPPETS)
+                    prefs.edit().putBoolean(PREF_SNIPPETS_SEEDED, true).apply()
+                    return DEFAULT_SNIPPETS
+                } else {
+                    prefs.edit().putBoolean(PREF_SNIPPETS_SEEDED, true).apply()
+                }
             }
             val rawJson = prefs.getString(PREF_SNIPPETS_JSON, "{}") ?: "{}"
             val jsonObject = JSONObject(rawJson)
@@ -30,9 +37,9 @@ class SnippetManager(context: Context) {
                 val key = keys.next()
                 map[key] = jsonObject.getString(key)
             }
-            if (map.isEmpty()) DEFAULT_SNIPPETS else map
+            map
         } catch (_: Exception) {
-            DEFAULT_SNIPPETS
+            emptyMap()
         }
     }
 

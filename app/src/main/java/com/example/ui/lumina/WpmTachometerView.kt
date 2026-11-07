@@ -67,20 +67,20 @@ fun WpmTachometerView(
             modifier = Modifier
                 .size(200.dp)
                 .drawWithCache {
-                    val strokeWidth = 12.dp.toPx()
+                    val strokeWidth = 10.dp.toPx()
                     val arcSize = size.width - strokeWidth * 2
                     val topLeft = Offset(strokeWidth, strokeWidth)
                     val startAngle = 150f
                     val totalSweep = 240f
 
-                    val backgroundTrackColor = Color(0x1F38BDF8)
+                    val backgroundTrackColor = Color(0x15FFFFFF)
                     val activeSweepAngle = totalSweep * sweepFraction
 
                     val gradientBrush = Brush.sweepGradient(
-                        0.0f to LuminaCyan,
-                        0.4f to LuminaEmerald,
-                        0.8f to LuminaAmber,
-                        1.0f to LuminaCyan,
+                        0.0f to Color(0xFF6E6E78),
+                        0.4f to Color(0xFFB0B0B8),
+                        0.8f to Color(0xFFE5E5EA),
+                        1.0f to Color(0xFFFFFFFF),
                         center = Offset(size.width / 2, size.height / 2)
                     )
 
@@ -108,7 +108,7 @@ fun WpmTachometerView(
                                 style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                             )
 
-                            // 3. Agulha Bioluminescente
+                            // 3. Indicador Monocromático
                             val currentAngleRad = Math.toRadians((startAngle + activeSweepAngle).toDouble())
                             val radius = arcSize / 2f
                             val centerX = size.width / 2f
@@ -118,8 +118,8 @@ fun WpmTachometerView(
                             val tipY = centerY + (radius * sin(currentAngleRad)).toFloat()
 
                             drawCircle(
-                                color = LuminaCyanGlow,
-                                radius = strokeWidth * 1.4f,
+                                color = Color(0x55FFFFFF),
+                                radius = strokeWidth * 1.3f,
                                 center = Offset(tipX, tipY)
                             )
                             drawCircle(
@@ -152,7 +152,7 @@ fun WpmTachometerView(
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold
                     ),
-                    color = LuminaCyan
+                    color = TextMutedSecondary
                 )
             }
         }
@@ -168,17 +168,17 @@ fun WpmTachometerView(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(ObsidianGlassSubtle)
-                    .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(12.dp))
-                    .padding(vertical = 10.dp),
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(LuminaTokens.TesseraPillTrackBg)
+                    .border(1.dp, LuminaTokens.TesseraCardBorder, RoundedCornerShape(14.dp))
+                    .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = "$accuracy%",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = if (accuracy >= 92) LuminaEmerald else LuminaAmber
+                        color = if (accuracy >= 92) LuminaEmerald else TextPureLight
                     )
                     Text(
                         text = "PRECISÃO",
@@ -192,10 +192,10 @@ fun WpmTachometerView(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(ObsidianGlassSubtle)
-                    .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(12.dp))
-                    .padding(vertical = 10.dp),
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(LuminaTokens.TesseraPillTrackBg)
+                    .border(1.dp, LuminaTokens.TesseraCardBorder, RoundedCornerShape(14.dp))
+                    .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
