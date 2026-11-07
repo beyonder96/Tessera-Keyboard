@@ -191,7 +191,7 @@ fun TabTypingContent(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ThemeOptionButton(
-                        title = "Groq (Llama 3 8B)",
+                        title = "Groq (Qwen 3.8 / GPT)",
                         isSelected = aiProvider == "groq",
                         onClick = { onAiProviderChange("groq") },
                         modifier = Modifier.weight(1f)
@@ -220,7 +220,7 @@ fun TabTypingContent(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = if (aiProvider == "groq")
-                        "Obtenha sua chave gratuita em console.groq.com (Llama 3 8B Instant)"
+                        "Obtenha sua chave gratuita em console.groq.com (Modelos ultrarrápidos)"
                     else
                         "Obtenha sua chave gratuita em aistudio.google.com",
                     style = MaterialTheme.typography.bodySmall,
@@ -233,6 +233,7 @@ fun TabTypingContent(
                     onValueChange = {
                         val cleaned = it.trim().removePrefix("Bearer ").removePrefix("bearer ").trim()
                         currentKeyInput = cleaned
+                        com.example.engine.ParticipativeAiEngine.resetModelCache()
                         if (aiProvider == "groq") onGroqApiKeyChange(cleaned) else onGeminiApiKeyChange(cleaned)
                     },
                     placeholder = { Text(if (aiProvider == "groq") "gsk_..." else "AIzaSy...", color = Slate600) },
@@ -272,7 +273,8 @@ fun TabTypingContent(
                                 )
                                 isTesting = false
                                 testStatus = if (result != null && !result.isError) {
-                                    "✓ Conexão OK! Resposta: ${result.suggestionText.take(45)}..."
+                                    val modelTag = result.modelUsed?.let { "[$it] " } ?: ""
+                                    "✓ Conexão OK! ${modelTag}Resposta: ${result.suggestionText.take(45)}..."
                                 } else {
                                     result?.displayLabel ?: "⚠️ Erro ao conectar com o provedor"
                                 }

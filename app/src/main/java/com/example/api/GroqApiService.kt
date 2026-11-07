@@ -7,13 +7,14 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 import java.util.concurrent.TimeUnit
 
 @JsonClass(generateAdapter = true)
 data class GroqChatRequest(
-    @Json(name = "model") val model: String = "llama-3.1-8b-instant",
+    @Json(name = "model") val model: String = "qwen/qwen3.8-27b",
     @Json(name = "messages") val messages: List<GroqMessage>,
     @Json(name = "temperature") val temperature: Double? = 0.3,
     @Json(name = "max_tokens") val maxTokens: Int? = 512
@@ -36,12 +37,27 @@ data class GroqChoice(
     @Json(name = "finish_reason") val finishReason: String? = null
 )
 
+@JsonClass(generateAdapter = true)
+data class GroqModelItem(
+    @Json(name = "id") val id: String
+)
+
+@JsonClass(generateAdapter = true)
+data class GroqModelsResponse(
+    @Json(name = "data") val data: List<GroqModelItem>? = null
+)
+
 interface GroqApiService {
     @POST("chat/completions")
     suspend fun chatCompletion(
         @Header("Authorization") authorization: String,
         @Body request: GroqChatRequest
     ): GroqChatResponse
+
+    @GET("models")
+    suspend fun listModels(
+        @Header("Authorization") authorization: String
+    ): GroqModelsResponse
 }
 
 object GroqClient {

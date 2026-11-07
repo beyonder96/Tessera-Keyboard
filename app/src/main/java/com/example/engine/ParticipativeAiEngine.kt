@@ -30,7 +30,8 @@ data class AiSuggestionResult(
     val displayLabel: String,
     val mode: AiIntentMode,
     val charsToDelete: Int,
-    val isError: Boolean = false
+    val isError: Boolean = false,
+    val modelUsed: String? = null
 )
 
 object ParticipativeAiEngine {
@@ -158,7 +159,7 @@ object ParticipativeAiEngine {
         val userPrompt = trigger.userContent
 
         try {
-            val generatedText = when (provider.lowercase()) {
+            val (generatedText, modelUsed) = when (provider.lowercase()) {
                 "gemini" -> callGemini(cleanApiKey, systemPrompt, userPrompt)
                 else -> callGroq(cleanApiKey, systemPrompt, userPrompt)
             }
@@ -181,16 +182,24 @@ object ParticipativeAiEngine {
                 displayLabel = displayLabel,
                 mode = trigger.mode,
                 charsToDelete = trigger.fullPrefixLength,
-                isError = false
+                isError = false,
+                modelUsed = modelUsed
             )
         } catch (httpEx: retrofit2.HttpException) {
             val code = httpEx.code()
-            android.util.Log.e("TesseraAI", "Erro HTTP na chamada de IA: $code", httpEx)
+            val rawErrorBody = try {
+                httpEx.response()?.errorBody()?.string()
+            } catch (e: Exception) {
+                null
+            }
+            android.util.Log.e("TesseraAI", "Erro HTTP na chamada de IA: $code, body: $rawErrorBody", httpEx)
+            val apiMsg = extractErrorMessage(rawErrorBody)
+
             val errorLabel = when (code) {
                 401, 403 -> "⚠️ Chave de API inválida (${provider.uppercase()})"
                 429 -> "⚠️ Limite da Groq atingido. Aguarde."
-                404 -> "⚠️ Modelo de IA indisponível"
-                else -> "⚠️ Erro na IA (HTTP $code)"
+                404 -> if (!apiMsg.isNullOrBlank()) "⚠️ $apiMsg" else "⚠️ Modelo de IA indisponível (404)"
+                else -> if (!apiMsg.isNullOrBlank()) "⚠️ $apiMsg" else "⚠️ Erro na IA (HTTP $code)"
             }
             AiSuggestionResult(
                 originalText = rawInput,
@@ -213,33 +222,104 @@ object ParticipativeAiEngine {
         }
     }
 
-    private suspend fun callGroq(apiKey: String, systemPrompt: String, userPrompt: String): String {
-        val request = GroqChatRequest(
-            model = "llama-3.1-8b-instant",
-            messages = listOf(
-                GroqMessage(role = "system", content = systemPrompt),
-                GroqMessage(role = "user", content = userPrompt)
-            ),
-            temperature = 0.2,
-            maxTokens = 256
-        )
+    private val CANDIDATE_GROQ_MODELS = listOf(
+        "qwen/qwen3.8-27b",
+        "openai/gpt-oss-20b",
+        "openai/gpt-oss-120b",
+        "llama-3.1-8b-instant",
+        "llama-3.3-70b-versatile"
+    )
 
-        return try {
-            val response = GroqClient.service.chatCompletion("Bearer $apiKey", request)
-            response.choices?.firstOrNull()?.message?.content?.trim() ?: ""
-        } catch (httpEx: retrofit2.HttpException) {
-            if (httpEx.code() == 404) {
-                // Fallback para Llama 3.3 se 3.1 mudar de ID
-                val fallbackReq = request.copy(model = "llama-3.3-70b-versatile")
-                val fallbackResp = GroqClient.service.chatCompletion("Bearer $apiKey", fallbackReq)
-                fallbackResp.choices?.firstOrNull()?.message?.content?.trim() ?: ""
-            } else {
-                throw httpEx
+    private val CANDIDATE_GEMINI_MODELS = listOf(
+        "gemini-1.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-pro"
+    )
+
+    @Volatile
+    private var resolvedGroqModel: String? = null
+
+    fun resetModelCache() {
+        resolvedGroqModel = null
+    }
+
+    private suspend fun resolveGroqModel(apiKey: String): String {
+        resolvedGroqModel?.let { return it }
+        try {
+            val response = GroqClient.service.listModels("Bearer $apiKey")
+            val available = response.data?.map { it.id.trim() } ?: emptyList()
+            if (available.isNotEmpty()) {
+                val match = CANDIDATE_GROQ_MODELS.firstOrNull { it in available }
+                    ?: available.firstOrNull { id ->
+                        id.contains("qwen", ignoreCase = true) ||
+                        id.contains("gpt-oss", ignoreCase = true) ||
+                        id.contains("llama", ignoreCase = true)
+                    }
+                if (match != null) {
+                    resolvedGroqModel = match
+                    return match
+                }
             }
+        } catch (e: Exception) {
+            android.util.Log.w("TesseraAI", "Falha ao consultar /models na Groq: ${e.message}")
+        }
+        return "qwen/qwen3.8-27b"
+    }
+
+    private fun extractErrorMessage(errorBody: String?): String? {
+        if (errorBody.isNullOrBlank()) return null
+        return try {
+            val regex = Regex(""""message"\s*:\s*"([^"]+)"""")
+            val match = regex.find(errorBody)
+            match?.groupValues?.get(1)?.take(100)
+        } catch (e: Exception) {
+            null
         }
     }
 
-    private suspend fun callGemini(apiKey: String, systemPrompt: String, userPrompt: String): String {
+    private suspend fun callGroq(apiKey: String, systemPrompt: String, userPrompt: String): Pair<String, String> {
+        val candidateModels = mutableListOf<String>()
+        val primary = resolveGroqModel(apiKey)
+        candidateModels.add(primary)
+        for (candidate in CANDIDATE_GROQ_MODELS) {
+            if (candidate !in candidateModels) {
+                candidateModels.add(candidate)
+            }
+        }
+
+        var lastHttpEx: retrofit2.HttpException? = null
+
+        for (model in candidateModels) {
+            try {
+                val request = GroqChatRequest(
+                    model = model,
+                    messages = listOf(
+                        GroqMessage(role = "system", content = systemPrompt),
+                        GroqMessage(role = "user", content = userPrompt)
+                    ),
+                    temperature = 0.2,
+                    maxTokens = 256
+                )
+                val response = GroqClient.service.chatCompletion("Bearer $apiKey", request)
+                val text = response.choices?.firstOrNull()?.message?.content?.trim() ?: ""
+                resolvedGroqModel = model
+                return Pair(text, model)
+            } catch (httpEx: retrofit2.HttpException) {
+                lastHttpEx = httpEx
+                if (httpEx.code() == 404) {
+                    android.util.Log.w("TesseraAI", "Modelo Groq '$model' retornou 404. Tentando alternativo...")
+                    continue
+                } else {
+                    throw httpEx
+                }
+            }
+        }
+
+        throw (lastHttpEx ?: RuntimeException("Nenhum modelo Groq disponível"))
+    }
+
+    private suspend fun callGemini(apiKey: String, systemPrompt: String, userPrompt: String): Pair<String, String> {
         val request = GenerateContentRequest(
             contents = listOf(
                 Content(parts = listOf(Part(text = userPrompt)))
@@ -247,13 +327,27 @@ object ParticipativeAiEngine {
             systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
         )
 
-        val response = RetrofitClient.service.generateContent(
-            model = "gemini-1.5-flash",
-            apiKey = apiKey,
-            request = request
-        )
+        var lastEx: Exception? = null
+        for (model in CANDIDATE_GEMINI_MODELS) {
+            try {
+                val response = RetrofitClient.service.generateContent(
+                    model = model,
+                    apiKey = apiKey,
+                    request = request
+                )
+                val text = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text?.trim() ?: ""
+                return Pair(text, model)
+            } catch (httpEx: retrofit2.HttpException) {
+                lastEx = httpEx
+                if (httpEx.code() == 404) {
+                    continue
+                } else {
+                    throw httpEx
+                }
+            }
+        }
 
-        return response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text?.trim() ?: ""
+        throw (lastEx ?: RuntimeException("Erro ao chamar Gemini"))
     }
 
     private fun cleanOutput(raw: String, mode: AiIntentMode): String {

@@ -101,8 +101,23 @@ class ParticipativeAiEngineTest {
             messages = listOf(com.example.api.GroqMessage(role = "user", content = "teste"))
         )
         val json = reqAdapter.toJson(req)
-        assertTrue(json.contains("llama-3.1-8b-instant"))
+        assertTrue(json.contains("qwen/qwen3.8-27b"))
         assertTrue(json.contains("teste"))
+
+        val modelsAdapter = moshi.adapter(com.example.api.GroqModelsResponse::class.java)
+        val modelsJson = """
+            {
+              "object": "list",
+              "data": [
+                {"id": "qwen/qwen3.8-27b"},
+                {"id": "openai/gpt-oss-20b"}
+              ]
+            }
+        """.trimIndent()
+        val parsedModels = modelsAdapter.fromJson(modelsJson)
+        assertNotNull(parsedModels)
+        assertEquals(2, parsedModels?.data?.size)
+        assertEquals("qwen/qwen3.8-27b", parsedModels?.data?.first()?.id)
 
         val respAdapter = moshi.adapter(com.example.api.GroqChatResponse::class.java)
         val sampleJson = """
