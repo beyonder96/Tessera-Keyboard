@@ -19,7 +19,8 @@
         <FrameLayout
             android:id="@+id/drag_handle_container"
             android:layout_width="match_parent"
-            android:layout_height="36dp">
+            android:layout_height="wrap_content"
+            android:minHeight="40dp">
 
             <View
                 android:id="@+id/drag_pill"
@@ -32,15 +33,16 @@
             <LinearLayout
                 android:id="@+id/suggestion_container"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="40dp"
                 android:orientation="horizontal"
                 android:visibility="visible"
-                android:gravity="center">
+                android:gravity="center_vertical">
 
                 <TextView
                     android:id="@+id/incognito_icon_indicator"
                     android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
+                    android:layout_height="36dp"
                     android:gravity="center"
                     android:paddingLeft="10dp"
                     android:paddingRight="4dp"
@@ -52,8 +54,13 @@
                     android:id="@+id/suggestion_1"
                     android:layout_width="0dp"
                     android:layout_weight="1"
-                    android:layout_height="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="36dp"
                     android:gravity="center"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:paddingLeft="6dp"
+                    android:paddingRight="6dp"
                     android:textColor="?attr/stitchTextColor"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif-medium"
@@ -65,8 +72,13 @@
                     android:id="@+id/suggestion_2"
                     android:layout_width="0dp"
                     android:layout_weight="1"
-                    android:layout_height="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="36dp"
                     android:gravity="center"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:paddingLeft="6dp"
+                    android:paddingRight="6dp"
                     android:textColor="?attr/stitchTextColor"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif-medium"
@@ -78,8 +90,13 @@
                     android:id="@+id/suggestion_3"
                     android:layout_width="0dp"
                     android:layout_weight="1"
-                    android:layout_height="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="36dp"
                     android:gravity="center"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:paddingLeft="6dp"
+                    android:paddingRight="6dp"
                     android:textColor="?attr/stitchTextColor"
                     android:textSize="15sp"
                     android:fontFamily="sans-serif-medium"
@@ -217,7 +234,7 @@
             <LinearLayout
                 android:id="@+id/top_commands_bar"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="40dp"
                 android:orientation="horizontal"
                 android:gravity="center"
                 android:visibility="visible">

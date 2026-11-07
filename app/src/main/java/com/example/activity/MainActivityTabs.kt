@@ -4,44 +4,144 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.widget.KeyboardLivePreview
-import com.example.ui.theme.*
 import com.example.ui.lumina.*
+import com.example.ui.theme.*
+import com.example.ui.widget.KeyboardLivePreview
+import com.example.update.AppUpdateInfo
+import com.example.update.TesseraKeyboardUpdatePill
 import kotlinx.coroutines.launch
+
+/**
+ * Barra superior de identidade "Tessera." inspirada no Tessera Core (Tessera Launcher).
+ */
+@Composable
+fun TesseraCoreTopBar(
+    subtitleTag: String = "KEYBOARD",
+    updateInfo: AppUpdateInfo? = null,
+    onUpdatePillClick: () -> Unit = {}
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(
+                        SpanStyle(
+                            color = LuminaTokens.TextPureLight,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Serif
+                        )
+                    ) {
+                        append("Tessera")
+                    }
+                    withStyle(
+                        SpanStyle(
+                            color = LuminaTokens.LuminaCyan,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Serif
+                        )
+                    ) {
+                        append(".")
+                    }
+                },
+                fontSize = 28.sp,
+                letterSpacing = (-0.6).sp
+            )
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(LuminaTokens.TesseraCardBg)
+                    .border(1.dp, LuminaTokens.TesseraCardBorder, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    text = subtitleTag,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp
+                    ),
+                    color = LuminaTokens.TextMutedSecondary
+                )
+            }
+        }
+
+        TesseraKeyboardUpdatePill(
+            updateInfo = updateInfo,
+            onClick = onUpdatePillClick
+        )
+    }
+}
 
 @Composable
 fun TabHeader(title: String, subtitle: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 4.dp)
+            .padding(top = 4.dp, bottom = 4.dp)
     ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = "TESSERA CORE",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp
+                ),
+                color = LuminaTokens.LuminaCyan
+            )
+        }
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = Slate100
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.4).sp
+            ),
+            color = LuminaTokens.TextPureLight
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(3.dp))
         Text(
             text = subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = Slate400
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+            color = LuminaTokens.TextMutedSecondary
         )
     }
 }
@@ -55,38 +155,54 @@ fun TabHomeContent(
     isEnabled: Boolean,
     isSelected: Boolean,
     onEnableKeyboardClick: () -> Unit,
-    onSelectKeyboardClick: () -> Unit
+    onSelectKeyboardClick: () -> Unit,
+    numberRow: Boolean = false,
+    updateInfo: AppUpdateInfo? = null,
+    onUpdatePillClick: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
+        TesseraCoreTopBar(
+            subtitleTag = "MONOLITH IME",
+            updateInfo = updateInfo,
+            onUpdatePillClick = onUpdatePillClick
+        )
+
         TesseraHeader()
 
-        KeyboardLivePreview(
-            themeName = keyboardTheme,
-            keyShape = keyShape,
-            keyHints = keyHints,
-            scale = keyboardScale.coerceIn(0.85f, 1.25f),
-            modifier = Modifier.fillMaxWidth()
-        )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            TesseraSectionHeader(title = "STATUS DO SISTEMA")
+            KeyboardStatusCard(
+                isEnabled = isEnabled,
+                isSelected = isSelected,
+                onEnableClick = onEnableKeyboardClick,
+                onSelectClick = onSelectKeyboardClick
+            )
+        }
 
-        KeyboardStatusCard(
-            isEnabled = isEnabled,
-            isSelected = isSelected,
-            onEnableClick = onEnableKeyboardClick,
-            onSelectClick = onSelectKeyboardClick
-        )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            TesseraSectionHeader(title = "PRÉVIA INTERATIVA DO TECLADO")
+            KeyboardLivePreview(
+                themeName = keyboardTheme,
+                keyShape = keyShape,
+                keyHints = keyHints,
+                numberRow = numberRow,
+                scale = keyboardScale.coerceIn(0.85f, 1.25f),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
         PlaygroundSection(isEnabled = isEnabled && isSelected)
 
         Text(
-            text = "Tessera Keyboard • Minimalismo & Máxima Performance",
-            style = MaterialTheme.typography.bodySmall,
-            color = Slate600,
+            text = "Tessera Core • Minimalismo Calmo & Latência Zero",
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+            color = LuminaTokens.TextDimTertiary,
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
@@ -150,363 +266,462 @@ fun TabTypingContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 20.dp),
+            .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         TabHeader(
-            title = "Digitação",
-            subtitle = "Entrada de texto, gestos, automações e feedback tátil"
+            title = "Digitação & IA",
+            subtitle = "Copiloto inteligente, precisão Voronoi, gestos e resposta sensorial"
         )
 
-        SectionCard(title = "IA Participativa (Copiloto)") {
-            SettingToggle(
-                title = "Ativar IA Participativa",
-                description = "Lê o contexto e sugere correções ou versículos bíblicos ao pausar a digitação",
-                checked = aiParticipative,
-                onCheckedChange = onAiParticipativeChange
-            )
-            if (aiParticipative) {
-                DividerLine()
-                SettingToggle(
-                    title = "Participação Contínua (Sem Tags)",
-                    description = "Quando ativado, analisa frases e sugere correções ao pausar mesmo sem digitar @corrigir ou @versiculo",
-                    checked = aiPassiveContinuous,
-                    onCheckedChange = onAiPassiveContinuousChange
+        // CATEGORIA 1: IA PARTICIPATIVA (COPILOTO)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            TesseraSectionHeader(title = "IA PARTICIPATIVA & COPILOTO")
+            TesseraGroupCard {
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.AutoAwesome,
+                    title = "Ativar IA Participativa",
+                    subtitle = "Lê o contexto e sugere correções ou versículos na barra superior",
+                    checked = aiParticipative,
+                    onCheckedChange = onAiParticipativeChange
                 )
-                DividerLine()
-                Text(
-                    text = "Modelo e Provedor de IA",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = Slate100
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Escolha o provedor de processamento:",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Slate400
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ThemeOptionButton(
-                        title = "Groq (Qwen 3.8 / GPT)",
-                        isSelected = aiProvider == "groq",
-                        onClick = { onAiProviderChange("groq") },
-                        modifier = Modifier.weight(1f)
+
+                if (aiParticipative) {
+                    TesseraItemDivider(withIconOffset = true)
+
+                    TesseraSwitchRow(
+                        icon = Icons.Outlined.Bolt,
+                        title = "Participação Contínua (Sem Tags)",
+                        subtitle = "Analisa frases automaticamente ao pausar mesmo sem digitar @corrigir",
+                        checked = aiPassiveContinuous,
+                        onCheckedChange = onAiPassiveContinuousChange
                     )
-                    ThemeOptionButton(
-                        title = "Google Gemini",
-                        isSelected = aiProvider == "gemini",
-                        onClick = { onAiProviderChange("gemini") },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
 
-                Spacer(modifier = Modifier.height(12.dp))
-                DividerLine()
-                Spacer(modifier = Modifier.height(8.dp))
+                    TesseraItemDivider(withIconOffset = false)
 
-                var currentKeyInput by remember(if (aiProvider == "groq") groqApiKey else geminiApiKey) {
-                    mutableStateOf(if (aiProvider == "groq") groqApiKey else geminiApiKey)
-                }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "Provedor de Processamento",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = LuminaTokens.TextPureLight
+                        )
 
-                Text(
-                    text = if (aiProvider == "groq") "Chave de API da Groq" else "Chave de API do Google Gemini",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = Slate100
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = if (aiProvider == "groq")
-                        "Obtenha sua chave gratuita em console.groq.com (Modelos ultrarrápidos)"
-                    else
-                        "Obtenha sua chave gratuita em aistudio.google.com",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Slate400
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                        TesseraSegmentedControl(
+                            options = listOf(
+                                "groq" to "Groq (Llama / Qwen)",
+                                "gemini" to "Google Gemini"
+                            ),
+                            selectedValue = aiProvider,
+                            onValueSelected = onAiProviderChange
+                        )
 
-                OutlinedTextField(
-                    value = currentKeyInput,
-                    onValueChange = {
-                        val cleaned = it.trim().removePrefix("Bearer ").removePrefix("bearer ").trim()
-                        currentKeyInput = cleaned
-                        com.example.engine.ParticipativeAiEngine.resetModelCache()
-                        if (aiProvider == "groq") onGroqApiKeyChange(cleaned) else onGeminiApiKeyChange(cleaned)
-                    },
-                    placeholder = { Text(if (aiProvider == "groq") "gsk_..." else "AIzaSy...", color = Slate600) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AccentSky,
-                        unfocusedBorderColor = Slate700,
-                        focusedTextColor = Slate100,
-                        unfocusedTextColor = Slate300,
-                        cursorColor = AccentSky
-                    )
-                )
+                        Spacer(modifier = Modifier.height(2.dp))
 
-                var testStatus by remember { mutableStateOf<String?>(null) }
-                var isTesting by remember { mutableStateOf(false) }
-                val coroutineScope = rememberCoroutineScope()
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Button(
-                    onClick = {
-                        val activeKey = currentKeyInput.trim()
-                        if (activeKey.isBlank()) {
-                            testStatus = "⚠️ Insira a chave antes de testar"
-                            return@Button
+                        var currentKeyInput by remember(if (aiProvider == "groq") groqApiKey else geminiApiKey) {
+                            mutableStateOf(if (aiProvider == "groq") groqApiKey else geminiApiKey)
                         }
-                        isTesting = true
-                        testStatus = "Testando conexão com a IA..."
-                        coroutineScope.launch {
-                            try {
-                                val result = com.example.engine.ParticipativeAiEngine.processText(
-                                    rawInput = "@versiculo posso todas as coisas",
-                                    isPassiveModeEnabled = false,
-                                    provider = aiProvider,
-                                    apiKey = activeKey
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (aiProvider == "groq") "Chave de API da Groq" else "Chave de API do Google Gemini",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                                color = LuminaTokens.TextPureLight
+                            )
+                            Text(
+                                text = if (aiProvider == "groq") "console.groq.com" else "aistudio.google.com",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = LuminaTokens.LuminaCyan
+                            )
+                        }
+
+                        OutlinedTextField(
+                            value = currentKeyInput,
+                            onValueChange = {
+                                val cleaned = it.trim().removePrefix("Bearer ").removePrefix("bearer ").trim()
+                                currentKeyInput = cleaned
+                                com.example.engine.ParticipativeAiEngine.resetModelCache()
+                                if (aiProvider == "groq") onGroqApiKeyChange(cleaned) else onGeminiApiKeyChange(cleaned)
+                            },
+                            placeholder = {
+                                Text(
+                                    if (aiProvider == "groq") "gsk_..." else "AIzaSy...",
+                                    color = LuminaTokens.TextDimTertiary
                                 )
-                                isTesting = false
-                                testStatus = if (result != null && !result.isError) {
-                                    val modelTag = result.modelUsed?.let { "[$it] " } ?: ""
-                                    "✓ Conexão OK! ${modelTag}Resposta: ${result.suggestionText.take(45)}..."
-                                } else {
-                                    result?.displayLabel ?: "⚠️ Erro ao conectar com o provedor"
+                            },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = LuminaTokens.LuminaCyan,
+                                unfocusedBorderColor = LuminaTokens.TesseraCardBorder,
+                                focusedContainerColor = LuminaTokens.TesseraPillTrackBg,
+                                unfocusedContainerColor = LuminaTokens.TesseraPillTrackBg,
+                                focusedTextColor = LuminaTokens.TextPureLight,
+                                unfocusedTextColor = LuminaTokens.TextPureLight,
+                                cursorColor = LuminaTokens.LuminaCyan
+                            )
+                        )
+
+                        var testStatus by remember { mutableStateOf<String?>(null) }
+                        var isTesting by remember { mutableStateOf(false) }
+                        val coroutineScope = rememberCoroutineScope()
+
+                        Button(
+                            onClick = {
+                                val activeKey = currentKeyInput.trim()
+                                if (activeKey.isBlank()) {
+                                    testStatus = "⚠️ Insira a chave antes de testar"
+                                    return@Button
                                 }
-                            } catch (e: Exception) {
-                                isTesting = false
-                                testStatus = "⚠️ Falha: ${e.message}"
+                                isTesting = true
+                                testStatus = "Testando conexão com a IA..."
+                                coroutineScope.launch {
+                                    try {
+                                        val result = com.example.engine.ParticipativeAiEngine.processText(
+                                            rawInput = "@versiculo posso todas as coisas",
+                                            isPassiveModeEnabled = false,
+                                            provider = aiProvider,
+                                            apiKey = activeKey
+                                        )
+                                        isTesting = false
+                                        testStatus = if (result != null && !result.isError) {
+                                            val modelTag = result.modelUsed?.let { "[$it] " } ?: ""
+                                            "✓ Conexão OK! ${modelTag}Resposta: ${result.suggestionText.take(45)}..."
+                                        } else {
+                                            result?.displayLabel ?: "⚠️ Erro ao conectar com o provedor"
+                                        }
+                                    } catch (e: Exception) {
+                                        isTesting = false
+                                        testStatus = "⚠️ Falha: ${e.message}"
+                                    }
+                                }
+                            },
+                            enabled = !isTesting && currentKeyInput.isNotBlank(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = LuminaTokens.TesseraPillActiveBg,
+                                contentColor = LuminaTokens.LuminaCyan,
+                                disabledContainerColor = LuminaTokens.TesseraPillTrackBg,
+                                disabledContentColor = LuminaTokens.TextDimTertiary
+                            ),
+                            border = BorderStroke(1.dp, LuminaTokens.TesseraPillActiveBorder),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(42.dp)
+                        ) {
+                            Text(
+                                text = if (isTesting) "Testando conexão..." else "Testar Conexão com a IA",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        if (testStatus != null) {
+                            Text(
+                                text = testStatus!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (testStatus!!.startsWith("✓")) LuminaTokens.LuminaEmerald else LuminaTokens.LuminaCrimson
+                            )
+                        }
+
+                        // Chips visuais dos comandos rápidos
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(
+                                "@corrigir" to "Gramática",
+                                "@versiculo" to "Bíblia",
+                                "@ia" to "Assistente"
+                            ).forEach { (cmd, desc) ->
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(LuminaTokens.TesseraPillTrackBg)
+                                        .border(1.dp, LuminaTokens.TesseraCardBorder, RoundedCornerShape(10.dp))
+                                        .padding(vertical = 6.dp, horizontal = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            text = cmd,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = LuminaTokens.LuminaCyan
+                                        )
+                                        Text(
+                                            text = desc,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                            color = LuminaTokens.TextMutedSecondary
+                                        )
+                                    }
+                                }
                             }
                         }
-                    },
-                    enabled = !isTesting && currentKeyInput.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentSky.copy(alpha = 0.2f),
-                        contentColor = AccentSky
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (isTesting) "Testando conexão..." else "Testar Conexão com a IA")
+                    }
                 }
+            }
+        }
 
-                if (testStatus != null) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = testStatus!!,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (testStatus!!.startsWith("✓")) StateSuccess else StateError
-                    )
-                }
+        // CATEGORIA 2: ENTRADA & AUTOMAÇÕES
+        Column(modifier = Modifier.fillMaxWidth()) {
+            TesseraSectionHeader(title = "MOTOR DE ENTRADA & AUTOMAÇÕES")
+            TesseraGroupCard {
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.GridView,
+                    title = "Hitboxes Voronoi Inteligentes",
+                    subtitle = "Expande dinamicamente a área de toque para as letras mais prováveis",
+                    checked = adaptiveHitboxes,
+                    onCheckedChange = onAdaptiveHitboxesChange
+                )
+                TesseraItemDivider(withIconOffset = true)
 
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Dica: Digite @ no início da frase para escolher @corrigir, @versiculo ou @ia.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AccentSky
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.Spellcheck,
+                    title = "Correção Automática",
+                    subtitle = "Corrige palavras comuns ao pressionar a barra de espaço",
+                    checked = autocorrect,
+                    onCheckedChange = onAutocorrectChange
+                )
+                TesseraItemDivider(withIconOffset = true)
+
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.FastForward,
+                    title = "Abreviações Rápidas",
+                    subtitle = "Expande vc ➔ você, tbm ➔ também, pq ➔ porque instantaneamente",
+                    checked = smartAbbr,
+                    onCheckedChange = onSmartAbbrChange
+                )
+                TesseraItemDivider(withIconOffset = true)
+
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.SpaceBar,
+                    title = "Ponto com Duplo Espaço",
+                    subtitle = "Insere ponto final e espaço ao tocar duas vezes na barra de espaço",
+                    checked = doubleSpacePeriod,
+                    onCheckedChange = onDoubleSpacePeriodChange
+                )
+                TesseraItemDivider(withIconOffset = true)
+
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.Title,
+                    title = "Primeira Letra Maiúscula",
+                    subtitle = "Capitalização automática no início de frases e períodos",
+                    checked = autoCap,
+                    onCheckedChange = onAutoCapChange
+                )
+                TesseraItemDivider(withIconOffset = true)
+
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.Pin,
+                    title = "Linha Numérica Superior",
+                    subtitle = "Exibe linha dedicada de 1 a 0 acima do teclado e oculta números duplicados",
+                    checked = numberRow,
+                    onCheckedChange = onNumberRowChange
+                )
+                TesseraItemDivider(withIconOffset = true)
+
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.Subtitles,
+                    title = "Sub-legendas nas Teclas",
+                    subtitle = "Exibe símbolos secundários para acesso rápido por toque longo",
+                    checked = keyHints,
+                    onCheckedChange = onKeyHintsChange
+                )
+                TesseraItemDivider(withIconOffset = true)
+
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.Visibility,
+                    title = "Pré-visualização ao Tocar",
+                    subtitle = "Exibe balão flutuante com a tecla pressionada",
+                    checked = keyPopup,
+                    onCheckedChange = onKeyPopupChange
                 )
             }
         }
 
-        SectionCard(title = "Entrada e Automações") {
-            SettingToggle(
-                title = "Hitboxes Voronoi Inteligentes",
-                description = "Expande a área de toque em tempo real para próximas letras pelo dicionário em português",
-                checked = adaptiveHitboxes,
-                onCheckedChange = onAdaptiveHitboxesChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Correção Automática",
-                description = "Corrige palavras comuns ao pressionar a barra de espaço",
-                checked = autocorrect,
-                onCheckedChange = onAutocorrectChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Abreviações Rápidas",
-                description = "Expande vc -> você, tbm -> também, pq -> porque instantaneamente",
-                checked = smartAbbr,
-                onCheckedChange = onSmartAbbrChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Ponto com duplo espaço",
-                description = "Insere ponto final e espaço ao tocar rapidamente duas vezes na barra de espaço",
-                checked = doubleSpacePeriod,
-                onCheckedChange = onDoubleSpacePeriodChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Primeira letra maiúscula",
-                description = "Capitalização automática no início de frases e períodos",
-                checked = autoCap,
-                onCheckedChange = onAutoCapChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Linha Numérica Superior",
-                description = "Linha fixa com números de 0 a 9 acima do teclado alfabético",
-                checked = numberRow,
-                onCheckedChange = onNumberRowChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Sub-legendas nas Teclas (Key Hints)",
-                description = "Exibe símbolos e números com digitação rápida por toque longo",
-                checked = keyHints,
-                onCheckedChange = onKeyHintsChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Pré-visualização de tecla",
-                description = "Exibe popup com o caractere pressionado",
-                checked = keyPopup,
-                onCheckedChange = onKeyPopupChange
-            )
-        }
+        // CATEGORIA 3: GESTOS & MÍDIA
+        Column(modifier = Modifier.fillMaxWidth()) {
+            TesseraSectionHeader(title = "GESTOS & ÁREA DE TRANSFERÊNCIA")
+            TesseraGroupCard {
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.Gesture,
+                    title = "Digitação por Gestos (Glide)",
+                    subtitle = "Deslize o dedo continuamente pelas letras para formar palavras",
+                    checked = glideTyping,
+                    onCheckedChange = onGlideTypingChange
+                )
+                TesseraItemDivider(withIconOffset = true)
 
-        SectionCard(title = "Gestos e Mídia") {
-            SettingToggle(
-                title = "Digitação por Gestos (Glide Typing)",
-                description = "Deslize o dedo pelas letras para digitar palavras continuamente",
-                checked = glideTyping,
-                onCheckedChange = onGlideTypingChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Colar prints recentes",
-                description = "Sugere colar imagem capturada recentemente direto no teclado",
-                checked = suggestScreenshots && hasScreenshotPermission,
-                onCheckedChange = { checked ->
-                    if (checked && !hasScreenshotPermission) {
-                        onRequestScreenshotPermission()
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.Image,
+                    title = "Sugerir Prints Recentes",
+                    subtitle = "Sugere colar capturas de tela recentes diretamente na barra do teclado",
+                    checked = suggestScreenshots && hasScreenshotPermission,
+                    onCheckedChange = { checked ->
+                        if (checked && !hasScreenshotPermission) {
+                            onRequestScreenshotPermission()
+                        }
+                        onSuggestScreenshotsChange(checked)
                     }
-                    onSuggestScreenshotsChange(checked)
-                }
-            )
-            if (suggestScreenshots && !hasScreenshotPermission) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Permissão de fotos necessária para detectar prints",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = StateWarning,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = onRequestScreenshotPermission,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AccentSkyMuted,
-                            contentColor = AccentSky
-                        ),
-                        border = BorderStroke(1.dp, AccentSky.copy(alpha = 0.4f)),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                )
+
+                if (suggestScreenshots && !hasScreenshotPermission) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Permitir", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            text = "Permissão de imagens necessária para detectar prints",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = LuminaTokens.LuminaAmber,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = onRequestScreenshotPermission,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = LuminaTokens.TesseraPillActiveBg,
+                                contentColor = LuminaTokens.LuminaCyan
+                            ),
+                            border = BorderStroke(1.dp, LuminaTokens.TesseraPillActiveBorder),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text("Permitir", style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
-            }
-            DividerLine()
-            SettingToggle(
-                title = "Acentuação Rápida por Deslize (Flick)",
-                description = "Deslize rápido para cima na tecla para inserir acentos instantaneamente (c ➔ ç, e ➔ é, a ➔ á)",
-                checked = flickAccents,
-                onCheckedChange = onFlickAccentsChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Deslizar para baixo para fechar teclado",
-                description = "Deslize rápido descendente para recolher o teclado de forma imediata",
-                checked = swipeDownHide,
-                onCheckedChange = onSwipeDownHideChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Desfazer exclusões do Backspace",
-                description = "Permite cancelar deslize para a esquerda e exibe botão 'Desfazer' para restaurar texto",
-                checked = undoDelete,
-                onCheckedChange = onUndoDeleteChange
-            )
-        }
 
-        SectionCard(title = "Resposta e Feedback Sensorial") {
-            SettingToggle(
-                title = "Resposta tátil (vibração)",
-                description = "Clique háptico mecânico calibrado com precisão de primitivas",
-                checked = hapticFeedback,
-                onCheckedChange = onHapticFeedbackChange
-            )
-            DividerLine()
-            SettingToggle(
-                title = "Som ao tocar",
-                description = "Síntese acústica PCM em tempo real (latência zero, sem arquivos extras)",
-                checked = soundFeedback,
-                onCheckedChange = onSoundFeedbackChange
-            )
-            if (soundFeedback || hapticFeedback) {
-                Spacer(modifier = Modifier.height(10.dp))
-                AcousticHarmonicDeck(
-                    currentProfile = soundProfile,
-                    onProfileSelected = onSoundProfileChange,
-                    hapticDurationMs = hapticDurationMs,
-                    onHapticDurationChange = onHapticDurationChange
+                TesseraItemDivider(withIconOffset = true)
+
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.KeyboardDoubleArrowUp,
+                    title = "Acentuação Rápida por Deslize (Flick)",
+                    subtitle = "Deslize rápido para cima na tecla para inserir acentos (c ➔ ç, e ➔ é)",
+                    checked = flickAccents,
+                    onCheckedChange = onFlickAccentsChange
+                )
+                TesseraItemDivider(withIconOffset = true)
+
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.KeyboardHide,
+                    title = "Deslizar para Baixo para Fechar",
+                    subtitle = "Gesto rápido descendente recolhe o teclado imediatamente",
+                    checked = swipeDownHide,
+                    onCheckedChange = onSwipeDownHideChange
+                )
+                TesseraItemDivider(withIconOffset = true)
+
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.Undo,
+                    title = "Desfazer Exclusões do Backspace",
+                    subtitle = "Exibe pílula para restaurar trechos apagados por deslize no Backspace",
+                    checked = undoDelete,
+                    onCheckedChange = onUndoDeleteChange
                 )
             }
-            if (!hasMicPermission) {
-                DividerLine()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Digitação por Voz",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = Slate100
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Permissão de áudio necessária para usar o microfone",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Slate400
+        }
+
+        // CATEGORIA 4: FEEDBACK SENSORIAL & ACÚSTICA
+        Column(modifier = Modifier.fillMaxWidth()) {
+            TesseraSectionHeader(title = "ACÚSTICA & RESPOSTA HÁPTICA")
+            TesseraGroupCard {
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.Vibration,
+                    title = "Resposta Tátil (Vibração)",
+                    subtitle = "Clique háptico mecânico calibrado com primitivas de baixa latência",
+                    checked = hapticFeedback,
+                    onCheckedChange = onHapticFeedbackChange
+                )
+                TesseraItemDivider(withIconOffset = true)
+
+                TesseraSwitchRow(
+                    icon = Icons.Outlined.VolumeUp,
+                    title = "Som ao Tocar (Síntese PCM)",
+                    subtitle = "Motor acústico em tempo real com perfis de switches mecânicos",
+                    checked = soundFeedback,
+                    onCheckedChange = onSoundFeedbackChange
+                )
+
+                if (soundFeedback || hapticFeedback) {
+                    TesseraItemDivider(withIconOffset = false)
+                    Box(modifier = Modifier.padding(16.dp)) {
+                        AcousticHarmonicDeck(
+                            currentProfile = soundProfile,
+                            onProfileSelected = onSoundProfileChange,
+                            hapticDurationMs = hapticDurationMs,
+                            onHapticDurationChange = onHapticDurationChange
                         )
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Button(
-                        onClick = onRequestMicPermission,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AccentSkyMuted,
-                            contentColor = AccentSky
-                        ),
-                        border = BorderStroke(1.dp, AccentSky.copy(alpha = 0.4f)),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                }
+
+                if (!hasMicPermission) {
+                    TesseraItemDivider(withIconOffset = false)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Permitir", style = MaterialTheme.typography.labelMedium)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Digitação por Voz",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = LuminaTokens.TextPureLight
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Permissão de microfone necessária para ditado de voz",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = LuminaTokens.TextMutedSecondary
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Button(
+                            onClick = onRequestMicPermission,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = LuminaTokens.TesseraPillActiveBg,
+                                contentColor = LuminaTokens.LuminaCyan
+                            ),
+                            border = BorderStroke(1.dp, LuminaTokens.TesseraPillActiveBorder),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Permitir", style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                 }
             }
         }
     }
 }
+
+private data class ThemeSwatchInfo(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val bgColor: Color,
+    val keyColor: Color,
+    val accentColor: Color
+)
 
 @Composable
 fun TabAppearanceContent(
@@ -519,293 +734,349 @@ fun TabAppearanceContent(
     keyboardScale: Float,
     onScaleChange: (Float) -> Unit,
     popupStyle: String,
-    onPopupStyleChange: (String) -> Unit
+    onPopupStyleChange: (String) -> Unit,
+    numberRow: Boolean = false,
+    keyHints: Boolean = true
 ) {
+    val themeSwatches = remember {
+        listOf(
+            ThemeSwatchInfo("Dark", "Obsidian Dark", "Charcoal Padrão", Color(0xFF0E0E12), Color(0xFF1B1B22), Color(0xFF38BDF8)),
+            ThemeSwatchInfo("Light", "Journal Light", "Papel Aquecido", Color(0xFFF3EFE6), Color(0xFFFFFFFF), Color(0xFF0284C7)),
+            ThemeSwatchInfo("Amoled", "Pure AMOLED", "Preto Absoluto", Color(0xFF000000), Color(0xFF121215), Color(0xFF38BDF8)),
+            ThemeSwatchInfo("Cyberpunk", "Cyberpunk", "Neon High-Tech", Color(0xFF090614), Color(0xFF150E2A), Color(0xFF00F0FF)),
+            ThemeSwatchInfo("Nord", "Nord Frost", "Ardósia Ártica", Color(0xFF242933), Color(0xFF2E3440), Color(0xFF88C0D0)),
+            ThemeSwatchInfo("Monet", "Material You", "Tons Dinâmicos", Color(0xFF191C1E), Color(0xFF23272B), Color(0xFFA8C7FA)),
+            ThemeSwatchInfo("Incognito", "Stealth 🕵", "Modo Anônimo", Color(0xFF0D0B12), Color(0xFF171321), Color(0xFFA855F7))
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 20.dp),
+            .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         TabHeader(
             title = "Aparência",
-            subtitle = "Temas neutros, geometria e escala visual das teclas"
+            subtitle = "Paletas editoriais Tessera Core, geometria e escala das teclas"
         )
 
         KeyboardLivePreview(
             themeName = keyboardTheme,
             keyShape = keyShape,
+            keyHints = keyHints,
+            numberRow = numberRow,
             scale = keyboardScale.coerceIn(0.85f, 1.25f),
             modifier = Modifier.fillMaxWidth()
         )
 
-        SectionCard(title = "Paleta e Tema") {
-            Text(
-                text = "Tema Visual",
-                style = MaterialTheme.typography.titleSmall,
-                color = Slate100
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Paleta editorial refinada com contraste suave e fundo translúcido:",
-                style = MaterialTheme.typography.bodySmall,
-                color = Slate400
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ThemeOptionButton(
-                    title = "Obsidian Dark",
-                    isSelected = keyboardTheme == "Dark",
-                    onClick = { onThemeChange("Dark") },
-                    modifier = Modifier.weight(1f)
-                )
-                ThemeOptionButton(
-                    title = "Journal Light",
-                    isSelected = keyboardTheme == "Light",
-                    onClick = { onThemeChange("Light") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ThemeOptionButton(
-                    title = "Pure AMOLED",
-                    isSelected = keyboardTheme == "Amoled",
-                    onClick = { onThemeChange("Amoled") },
-                    modifier = Modifier.weight(1f)
-                )
-                ThemeOptionButton(
-                    title = "Cyberpunk",
-                    isSelected = keyboardTheme == "Cyberpunk",
-                    onClick = { onThemeChange("Cyberpunk") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ThemeOptionButton(
-                    title = "Nord Frost",
-                    isSelected = keyboardTheme == "Nord",
-                    onClick = { onThemeChange("Nord") },
-                    modifier = Modifier.weight(1f)
-                )
-                ThemeOptionButton(
-                    title = "Material You",
-                    isSelected = keyboardTheme == "Monet",
-                    onClick = { onThemeChange("Monet") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ThemeOptionButton(
-                    title = "Stealth Incognito 🕵",
-                    isSelected = keyboardTheme == "Incognito",
-                    onClick = { onThemeChange("Incognito") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
+        // PALETA E TEMA (Cards com Swatches Visuais)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            TesseraSectionHeader(title = "PALETA & TEMA VISUAL")
+            TesseraGroupCard {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    themeSwatches.chunked(2).forEach { rowThemes ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            rowThemes.forEach { swatch ->
+                                val isSelected = keyboardTheme == swatch.id
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(
+                                            if (isSelected) LuminaTokens.TesseraPillActiveBg else LuminaTokens.TesseraPillTrackBg
+                                        )
+                                        .border(
+                                            width = if (isSelected) 1.5.dp else 1.dp,
+                                            color = if (isSelected) LuminaTokens.LuminaCyan else LuminaTokens.TesseraCardBorder,
+                                            shape = RoundedCornerShape(16.dp)
+                                        )
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null
+                                        ) { onThemeChange(swatch.id) }
+                                        .padding(12.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        // Mini amostra da paleta (Fundo + Tecla + Ponto de Destaque)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(34.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(swatch.bgColor)
+                                                .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(10.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(18.dp)
+                                                    .clip(RoundedCornerShape(5.dp))
+                                                    .background(swatch.keyColor)
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(3.dp)
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(swatch.accentColor)
+                                            )
+                                        }
 
-        SectionCard(title = "Geometria e Proporções") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Altura do Teclado",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = Slate100
-                )
-                Text(
-                    text = "${(keyboardScale * 100).toInt()}%",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = AccentSky
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Slider(
-                value = keyboardScale.coerceIn(0.85f, 1.25f),
-                onValueChange = { onScaleChange(it.coerceIn(0.85f, 1.25f)) },
-                valueRange = 0.85f..1.25f,
-                steps = 7,
-                colors = SliderDefaults.colors(
-                    thumbColor = AccentSky,
-                    activeTrackColor = AccentSky,
-                    inactiveTrackColor = Slate800
-                )
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-            DividerLine()
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Geometria das Teclas (Key Shape)",
-                style = MaterialTheme.typography.titleSmall,
-                color = Slate100
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Design dos cantos das teclas:",
-                style = MaterialTheme.typography.bodySmall,
-                color = Slate400
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ThemeOptionButton(
-                    title = "Editorial Flat",
-                    isSelected = keyShape == "squircle",
-                    onClick = { onKeyShapeChange("squircle") },
-                    modifier = Modifier.weight(1f)
-                )
-                ThemeOptionButton(
-                    title = "Circular Achatada",
-                    isSelected = keyShape == "pill",
-                    onClick = { onKeyShapeChange("pill") },
-                    modifier = Modifier.weight(1f)
-                )
-                ThemeOptionButton(
-                    title = "Sem Bordas",
-                    isSelected = keyShape == "borderless",
-                    onClick = { onKeyShapeChange("borderless") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            DividerLine()
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Estilo do Rastro de Deslize (Glide Trail)",
-                style = MaterialTheme.typography.titleSmall,
-                color = Slate100
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Cor da linha dinâmica durante a digitação por gestos:",
-                style = MaterialTheme.typography.bodySmall,
-                color = Slate400
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            val trailOptions = listOf("Theme", "Cyan", "Magenta", "Amber", "White")
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                trailOptions.forEach { opt ->
-                    val isSel = glideTrailStyle == opt
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(if (isSel) AccentSkyMuted else Slate850, RoundedCornerShape(8.dp))
-                            .border(1.dp, if (isSel) AccentSky else Slate700, RoundedCornerShape(8.dp))
-                            .clickable { onGlideTrailStyleChange(opt) }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (opt == "Theme") "Auto" else opt,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isSel) AccentSky else Slate300
-                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = swatch.title,
+                                                style = MaterialTheme.typography.labelLarge.copy(
+                                                    fontSize = 13.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
+                                                ),
+                                                color = LuminaTokens.TextPureLight,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = swatch.subtitle,
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                                                color = if (isSelected) LuminaTokens.LuminaCyan else LuminaTokens.TextMutedSecondary,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            if (rowThemes.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            DividerLine()
-            Spacer(modifier = Modifier.height(12.dp))
+        // GEOMETRIA E PROPORÇÕES
+        Column(modifier = Modifier.fillMaxWidth()) {
+            TesseraSectionHeader(title = "GEOMETRIA, ESCALA & RASTRO")
+            TesseraGroupCard {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // 1. Formato das Teclas (Segmented Control)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Geometria das Teclas",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = LuminaTokens.TextPureLight
+                        )
+                        Text(
+                            text = "Contorno e esculpido das teclas no teclado:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = LuminaTokens.TextMutedSecondary
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        TesseraSegmentedControl(
+                            options = listOf(
+                                "squircle" to "Esculpido",
+                                "pill" to "Circular",
+                                "borderless" to "Sem Bordas"
+                            ),
+                            selectedValue = keyShape,
+                            onValueSelected = onKeyShapeChange
+                        )
+                    }
 
-            Text(
-                text = "Cor dos Popups ao Tocar",
-                style = MaterialTheme.typography.titleSmall,
-                color = Slate100
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Estilo dos balões temporários e menus de acentos:",
-                style = MaterialTheme.typography.bodySmall,
-                color = Slate400
-            )
-            Spacer(modifier = Modifier.height(10.dp))
+                    TesseraItemDivider(withIconOffset = false)
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                PopupStyleOption(
-                    title = "Dark Glass",
-                    accentColor = Color(0xFF38BDF8),
-                    surfaceColor = Color(0xFF1E293B),
-                    isSelected = popupStyle == "dark_glass",
-                    onClick = { onPopupStyleChange("dark_glass") },
-                    modifier = Modifier.weight(1f)
-                )
-                PopupStyleOption(
-                    title = "Obsidian",
-                    accentColor = Color(0xFF94A3B8),
-                    surfaceColor = Color(0xFF0F172A),
-                    isSelected = popupStyle == "obsidian",
-                    onClick = { onPopupStyleChange("obsidian") },
-                    modifier = Modifier.weight(1f)
-                )
-                PopupStyleOption(
-                    title = "Neon Cyan",
-                    accentColor = Color(0xFF00E5FF),
-                    surfaceColor = Color(0xFF0B1E2E),
-                    isSelected = popupStyle == "neon_cyan",
-                    onClick = { onPopupStyleChange("neon_cyan") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                PopupStyleOption(
-                    title = "Emerald",
-                    accentColor = Color(0xFF10B981),
-                    surfaceColor = Color(0xFF09241B),
-                    isSelected = popupStyle == "emerald",
-                    onClick = { onPopupStyleChange("emerald") },
-                    modifier = Modifier.weight(1f)
-                )
-                PopupStyleOption(
-                    title = "Purple",
-                    accentColor = Color(0xFFA855F7),
-                    surfaceColor = Color(0xFF1E1035),
-                    isSelected = popupStyle == "purple",
-                    onClick = { onPopupStyleChange("purple") },
-                    modifier = Modifier.weight(1f)
-                )
-                PopupStyleOption(
-                    title = "Amber",
-                    accentColor = Color(0xFFF59E0B),
-                    surfaceColor = Color(0xFF29160B),
-                    isSelected = popupStyle == "amber",
-                    onClick = { onPopupStyleChange("amber") },
-                    modifier = Modifier.weight(1f)
-                )
+                    // 2. Altura do Teclado
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Escala Vertical do Teclado",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = LuminaTokens.TextPureLight
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if ((keyboardScale * 100).toInt() != 100) {
+                                    Text(
+                                        text = "Padrão",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = LuminaTokens.TextMutedSecondary,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(LuminaTokens.TesseraPillTrackBg)
+                                            .clickable { onScaleChange(1.0f) }
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "${(keyboardScale * 100).toInt()}%",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = LuminaTokens.LuminaCyan
+                                )
+                            }
+                        }
+                        Slider(
+                            value = keyboardScale.coerceIn(0.85f, 1.25f),
+                            onValueChange = { onScaleChange(it.coerceIn(0.85f, 1.25f)) },
+                            valueRange = 0.85f..1.25f,
+                            steps = 7,
+                            colors = SliderDefaults.colors(
+                                thumbColor = LuminaTokens.LuminaCyan,
+                                activeTrackColor = LuminaTokens.LuminaCyan,
+                                inactiveTrackColor = LuminaTokens.TesseraPillTrackBg
+                            )
+                        )
+                    }
+
+                    TesseraItemDivider(withIconOffset = false)
+
+                    // 3. Rastro de Deslize (Glide Trail) com bolinhas de cor
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Cor do Rastro de Deslize (Glide Trail)",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = LuminaTokens.TextPureLight
+                        )
+                        val trailOptions = listOf(
+                            Triple("Theme", "Auto", LuminaTokens.LuminaCyan),
+                            Triple("Cyan", "Cyan", Color(0xFF00E5FF)),
+                            Triple("Magenta", "Pink", Color(0xFFFF2E93)),
+                            Triple("Amber", "Amber", Color(0xFFFFB300)),
+                            Triple("White", "Puro", Color(0xFFFFFFFF))
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            trailOptions.forEach { (opt, label, dotColor) ->
+                                val isSel = glideTrailStyle == opt
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(
+                                            if (isSel) LuminaTokens.TesseraPillActiveBg else LuminaTokens.TesseraPillTrackBg
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (isSel) LuminaTokens.LuminaCyan else LuminaTokens.TesseraCardBorder,
+                                            RoundedCornerShape(12.dp)
+                                        )
+                                        .clickable { onGlideTrailStyleChange(opt) }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(10.dp)
+                                                .clip(CircleShape)
+                                                .background(dotColor)
+                                        )
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontSize = 10.5.sp,
+                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
+                                            ),
+                                            color = if (isSel) LuminaTokens.TextPureLight else LuminaTokens.TextMutedSecondary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    TesseraItemDivider(withIconOffset = false)
+
+                    // 4. Estilo dos Popups ao Tocar
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Estilo dos Balões de Tecla (Popup)",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = LuminaTokens.TextPureLight
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            PopupStyleOption(
+                                title = "Dark Glass",
+                                accentColor = Color(0xFF38BDF8),
+                                surfaceColor = Color(0xFF1E293B),
+                                isSelected = popupStyle == "dark_glass",
+                                onClick = { onPopupStyleChange("dark_glass") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            PopupStyleOption(
+                                title = "Obsidian",
+                                accentColor = Color(0xFF94A3B8),
+                                surfaceColor = Color(0xFF0F172A),
+                                isSelected = popupStyle == "obsidian",
+                                onClick = { onPopupStyleChange("obsidian") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            PopupStyleOption(
+                                title = "Neon Cyan",
+                                accentColor = Color(0xFF00E5FF),
+                                surfaceColor = Color(0xFF0B1E2E),
+                                isSelected = popupStyle == "neon_cyan",
+                                onClick = { onPopupStyleChange("neon_cyan") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            PopupStyleOption(
+                                title = "Emerald",
+                                accentColor = Color(0xFF10B981),
+                                surfaceColor = Color(0xFF09241B),
+                                isSelected = popupStyle == "emerald",
+                                onClick = { onPopupStyleChange("emerald") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            PopupStyleOption(
+                                title = "Purple",
+                                accentColor = Color(0xFFA855F7),
+                                surfaceColor = Color(0xFF1E1035),
+                                isSelected = popupStyle == "purple",
+                                onClick = { onPopupStyleChange("purple") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            PopupStyleOption(
+                                title = "Amber",
+                                accentColor = Color(0xFFF59E0B),
+                                surfaceColor = Color(0xFF29160B),
+                                isSelected = popupStyle == "amber",
+                                onClick = { onPopupStyleChange("amber") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -825,12 +1096,12 @@ fun TabDictionaryContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 20.dp),
+            .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         TabHeader(
             title = "Dicionário & Snippets",
-            subtitle = "Gerenciamento de expansões de texto e palavras personalizadas"
+            subtitle = "Expansões rápidas de texto (!pix, !email) e vocabulário pessoal"
         )
 
         SnippetsSection(

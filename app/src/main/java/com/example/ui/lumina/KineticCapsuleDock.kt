@@ -100,25 +100,29 @@ fun KineticCapsuleDock(
                     )
 
                     val contentColor by animateColorAsState(
-                        targetValue = if (isSelected) LuminaCyan else TextMutedSecondary,
+                        targetValue = if (isSelected) TextPureLight else TextMutedSecondary,
                         animationSpec = tween(durationMillis = 200),
                         label = "DockContentColor_${tab.index}"
+                    )
+
+                    val iconColor by animateColorAsState(
+                        targetValue = if (isSelected) LuminaCyan else TextMutedSecondary,
+                        animationSpec = tween(durationMillis = 200),
+                        label = "DockIconColor_${tab.index}"
                     )
 
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp)
+                            .height(50.dp)
                             .clip(RoundedCornerShape(22.dp))
                             .then(
                                 if (isSelected) {
                                     Modifier
-                                        .background(
-                                            Color(0x2638BDF8)
-                                        )
+                                        .background(LuminaTokens.TesseraPillActiveBg)
                                         .border(
                                             1.dp,
-                                            Color(0x4038BDF8),
+                                            LuminaTokens.TesseraPillActiveBorder,
                                             RoundedCornerShape(22.dp)
                                         )
                                 } else Modifier
@@ -138,7 +142,7 @@ fun KineticCapsuleDock(
                             Icon(
                                 imageVector = tab.icon,
                                 contentDescription = tab.title,
-                                tint = contentColor,
+                                tint = iconColor,
                                 modifier = Modifier
                                     .size(20.dp)
                                     .graphicsLayer {

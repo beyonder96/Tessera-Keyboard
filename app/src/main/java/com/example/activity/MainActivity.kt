@@ -235,6 +235,19 @@ fun TesseraDashboardContainer(
     var groqApiKey by remember { mutableStateOf(try { prefs.getString("PREF_GROQ_API_KEY", "") ?: "" } catch (_: Exception) { "" }) }
     var geminiApiKey by remember { mutableStateOf(try { prefs.getString("PREF_GEMINI_API_KEY", "") ?: "" } catch (_: Exception) { "" }) }
 
+    // Atualização OTA via GitHub Releases (Tessera Core Update Pill)
+    var updateInfo by remember { mutableStateOf<com.example.update.AppUpdateInfo?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val info = com.example.update.TesseraUpdateManager.checkForUpdates(context)
+            if (info != null && info.hasUpdate) {
+                updateInfo = info
+            }
+        } catch (_: Exception) {}
+    }
+
     // Polling contínuo de status com delay suave
     LaunchedEffect(Unit) {
         delay(200) // Simula carregamento suave inicial (Loading State)
@@ -251,6 +264,17 @@ fun TesseraDashboardContainer(
         }
     }
 
+    if (showUpdateDialog && updateInfo != null) {
+        com.example.update.TesseraKeyboardUpdateDialog(
+            updateInfo = updateInfo!!,
+            onDismiss = { showUpdateDialog = false },
+            onDownload = {
+                showUpdateDialog = false
+                com.example.update.TesseraUpdateManager.launchDownload(context, updateInfo!!.downloadUrl)
+            }
+        )
+    }
+
     Crossfade(
         targetState = isLoading,
         animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
@@ -263,6 +287,8 @@ fun TesseraDashboardContainer(
                 modifier = modifier,
                 isEnabled = isEnabled,
                 isSelected = isSelected,
+                updateInfo = updateInfo,
+                onUpdatePillClick = { showUpdateDialog = true },
                 autocorrect = autocorrect,
                 onAutocorrectChange = {
                     autocorrect = it
@@ -322,6 +348,11 @@ fun TesseraDashboardContainer(
                     undoDelete = it
                     prefs.edit().putBoolean("PREF_UNDO_DELETE", it).apply()
                 },
+                adaptiveHitboxes = adaptiveHitboxes,
+                onAdaptiveHitboxesChange = {
+                    adaptiveHitboxes = it
+                    prefs.edit().putBoolean("PREF_ADAPTIVE_HITBOXES", it).apply()
+                },
                 aiParticipative = aiParticipative,
                 onAiParticipativeChange = {
                     aiParticipative = it
@@ -371,6 +402,11 @@ fun TesseraDashboardContainer(
                 onSoundFeedbackChange = {
                     soundFeedback = it
                     prefs.edit().putBoolean("PREF_SOUND_FEEDBACK", it).apply()
+                },
+                soundProfile = soundProfile,
+                onSoundProfileChange = {
+                    soundProfile = it
+                    prefs.edit().putString("PREF_SOUND_PROFILE", it).apply()
                 },
                 keyboardTheme = keyboardTheme,
                 onThemeChange = {
@@ -456,6 +492,8 @@ fun TesseraDashboardContent(
     modifier: Modifier = Modifier,
     isEnabled: Boolean,
     isSelected: Boolean,
+    updateInfo: com.example.update.AppUpdateInfo? = null,
+    onUpdatePillClick: () -> Unit = {},
     autocorrect: Boolean,
     onAutocorrectChange: (Boolean) -> Unit,
     smartAbbr: Boolean,
@@ -480,6 +518,8 @@ fun TesseraDashboardContent(
     onSwipeDownHideChange: (Boolean) -> Unit,
     undoDelete: Boolean,
     onUndoDeleteChange: (Boolean) -> Unit,
+    adaptiveHitboxes: Boolean = true,
+    onAdaptiveHitboxesChange: (Boolean) -> Unit = {},
     aiParticipative: Boolean = true,
     onAiParticipativeChange: (Boolean) -> Unit = {},
     aiPassiveContinuous: Boolean = false,
@@ -496,6 +536,8 @@ fun TesseraDashboardContent(
     onHapticDurationChange: (Int) -> Unit,
     soundFeedback: Boolean,
     onSoundFeedbackChange: (Boolean) -> Unit,
+    soundProfile: String = "thock",
+    onSoundProfileChange: (String) -> Unit = {},
     keyboardTheme: String,
     onThemeChange: (String) -> Unit,
     keyboardScale: Float,
@@ -553,9 +595,12 @@ fun TesseraDashboardContent(
                     keyboardTheme = keyboardTheme,
                     keyShape = keyShape,
                     keyHints = keyHints,
+                    numberRow = numberRow,
                     keyboardScale = keyboardScale,
                     isEnabled = isEnabled,
                     isSelected = isSelected,
+                    updateInfo = updateInfo,
+                    onUpdatePillClick = onUpdatePillClick,
                     onEnableKeyboardClick = onEnableKeyboardClick,
                     onSelectKeyboardClick = onSelectKeyboardClick
                 )
@@ -594,6 +639,10 @@ fun TesseraDashboardContent(
                     onSoundFeedbackChange = onSoundFeedbackChange,
                     hasMicPermission = hasMicPermission,
                     onRequestMicPermission = onRequestMicPermission,
+                    soundProfile = soundProfile,
+                    onSoundProfileChange = onSoundProfileChange,
+                    adaptiveHitboxes = adaptiveHitboxes,
+                    onAdaptiveHitboxesChange = onAdaptiveHitboxesChange,
                     aiParticipative = aiParticipative,
                     onAiParticipativeChange = onAiParticipativeChange,
                     aiPassiveContinuous = aiPassiveContinuous,
@@ -615,7 +664,9 @@ fun TesseraDashboardContent(
                     keyboardScale = keyboardScale,
                     onScaleChange = onScaleChange,
                     popupStyle = popupStyle,
-                    onPopupStyleChange = onPopupStyleChange
+                    onPopupStyleChange = onPopupStyleChange,
+                    numberRow = numberRow,
+                    keyHints = keyHints
                 )
                 else -> TabDictionaryContent(
                     snippets = snippets,
@@ -678,86 +729,135 @@ fun KeyboardStatusCard(
     onSelectClick: () -> Unit
 ) {
     val (statusTitle, statusDesc, statusColor, isReady) = when {
-        !isEnabled -> Quadruple("Teclado Desativado", "O Tessera precisa ser ativado nas configurações do sistema.", StateError, false)
-        !isSelected -> Quadruple("Teclado Não Selecionado", "O Tessera está ativo, mas outro teclado está em uso.", StateWarning, false)
-        else -> Quadruple("Teclado Pronto para Uso", "O Tessera está selecionado como seu teclado padrão.", StateSuccess, true)
+        !isEnabled -> Quadruple(
+            "Teclado Desativado",
+            "Habilite o Tessera nas configurações do Android para começar.",
+            LuminaTokens.LuminaCrimson,
+            false
+        )
+        !isSelected -> Quadruple(
+            "Aguardando Seleção",
+            "O Tessera está habilitado, mas outro método de entrada está ativo.",
+            LuminaTokens.LuminaAmber,
+            false
+        )
+        else -> Quadruple(
+            "Tessera Ativo & Pronto",
+            "Motor 120Hz, precisão Voronoi e IA Participativa operacionais.",
+            LuminaTokens.LuminaEmerald,
+            true
+        )
     }
 
-    MonolithSurface(
-        modifier = Modifier.fillMaxWidth(),
-        isActive = isReady,
-        cornerRadius = 18.dp
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    TesseraGroupCard {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(10.dp)
-                        .background(statusColor, RoundedCornerShape(5.dp))
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = statusTitle,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = Slate100
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(statusColor.copy(alpha = 0.14f))
+                        .border(1.dp, statusColor.copy(alpha = 0.4f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isReady) Icons.Default.Check else Icons.Default.Keyboard,
+                        contentDescription = null,
+                        tint = statusColor,
+                        modifier = Modifier.size(20.dp)
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .background(statusColor, CircleShape)
+                        )
+                        Text(
+                            text = statusTitle,
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = LuminaTokens.TextPureLight
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = statusDesc,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Slate400
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
+                        color = LuminaTokens.TextMutedSecondary
                     )
                 }
             }
 
             if (!isReady) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Button(
+                    onClick = if (!isEnabled) onEnableClick else onSelectClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = LuminaTokens.LuminaCyan,
+                        contentColor = Color(0xFF090D16)
+                    ),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    if (!isEnabled) {
-                        Button(
-                            onClick = onEnableClick,
-                            modifier = Modifier.weight(1f).height(44.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = AccentSky,
-                                contentColor = Slate950
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("1. Ativar no Sistema", style = MaterialTheme.typography.labelMedium)
-                        }
-                    } else {
-                        Button(
-                            onClick = onSelectClick,
-                            modifier = Modifier.weight(1f).height(44.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = AccentSky,
-                                contentColor = Slate950
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("2. Selecionar Teclado", style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
+                    Text(
+                        text = if (!isEnabled) "1. Ativar nas Configurações" else "2. Selecionar Tessera como Padrão",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                    )
                 }
             } else {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(LuminaTokens.TesseraPillTrackBg)
+                                .border(1.dp, LuminaTokens.TesseraCardBorder, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "IME PADRÃO",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp
+                                ),
+                                color = LuminaTokens.LuminaEmerald
+                            )
+                        }
+                    }
                     OutlinedButton(
                         onClick = onSelectClick,
-                        modifier = Modifier.height(36.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentSky),
-                        border = BorderStroke(1.dp, AccentSky.copy(alpha = 0.4f)),
+                        modifier = Modifier.height(34.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = LuminaTokens.TextPureLight),
+                        border = BorderStroke(1.dp, LuminaTokens.TesseraCardBorder),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
-                        Text("Alternar / Trocar Teclado", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            "Trocar Teclado",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold)
+                        )
                     }
                 }
             }
@@ -770,21 +870,15 @@ fun SectionCard(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    MonolithSurface(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 18.dp
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.2).sp
-                ),
-                color = LuminaTokens.TextPureLight
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            content()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        TesseraSectionHeader(title = title)
+        TesseraGroupCard {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                content()
+            }
         }
     }
 }
@@ -811,16 +905,16 @@ fun ThemeOptionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val bgColor = if (isSelected) Color(0x2638BDF8) else LuminaTokens.ObsidianGlassSubtle
-    val borderColor = if (isSelected) LuminaTokens.LuminaCyan else Color(0x22FFFFFF)
-    val textColor = if (isSelected) LuminaTokens.LuminaCyan else LuminaTokens.TextMutedSecondary
+    val bgColor = if (isSelected) LuminaTokens.TesseraPillActiveBg else LuminaTokens.TesseraPillTrackBg
+    val borderColor = if (isSelected) LuminaTokens.LuminaCyan else LuminaTokens.TesseraCardBorder
+    val textColor = if (isSelected) LuminaTokens.TextPureLight else LuminaTokens.TextMutedSecondary
 
     Box(
         modifier = modifier
-            .background(bgColor, RoundedCornerShape(12.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .background(bgColor, RoundedCornerShape(14.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 6.dp),
+            .padding(vertical = 12.dp, horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(

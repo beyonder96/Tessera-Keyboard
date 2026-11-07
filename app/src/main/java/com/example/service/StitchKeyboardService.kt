@@ -1548,16 +1548,19 @@ class StitchKeyboardService : InputMethodService() {
             }
 
             if (exactMatch != null) {
+                configureAiBannerLayout(false)
                 updateSuggestionView(suggestion1, exactMatch.first)
                 updateSuggestionView(suggestion2, exactMatch.second)
                 val extraMatch = matchingSnippets.find { it.first != exactMatch.first }
                 updateSuggestionView(suggestion3, extraMatch?.first ?: "📋 Snippet")
             } else if (matchingSnippets.size == 1) {
+                configureAiBannerLayout(false)
                 val single = matchingSnippets[0]
                 updateSuggestionView(suggestion1, single.first)
                 updateSuggestionView(suggestion2, single.second)
                 updateSuggestionView(suggestion3, "📋 Snippet")
             } else {
+                configureAiBannerLayout(false)
                 updateSuggestionView(suggestion1, matchingSnippets[0].first)
                 updateSuggestionView(suggestion2, matchingSnippets.getOrNull(1)?.first ?: matchingSnippets[0].second)
                 updateSuggestionView(suggestion3, matchingSnippets.getOrNull(2)?.first ?: "📋 Snippet")
@@ -1593,6 +1596,7 @@ class StitchKeyboardService : InputMethodService() {
             }
 
             withContext(Dispatchers.Main) {
+                configureAiBannerLayout(false)
                 updateSuggestionView(suggestion1, left)
                 updateSuggestionView(suggestion2, center)
                 updateSuggestionView(suggestion3, right)
@@ -1608,6 +1612,62 @@ class StitchKeyboardService : InputMethodService() {
                     dragPill?.visibility = View.GONE
                 }
                 updateTopStripVisibility()
+            }
+        }
+    }
+
+    private var isAiBannerLayoutActive = false
+
+    private fun configureAiBannerLayout(isAiMode: Boolean) {
+        if (isAiBannerLayoutActive == isAiMode) return
+        isAiBannerLayoutActive = isAiMode
+        val density = resources.displayMetrics.density
+        val s1 = suggestion1
+        val s2 = suggestion2
+        val s3 = suggestion3
+
+        if (isAiMode) {
+            s2?.let { tv ->
+                val lp = (tv.layoutParams as? LinearLayout.LayoutParams)
+                    ?: LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                lp.width = 0
+                lp.weight = 1f
+                lp.height = LinearLayout.LayoutParams.WRAP_CONTENT
+                tv.layoutParams = lp
+                tv.maxLines = 2
+                tv.ellipsize = android.text.TextUtils.TruncateAt.END
+                tv.textSize = 13.5f
+                val padH = (12 * density).toInt()
+                val padV = (5 * density).toInt()
+                tv.setPadding(padH, padV, padH, padV)
+            }
+            s3?.let { tv ->
+                val lp = (tv.layoutParams as? LinearLayout.LayoutParams)
+                    ?: LinearLayout.LayoutParams((36 * density).toInt(), (36 * density).toInt(), 0f)
+                lp.width = (36 * density).toInt()
+                lp.weight = 0f
+                lp.height = (36 * density).toInt()
+                tv.layoutParams = lp
+                tv.maxLines = 1
+                tv.textSize = 14f
+                tv.setPadding(0, 0, 0, 0)
+            }
+        } else {
+            val padH = (6 * density).toInt()
+            val padV = (2 * density).toInt()
+            listOf(s1, s2, s3).forEach { tv ->
+                tv?.let {
+                    val lp = (it.layoutParams as? LinearLayout.LayoutParams)
+                        ?: LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    lp.width = 0
+                    lp.weight = 1f
+                    lp.height = LinearLayout.LayoutParams.WRAP_CONTENT
+                    it.layoutParams = lp
+                    it.maxLines = 1
+                    it.ellipsize = android.text.TextUtils.TruncateAt.END
+                    it.textSize = 15f
+                    it.setPadding(padH, padV, padH, padV)
+                }
             }
         }
     }
@@ -1647,6 +1707,7 @@ class StitchKeyboardService : InputMethodService() {
             val apiKey = getActiveAiApiKey()
             if (apiKey.isBlank()) {
                 predictionJob?.cancel()
+                configureAiBannerLayout(true)
                 updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
                 updateSuggestionView(suggestion2, "⚙️ Configure a chave Groq nas opções")
                 updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
@@ -1662,7 +1723,7 @@ class StitchKeyboardService : InputMethodService() {
                 return@launch
             }
 
-            // Exibe indicador visual de carregamento no centro
+            // Exibe indicador visual de carregamento ocupando a barra inteira
             val loadingLabel = when (trigger.mode) {
                 AiIntentMode.BIBLE_VERSE_LOOKUP -> "📖 Buscando versículo..."
                 AiIntentMode.GRAMMAR_CORRECTION -> "✨ Analisando frase..."
@@ -1670,6 +1731,7 @@ class StitchKeyboardService : InputMethodService() {
                 AiIntentMode.SMART_ASSISTANT -> "⚡ Consultando IA..."
             }
             predictionJob?.cancel()
+            configureAiBannerLayout(true)
             updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
             updateSuggestionView(suggestion2, loadingLabel)
             updateSuggestionView(suggestion3, "", hideWhenEmpty = true)
@@ -1689,6 +1751,7 @@ class StitchKeyboardService : InputMethodService() {
                     lastAiQuery = null
                     activeAiSuggestion = result
                     predictionJob?.cancel()
+                    configureAiBannerLayout(true)
                     updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
                     updateSuggestionView(suggestion2, result.displayLabel)
                     updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
@@ -1697,20 +1760,24 @@ class StitchKeyboardService : InputMethodService() {
                     lastAiQuery = currentLine.trim()
                     activeAiSuggestion = result
                     predictionJob?.cancel()
+                    configureAiBannerLayout(true)
                     updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
                     updateSuggestionView(suggestion2, result.displayLabel)
                     updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
                     updateTopStripVisibility()
                 } else {
                     lastAiQuery = currentLine.trim()
+                    clearPredictionsUi()
                 }
             } else {
                 lastAiQuery = null
+                clearPredictionsUi()
             }
         }
     }
 
     private fun showAiUndoPill() {
+        configureAiBannerLayout(true)
         updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
         updateSuggestionView(suggestion2, "↩ Desfazer IA")
         updateSuggestionView(suggestion3, "", hideWhenEmpty = true)
@@ -1754,6 +1821,7 @@ class StitchKeyboardService : InputMethodService() {
         predictionJob?.cancel()
         lastQueriedWord = ""
         activeAiSuggestion = null
+        configureAiBannerLayout(false)
         updateSuggestionView(suggestion1, "")
         updateSuggestionView(suggestion2, "")
         updateSuggestionView(suggestion3, "")
@@ -4008,13 +4076,14 @@ class StitchKeyboardService : InputMethodService() {
             alphabetKeys[id] = char
 
             val hint = keyHintsMap[id]
-            if (prefKeyHints && !isSymbolMode && hint != null) {
+            val isRedundantNumberHint = prefNumberRow && hint != null && hint.length == 1 && hint[0].isDigit()
+            if (prefKeyHints && !isSymbolMode && hint != null && !isRedundantNumberHint) {
                 val ssb = SpannableStringBuilder()
                 ssb.append(displayChar)
                 val start = ssb.length
                 ssb.append(hint)
                 ssb.setSpan(SuperscriptSpan(), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                ssb.setSpan(RelativeSizeSpan(0.52f), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                ssb.setSpan(RelativeSizeSpan(0.46f), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 ssb.setSpan(ForegroundColorSpan(inactiveColor), start, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 keyView.text = ssb
             } else {
