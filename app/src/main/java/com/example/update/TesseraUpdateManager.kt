@@ -64,17 +64,25 @@ object TesseraUpdateManager {
             val releaseNotes = json.optString("body", "Nova versão disponível do Tessera Keyboard.")
             val releaseUrl = json.optString("html_url", "https://github.com/$repoOwner/$repoName/releases/latest")
 
-            var downloadUrl = releaseUrl
+            var downloadUrl = ""
             val assets = json.optJSONArray("assets")
             if (assets != null) {
                 for (i in 0 until assets.length()) {
                     val asset = assets.getJSONObject(i)
                     val assetName = asset.optString("name", "")
-                    if (assetName.endsWith(".apk", ignoreCase = true)) {
-                        downloadUrl = asset.optString("browser_download_url", releaseUrl)
+                    if (assetName.contains("release", ignoreCase = true) && assetName.endsWith(".apk", ignoreCase = true)) {
+                        downloadUrl = asset.optString("browser_download_url", "")
                         break
+                    } else if (assetName.endsWith(".apk", ignoreCase = true) && downloadUrl.isBlank()) {
+                        downloadUrl = asset.optString("browser_download_url", "")
                     }
                 }
+            }
+
+            // Fallback prioritário: se os assets da release não tiverem APK,
+            // baixa diretamente o APK de release publicado no repositório
+            if (downloadUrl.isBlank()) {
+                downloadUrl = "https://github.com/$repoOwner/$repoName/raw/main/apks/app-release.apk"
             }
 
             prefs.edit().putLong(KEY_LAST_CHECK, now).apply()

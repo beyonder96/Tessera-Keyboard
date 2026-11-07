@@ -1,0 +1,56 @@
+name: Attach Release Assets
+
+on:
+  release:
+    types: [published, created, edited]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag da release para anexar os APKs (ex: v1.2.5)'
+        required: false
+        default: 'latest'
+
+permissions:
+  contents: write
+
+jobs:
+  upload-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Determine Target Release Tag
+        id: get_tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          elif [ -n "${{ github.event.inputs.tag_name }}" ] && [ "${{ github.event.inputs.tag_name }}" != "latest" ]; then
+            TAG="${{ github.event.inputs.tag_name }}"
+          else
+            TAG=$(gh release view --json tagName -q .tagName)
+          fi
+          echo "Target tag: $TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload APKs to GitHub Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_tag.outputs.tag }}
+          files: |
+            apks/app-release.apk
+            apks/app-release-*.apk
+            apks/app-debug.apk
+            apks/app-debug-*.apk
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
