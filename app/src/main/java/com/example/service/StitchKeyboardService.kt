@@ -423,12 +423,6 @@ class StitchKeyboardService : InputMethodService() {
             dragPill = keyboardView.findViewById(R.id.drag_pill)
             topCommandsBar = keyboardView.findViewById(R.id.top_commands_bar)
 
-            ViewCompat.setOnApplyWindowInsetsListener(keyboardRoot) { v, insets ->
-                val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-                v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, navBars.bottom.coerceAtLeast(0))
-                insets
-            }
-
             cursorPadRoot = keyboardView.findViewById(R.id.cursor_pad_root)
             keyboardView.findViewById<View>(R.id.key_cursor_top)?.setOnClickListener {
                 if (::hapticEngine.isInitialized) hapticEngine.performSpecialKey(keyboardRoot)
@@ -571,7 +565,15 @@ class StitchKeyboardService : InputMethodService() {
             cachedKeyboardScale = scalePref
             applyKeyboardScale(scalePref)
 
+            applyFooterBottomPadding(computeKeyboardBottomPadding(0))
+            ViewCompat.setOnApplyWindowInsetsListener(keyboardView) { _, insets ->
+                val navBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+                applyFooterBottomPadding(computeKeyboardBottomPadding(navBars.bottom))
+                insets
+            }
+
             keyboardView.post {
+                ViewCompat.requestApplyInsets(keyboardView)
                 applyKeyboardScale(scalePref)
                 prewarmKeyPositions()
             }
@@ -585,6 +587,65 @@ class StitchKeyboardService : InputMethodService() {
             errorView.setTextColor(android.graphics.Color.WHITE)
             errorView.setBackgroundColor(android.graphics.Color.RED)
             return errorView
+        }
+    }
+
+    private fun computeKeyboardBottomPadding(navBarBottomPx: Int): Int {
+        val density = resources.displayMetrics.density
+        val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val extraClearancePx = ((if (isLandscape) 12f else 20f) * density).toInt()
+        val minFooterPx = ((if (isLandscape) 28f else 58f) * density).toInt()
+        return (navBarBottomPx.coerceAtLeast(0) + extraClearancePx).coerceAtLeast(minFooterPx)
+    }
+
+    private fun applyFooterBottomPadding(targetBottomPx: Int) {
+        var keyboardRootChanged = false
+        if (::keyboardRoot.isInitialized && keyboardRoot.paddingBottom != targetBottomPx) {
+            keyboardRoot.setPadding(
+                keyboardRoot.paddingLeft,
+                keyboardRoot.paddingTop,
+                keyboardRoot.paddingRight,
+                targetBottomPx
+            )
+            keyboardRootChanged = true
+        }
+        if (::numericRoot.isInitialized && numericRoot.paddingBottom != targetBottomPx) {
+            numericRoot.setPadding(
+                numericRoot.paddingLeft,
+                numericRoot.paddingTop,
+                numericRoot.paddingRight,
+                targetBottomPx
+            )
+        }
+        val density = resources.displayMetrics.density
+        val base8dp = (8 * density).toInt()
+        val overlayBottomPx = maxOf(base8dp, targetBottomPx)
+        if (::emojiRoot.isInitialized && emojiRoot.paddingBottom != overlayBottomPx) {
+            emojiRoot.setPadding(
+                emojiRoot.paddingLeft,
+                emojiRoot.paddingTop,
+                emojiRoot.paddingRight,
+                overlayBottomPx
+            )
+        }
+        if (::cursorPadRoot.isInitialized && cursorPadRoot.paddingBottom != overlayBottomPx) {
+            cursorPadRoot.setPadding(
+                cursorPadRoot.paddingLeft,
+                cursorPadRoot.paddingTop,
+                cursorPadRoot.paddingRight,
+                overlayBottomPx
+            )
+        }
+        if (::clipboardHistoryRoot.isInitialized && clipboardHistoryRoot.paddingBottom != overlayBottomPx) {
+            clipboardHistoryRoot.setPadding(
+                clipboardHistoryRoot.paddingLeft,
+                clipboardHistoryRoot.paddingTop,
+                clipboardHistoryRoot.paddingRight,
+                overlayBottomPx
+            )
+        }
+        if (keyboardRootChanged) {
+            keyboardRoot.post { prewarmKeyPositions() }
         }
     }
 
@@ -1960,6 +2021,8 @@ class StitchKeyboardService : InputMethodService() {
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         keyPositionCache.clear()
+        applyFooterBottomPadding(computeKeyboardBottomPadding(0))
+        mainInputView?.let { ViewCompat.requestApplyInsets(it) }
         if (::keyboardRoot.isInitialized) {
             keyboardRoot.post { prewarmKeyPositions() }
         }

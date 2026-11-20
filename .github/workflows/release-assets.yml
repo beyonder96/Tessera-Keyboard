@@ -1,56 +1,132 @@
-name: Attach Release Assets
+name: Build & Publish Release APKs
 
 on:
-  release:
-    types: [published, created, edited]
   push:
     tags:
       - 'v*'
   workflow_dispatch:
     inputs:
-      tag_name:
-        description: 'Tag da release para anexar os APKs (ex: v1.2.5)'
+      version:
+        description: 'Nova versão para release (ex: 1.2.7). Deixe vazio para usar a versão atual de app/build.gradle.kts'
         required: false
-        default: 'latest'
+        default: ''
+      publish_release:
+        description: 'Publicar tag e GitHub Release com os APKs'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
 
 jobs:
-  upload-assets:
+  build-and-release:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
-      - name: Determine Target Release Tag
-        id: get_tag
+      - name: Resolve version and bump if requested
+        id: meta
         run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            TAG="${{ github.event.release.tag_name }}"
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          elif [ -n "${{ github.event.inputs.tag_name }}" ] && [ "${{ github.event.inputs.tag_name }}" != "latest" ]; then
-            TAG="${{ github.event.inputs.tag_name }}"
-          else
-            TAG=$(gh release view --json tagName -q .tagName)
-          fi
-          echo "Target tag: $TAG"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT_VERSION=$(grep -oE 'versionName\s*=\s*"[^"]+"' app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)"/\1/')
+          CURRENT_CODE=$(grep -oE 'versionCode\s*=\s*[0-9]+' app/build.gradle.kts | head -n1 | sed -E 's/.*=\s*([0-9]+)/\1/')
 
-      - name: Upload APKs to GitHub Release Assets
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG#v}"
+          else
+            INPUT_VER="${{ github.event.inputs.version }}"
+            INPUT_VER="${INPUT_VER#v}"
+            if [ -n "$INPUT_VER" ] && [ "$INPUT_VER" != "$CURRENT_VERSION" ]; then
+              VERSION="$INPUT_VER"
+              TAG="v$VERSION"
+              NEW_CODE=$((CURRENT_CODE + 1))
+              sed -i -E "s/versionCode\s*=\s*[0-9]+/versionCode = $NEW_CODE/" app/build.gradle.kts
+              sed -i -E "s/versionName\s*=\s*\"[^\"]+\"/versionName = \"$VERSION\"/" app/build.gradle.kts
+              if [ -f README.md ]; then
+                sed -i -E "s/v[0-9]+\.[0-9]+\.[0-9]+/v$VERSION/g" README.md
+                sed -i -E "s/Release_v[0-9]+\.[0-9]+\.[0-9]+/Release_v$VERSION/g" README.md
+                sed -i -E "s/Debug_v[0-9]+\.[0-9]+\.[0-9]+/Debug_v$VERSION/g" README.md
+              fi
+              if [ "${{ github.event.inputs.publish_release }}" = "true" ]; then
+                git config user.name "github-actions[bot]"
+                git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                git add app/build.gradle.kts README.md
+                if ! git diff --cached --quiet; then
+                  git commit -m "chore(release): $TAG"
+                  git push origin HEAD:main
+                fi
+              fi
+            else
+              VERSION="$CURRENT_VERSION"
+              TAG="v$VERSION"
+            fi
+          fi
+
+          echo "Target version: $VERSION (tag: $TAG)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Build signed Release & Debug APKs
+        run: ./gradlew assembleRelease assembleDebug --stacktrace
+
+      - name: Package APKs
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          mkdir -p dist-apks
+          cp app/build/outputs/apk/release/app-release.apk "dist-apks/app-release.apk"
+          cp app/build/outputs/apk/release/app-release.apk "dist-apks/app-release-$TAG.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "dist-apks/app-debug.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "dist-apks/app-debug-$TAG.apk"
+          ls -lh dist-apks/
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tessera-keyboard-${{ steps.meta.outputs.tag }}
+          path: dist-apks/*.apk
+          retention-days: 30
+
+      - name: Ensure release tag exists (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish_release == 'true'
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
+
+      - name: Publish GitHub Release with APKs
+        if: github.event_name == 'push' || github.event.inputs.publish_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.get_tag.outputs.tag }}
-          files: |
-            apks/app-release.apk
-            apks/app-release-*.apk
-            apks/app-debug.apk
-            apks/app-debug-*.apk
-          fail_on_unmatched_files: false
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          generate_release_notes: true
+          files: dist-apks/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

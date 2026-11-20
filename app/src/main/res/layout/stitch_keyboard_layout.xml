@@ -11,7 +11,7 @@
         android:paddingLeft="6dp"
         android:paddingRight="6dp"
         android:paddingTop="4dp"
-        android:paddingBottom="0dp"
+        android:paddingBottom="58dp"
         android:clickable="true"
         android:focusable="true"
         android:splitMotionEvents="true">
@@ -1352,7 +1352,7 @@
         android:paddingLeft="6dp"
         android:paddingRight="6dp"
         android:paddingTop="4dp"
-        android:paddingBottom="0dp"
+        android:paddingBottom="58dp"
         android:visibility="gone"
         android:clickable="true"
         android:focusable="true"
