@@ -236,6 +236,9 @@ class StitchKeyboardService : InputMethodService() {
     private var lastAiInsertedLength: Int = 0
     private var lastAiQuery: String? = null
     private var aiUndoDismissRunnable: Runnable? = null
+    private var aiInfoDismissRunnable: Runnable? = null
+    private var keyAiWandTop: View? = null
+    private var keyAiWandStrip: View? = null
 
     private val keyHintsMap = mapOf(
         R.id.key_q to "1", R.id.key_w to "2", R.id.key_e to "3", R.id.key_r to "4", R.id.key_t to "5",
@@ -1551,6 +1554,7 @@ class StitchKeyboardService : InputMethodService() {
         }
 
         if (beforeText.endsWith("@") || beforeText.trim() == "@") {
+            aiWatcherJob?.cancel()
             predictionJob?.cancel()
             activeAiSuggestion = null
             updateSuggestionView(suggestion1, "@corrigir")
@@ -1560,7 +1564,12 @@ class StitchKeyboardService : InputMethodService() {
             return
         }
 
-        scheduleParticipativeAiWatcher()
+        // Só monitora automaticamente tags explícitas (@corrigir, @versiculo, @ia) quando não há palavra sendo composta
+        if (word.isEmpty() && composingBuffer.isEmpty()) {
+            scheduleParticipativeAiWatcher()
+        } else {
+            aiWatcherJob?.cancel()
+        }
 
         if (word.isEmpty()) {
             predictionJob?.cancel()
@@ -1740,24 +1749,24 @@ class StitchKeyboardService : InputMethodService() {
         aiWatcherJob?.cancel()
         val sp = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
         val isAiActive = sp.getBoolean("PREF_AI_PARTICIPATIVE", prefAiParticipative)
-        val isPassive = sp.getBoolean("PREF_AI_PASSIVE_CONTINUOUS", prefAiPassiveContinuous)
         prefAiParticipative = isAiActive
-        prefAiPassiveContinuous = isPassive
 
         if (!isAiActive || isPrivateOrPassword(currentInputEditorInfo)) return
+        if (composingBuffer.isNotEmpty()) return
 
         val ic = currentInputConnection ?: return
-        val selectedText = ic.getSelectedText(0)?.toString()
         val textBefore = ic.getTextBeforeCursor(1000, 0)?.toString() ?: ""
         val textAfter = ic.getTextAfterCursor(1000, 0)?.toString() ?: ""
 
+        // Modo automático apenas para tags explícitas (@corrigir, @versiculo, @ia);
+        // revisão sem tags é acionada sob demanda pelo ícone da varinha na barra de ação.
         val trigger = ParticipativeAiEngine.parseTrigger(
             textBefore = textBefore,
             textAfter = textAfter,
-            selectedText = selectedText,
-            isPassiveModeEnabled = isPassive
+            selectedText = null,
+            isPassiveModeEnabled = false
         )
-        if (trigger == null) {
+        if (trigger == null || trigger.matchedTag.isEmpty()) {
             if (!isAiBannerLayoutActive) {
                 activeAiSuggestion = null
             }
@@ -1769,6 +1778,8 @@ class StitchKeyboardService : InputMethodService() {
 
         aiWatcherJob = scope.launch(Dispatchers.Main) {
             delay(prefAiDebounceMs)
+            if (composingBuffer.isNotEmpty()) return@launch
+
             val checkBefore = currentInputConnection?.getTextBeforeCursor(1000, 0)?.toString() ?: ""
             val checkAfter = currentInputConnection?.getTextAfterCursor(1000, 0)?.toString() ?: ""
             val checkCombined = checkBefore + checkAfter
@@ -1781,16 +1792,18 @@ class StitchKeyboardService : InputMethodService() {
             val apiKey = getActiveAiApiKey()
             if (apiKey.isBlank()) {
                 predictionJob?.cancel()
+                val providerName = if (prefAiProvider.equals("gemini", ignoreCase = true)) "Gemini" else "Groq"
+                val msg = "⚙️ Configure a chave $providerName nas opções"
                 configureAiBannerLayout(true)
                 updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
-                updateSuggestionView(suggestion2, "⚙️ Configure a chave Groq nas opções")
+                updateSuggestionView(suggestion2, msg)
                 updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
                 updateTopStripVisibility()
                 activeAiSuggestion = AiSuggestionResult(
                     originalText = trigger.userContent,
                     targetSpanText = trigger.targetSpanText,
-                    suggestionText = "⚙️ Configure a chave Groq nas opções",
-                    displayLabel = "⚙️ Configure a chave Groq nas opções",
+                    suggestionText = msg,
+                    displayLabel = msg,
                     mode = trigger.mode,
                     deleteBeforeCount = 0,
                     deleteAfterCount = 0,
@@ -1799,30 +1812,33 @@ class StitchKeyboardService : InputMethodService() {
                 return@launch
             }
 
-            // Exibe indicador visual de carregamento ocupando a barra inteira
+            // Exibe indicador visual de carregamento apenas para comandos explícitos (@tags)
             val loadingLabel = when (trigger.mode) {
                 AiIntentMode.BIBLE_VERSE_LOOKUP -> "📖 Buscando versículo..."
-                AiIntentMode.GRAMMAR_CORRECTION -> "✨ Analisando frase..."
-                AiIntentMode.SEMANTIC_REPAIR -> "✨ Verificando texto..."
+                AiIntentMode.GRAMMAR_CORRECTION -> "🪄 Analisando frase..."
+                AiIntentMode.SEMANTIC_REPAIR -> "🪄 Revisando texto..."
                 AiIntentMode.SMART_ASSISTANT -> "⚡ Consultando IA..."
             }
             predictionJob?.cancel()
+            activeAiSuggestion = null
             configureAiBannerLayout(true)
             updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
             updateSuggestionView(suggestion2, loadingLabel)
-            updateSuggestionView(suggestion3, "", hideWhenEmpty = true)
+            updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
             updateTopStripVisibility()
 
             val result = withContext(Dispatchers.IO) {
                 ParticipativeAiEngine.processText(
                     textBefore = checkBefore,
                     textAfter = checkAfter,
-                    selectedText = selectedText,
-                    isPassiveModeEnabled = isPassive,
+                    selectedText = null,
+                    isPassiveModeEnabled = false,
                     provider = prefAiProvider,
                     apiKey = apiKey
                 )
             }
+
+            if (!isAiBannerLayoutActive) return@launch
 
             if (result != null) {
                 // Se o usuário estiver compondo letras de uma palavra no teclado, NÃO sequestra a barra
@@ -1867,6 +1883,139 @@ class StitchKeyboardService : InputMethodService() {
         }
     }
 
+    private fun triggerAiWandAction() {
+        playClickFeedback()
+        triggerVibration()
+
+        val sp = getSharedPreferences("StitchPrefs", android.content.Context.MODE_PRIVATE)
+        prefAiParticipative = sp.getBoolean("PREF_AI_PARTICIPATIVE", prefAiParticipative)
+        if (!prefAiParticipative) {
+            try {
+                val intent = android.content.Intent(this, com.example.activity.MainActivity::class.java)
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+            } catch (_: Exception) {}
+            return
+        }
+
+        if (isPrivateOrPassword(currentInputEditorInfo)) {
+            Toast.makeText(this, "IA desativada em modo privado/senha", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val apiKey = getActiveAiApiKey()
+        if (apiKey.isBlank()) {
+            aiWatcherJob?.cancel()
+            predictionJob?.cancel()
+            aiInfoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
+            val providerName = if (prefAiProvider.equals("gemini", ignoreCase = true)) "Gemini" else "Groq"
+            val msg = "⚙️ Configure a chave $providerName nas opções"
+            configureAiBannerLayout(true)
+            updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
+            updateSuggestionView(suggestion2, msg)
+            updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
+            updateTopStripVisibility()
+            activeAiSuggestion = AiSuggestionResult(
+                originalText = "",
+                targetSpanText = "",
+                suggestionText = msg,
+                displayLabel = msg,
+                mode = AiIntentMode.GRAMMAR_CORRECTION,
+                deleteBeforeCount = 0,
+                deleteAfterCount = 0,
+                isError = true
+            )
+            return
+        }
+
+        val ic = currentInputConnection ?: return
+        val selectedText = ic.getSelectedText(0)?.toString()
+        val textBefore = ic.getTextBeforeCursor(1000, 0)?.toString() ?: ""
+        val textAfter = ic.getTextAfterCursor(1000, 0)?.toString() ?: ""
+
+        val trigger = ParticipativeAiEngine.parseTrigger(
+            textBefore = textBefore,
+            textAfter = textAfter,
+            selectedText = selectedText,
+            isPassiveModeEnabled = true,
+            minPassiveLength = 2,
+            allowTrailingSentence = true
+        )
+
+        if (trigger == null) {
+            Toast.makeText(this, "Digite ou selecione um texto para revisar", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        aiWatcherJob?.cancel()
+        predictionJob?.cancel()
+        aiInfoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
+        aiUndoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
+        composingBuffer.setLength(0)
+
+        val loadingLabel = when (trigger.mode) {
+            AiIntentMode.BIBLE_VERSE_LOOKUP -> "📖 Buscando versículo..."
+            AiIntentMode.SMART_ASSISTANT -> "⚡ Consultando IA..."
+            AiIntentMode.GRAMMAR_CORRECTION,
+            AiIntentMode.SEMANTIC_REPAIR -> "🪄 Revisando texto..."
+        }
+
+        activeAiSuggestion = null
+        configureAiBannerLayout(true)
+        updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
+        updateSuggestionView(suggestion2, loadingLabel)
+        updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
+        updateTopStripVisibility()
+
+        aiWatcherJob = scope.launch(Dispatchers.Main) {
+            val result = withContext(Dispatchers.IO) {
+                ParticipativeAiEngine.processText(
+                    textBefore = textBefore,
+                    textAfter = textAfter,
+                    selectedText = selectedText,
+                    isPassiveModeEnabled = true,
+                    provider = prefAiProvider,
+                    apiKey = apiKey,
+                    minPassiveLength = 2,
+                    allowTrailingSentence = true
+                )
+            }
+
+            if (!isAiBannerLayoutActive) return@launch
+
+            if (result != null) {
+                if (result.isError || !result.suggestionText.equals(result.originalText, ignoreCase = true)) {
+                    activeAiSuggestion = result
+                    configureAiBannerLayout(true)
+                    updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
+                    updateSuggestionView(suggestion2, result.displayLabel)
+                    updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
+                    updateTopStripVisibility()
+                } else {
+                    showAiAlreadyCorrectPill()
+                }
+            } else {
+                showAiAlreadyCorrectPill()
+            }
+        }
+    }
+
+    private fun showAiAlreadyCorrectPill() {
+        activeAiSuggestion = null
+        configureAiBannerLayout(true)
+        updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
+        updateSuggestionView(suggestion2, "✓ Texto já está correto")
+        updateSuggestionView(suggestion3, "✕", hideWhenEmpty = false)
+        updateTopStripVisibility()
+        aiInfoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
+        aiInfoDismissRunnable = Runnable {
+            if (suggestion2?.text?.toString() == "✓ Texto já está correto") {
+                clearPredictionsUi()
+            }
+        }
+        mainHandler.postDelayed(aiInfoDismissRunnable!!, 2200L)
+    }
+
     private fun showAiUndoPill() {
         configureAiBannerLayout(true)
         updateSuggestionView(suggestion1, "", hideWhenEmpty = true)
@@ -1898,6 +2047,7 @@ class StitchKeyboardService : InputMethodService() {
                 val isAutocorrectGlow = text.startsWith("=") || text.startsWith("↩") ||
                         text.startsWith("✨") || text.startsWith("📖") || text.startsWith("⚡") ||
                         text.startsWith("⚠️") || text.startsWith("⚙️") ||
+                        text.startsWith("🪄") || text.startsWith("✓") ||
                         (composingBuffer.isNotEmpty() && predictionEngine.getTopAutocorrect(composingBuffer.toString()) != null)
                 if (isAutocorrectGlow) {
                     tv.setBackgroundResource(R.drawable.bg_autocorrect_glow_pill)
@@ -1910,6 +2060,8 @@ class StitchKeyboardService : InputMethodService() {
 
     private fun clearPredictionsUi() {
         predictionJob?.cancel()
+        aiInfoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
+        aiInfoDismissRunnable = null
         lastQueriedWord = ""
         activeAiSuggestion = null
         configureAiBannerLayout(false)
@@ -1938,11 +2090,24 @@ class StitchKeyboardService : InputMethodService() {
     private fun updateTopStripVisibility() {
         if (isEmojiSearchMode || (::voiceRoot.isInitialized && voiceRoot.visibility == View.VISIBLE)) return
 
+        keyAiWandTop?.visibility = if (prefAiParticipative) View.VISIBLE else View.GONE
+
         val hasClipboardPill = clipboardContainer?.visibility == View.VISIBLE
         val hasSuggestions = (suggestion1?.text?.isNotEmpty() == true && suggestion1?.visibility == View.VISIBLE) ||
                              (suggestion2?.text?.isNotEmpty() == true && suggestion2?.visibility == View.VISIBLE) ||
                              (suggestion3?.text?.isNotEmpty() == true && suggestion3?.visibility == View.VISIBLE) ||
                              composingBuffer.isNotEmpty()
+
+        val s1Text = suggestion1?.text?.toString() ?: ""
+        val s2Text = suggestion2?.text?.toString() ?: ""
+        val isSpecialSuggestionStrip = s2Text.startsWith("=") || s2Text.startsWith("↩") || s1Text == "@corrigir"
+        keyAiWandStrip?.visibility = if (
+            prefAiParticipative &&
+            !isIncognitoActive &&
+            !isAiBannerLayoutActive &&
+            hasSuggestions &&
+            !isSpecialSuggestionStrip
+        ) View.VISIBLE else View.GONE
 
         if (hasClipboardPill) {
             topCommandsBar?.visibility = View.GONE
@@ -3704,6 +3869,10 @@ class StitchKeyboardService : InputMethodService() {
         clipboardImageLabel = view.findViewById<TextView>(R.id.clipboard_image_label)
         incognitoBadge = view.findViewById(R.id.incognito_badge)
         incognitoIconIndicator = view.findViewById(R.id.incognito_icon_indicator)
+        keyAiWandTop = view.findViewById(R.id.key_ai_wand_top)
+        keyAiWandStrip = view.findViewById(R.id.key_ai_wand_strip)
+        keyAiWandTop?.setOnClickListener { triggerAiWandAction() }
+        keyAiWandStrip?.setOnClickListener { triggerAiWandAction() }
         val plusBtn = view.findViewById<View>(R.id.key_settings_top)
         plusBtn?.setOnClickListener {
             playClickFeedback()
@@ -3774,14 +3943,24 @@ class StitchKeyboardService : InputMethodService() {
                 }
 
                 // Modo IA: só intercepta cliques se o banner da IA estiver comprovadamente ativo no layout
-                if (isAiBannerLayoutActive && activeAiSuggestion != null) {
-                    val aiResult = activeAiSuggestion!!
-
-                    // 1. Botão de fechar/dispensar IA ('✕' no suggestion3)
-                    if (v == suggestion3 && (selectedSuggestion == "✕" || isAiBannerLayoutActive)) {
+                if (isAiBannerLayoutActive) {
+                    // 1. Botão de fechar/dispensar IA ('✕' no suggestion3) — funciona inclusive durante carregamento
+                    if (v == suggestion3 && selectedSuggestion == "✕") {
+                        aiWatcherJob?.cancel()
+                        aiInfoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
                         activeAiSuggestion = null
                         clearPredictionsUi()
                         triggerVibration()
+                        return@OnClickListener
+                    }
+
+                    val aiResult = activeAiSuggestion
+                    if (aiResult == null) {
+                        // Durante carregamento ("🪄 Revisando texto...") ou confirmação ("✓ Texto já está correto")
+                        if (selectedSuggestion.startsWith("✓")) {
+                            clearPredictionsUi()
+                            triggerVibration()
+                        }
                         return@OnClickListener
                     }
 
@@ -3981,6 +4160,7 @@ class StitchKeyboardService : InputMethodService() {
         // 5. Teclas de comando / ação (Shift, Backspace, 123, Enter, ferramentas)
         val commandIds = listOf(
             R.id.key_shift, R.id.key_backspace, R.id.key_symbol, R.id.key_enter,
+            R.id.key_ai_wand_top, R.id.key_ai_wand_strip,
             R.id.key_mic_top, R.id.key_clipboard_top, R.id.key_cursor_top, R.id.key_emoji_top,
             R.id.key_one_handed_top, R.id.key_settings_top,
             R.id.num_key_clipboard_top, R.id.num_key_mic_top, R.id.num_key_settings_top,
@@ -4589,6 +4769,7 @@ class StitchKeyboardService : InputMethodService() {
         unregisterScreenshotObserver()
         clipboardDismissRunnable?.let { mainHandler.removeCallbacks(it) }
         aiUndoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
+        aiInfoDismissRunnable?.let { mainHandler.removeCallbacks(it) }
         predictionJob?.cancel()
         aiWatcherJob?.cancel()
         waveJob?.cancel()

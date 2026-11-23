@@ -289,7 +289,7 @@ fun KeyboardLivePreview(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val tools = listOf("🎤", "📋", "🎯", "😊", "📱", "⚙️")
+                            val tools = listOf("🪄", "🎤", "📋", "🎯", "😊", "📱", "⚙️")
                             tools.forEach { icon ->
                                 Box(
                                     modifier = Modifier

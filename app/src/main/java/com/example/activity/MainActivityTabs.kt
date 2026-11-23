@@ -285,22 +285,12 @@ fun TabTypingContent(
                 TesseraSwitchRow(
                     icon = Icons.Outlined.AutoAwesome,
                     title = "Ativar IA Participativa",
-                    subtitle = "Lê o contexto e sugere correções ou versículos na barra superior",
+                    subtitle = "Exibe a varinha mágica na barra de ação e suporta tags (@corrigir, @versiculo, @ia)",
                     checked = aiParticipative,
                     onCheckedChange = onAiParticipativeChange
                 )
 
                 if (aiParticipative) {
-                    TesseraItemDivider(withIconOffset = true)
-
-                    TesseraSwitchRow(
-                        icon = Icons.Outlined.Bolt,
-                        title = "Participação Contínua (Sem Tags)",
-                        subtitle = "Analisa frases automaticamente ao pausar mesmo sem digitar @corrigir",
-                        checked = aiPassiveContinuous,
-                        onCheckedChange = onAiPassiveContinuousChange
-                    )
-
                     TesseraItemDivider(withIconOffset = false)
 
                     Column(
@@ -445,6 +435,7 @@ fun TabTypingContent(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             listOf(
+                                "🪄 Varinha" to "Revisão IA",
                                 "@corrigir" to "Gramática",
                                 "@versiculo" to "Bíblia",
                                 "@ia" to "Assistente"

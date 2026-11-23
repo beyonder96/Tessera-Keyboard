@@ -52,7 +52,9 @@ object ParticipativeAiEngine {
         textBefore: String,
         textAfter: String = "",
         selectedText: String? = null,
-        isPassiveModeEnabled: Boolean = false
+        isPassiveModeEnabled: Boolean = false,
+        minPassiveLength: Int = 12,
+        allowTrailingSentence: Boolean = false
     ): ParsedAiTrigger? {
         // 1. Se o usuário selecionou texto manualmente, prioridade total na seleção
         if (!selectedText.isNullOrBlank()) {
@@ -131,16 +133,16 @@ object ParticipativeAiEngine {
             }
         }
 
-        // 4. Modo passivo contínuo (Sem tags): captura a oração completa ao redor do cursor
+        // 4. Modo passivo / varinha mágica (Sem tags): captura a oração completa ao redor do cursor
         if (isPassiveModeEnabled) {
-            val sentenceStartInBefore = maxOf(
+            var sentenceStartInBefore = maxOf(
                 textBefore.lastIndexOf('\n'),
                 textBefore.lastIndexOf(". "),
                 textBefore.lastIndexOf("! "),
                 textBefore.lastIndexOf("? ")
             ).let { if (it == -1) 0 else if (textBefore[it] == '\n') it + 1 else it + 2 }
 
-            val sentencePartBefore = textBefore.substring(sentenceStartInBefore)
+            var sentencePartBefore = textBefore.substring(sentenceStartInBefore)
             val sentenceEndInAfter = minOf(
                 textAfter.indexOf('\n').takeIf { it != -1 } ?: textAfter.length,
                 textAfter.indexOf('.').takeIf { it != -1 } ?: textAfter.length,
@@ -148,11 +150,29 @@ object ParticipativeAiEngine {
                 textAfter.indexOf('?').takeIf { it != -1 } ?: textAfter.length
             )
             val sentencePartAfter = textAfter.substring(0, sentenceEndInAfter)
-            val fullSentence = (sentencePartBefore + sentencePartAfter).trim()
 
-            if (fullSentence.length >= 12 && !fullSentence.startsWith("@") && !fullSentence.startsWith("/")) {
+            // Quando acionado manualmente pela varinha logo após pontuar (ex: "frase. "), captura a oração anterior
+            if (allowTrailingSentence && sentencePartBefore.isBlank() && sentencePartAfter.isBlank()) {
+                val trimmedBefore = textBefore.trimEnd()
+                if (trimmedBefore.isNotEmpty()) {
+                    val searchUpTo = (trimmedBefore.length - 1).coerceAtLeast(0)
+                    val prevBreak = maxOf(
+                        trimmedBefore.lastIndexOf('\n', searchUpTo - 1),
+                        trimmedBefore.lastIndexOf(". ", (searchUpTo - 1).coerceAtLeast(0)),
+                        trimmedBefore.lastIndexOf("! ", (searchUpTo - 1).coerceAtLeast(0)),
+                        trimmedBefore.lastIndexOf("? ", (searchUpTo - 1).coerceAtLeast(0))
+                    )
+                    sentenceStartInBefore = if (prevBreak == -1) 0 else if (trimmedBefore[prevBreak] == '\n') prevBreak + 1 else prevBreak + 2
+                    sentencePartBefore = textBefore.substring(sentenceStartInBefore)
+                }
+            }
+
+            val fullSentence = (sentencePartBefore + sentencePartAfter).trim()
+            val minWords = if (allowTrailingSentence) 1 else 2
+
+            if (fullSentence.length >= minPassiveLength && !fullSentence.startsWith("@") && !fullSentence.startsWith("/")) {
                 val words = fullSentence.split(Regex("""\s+""")).filter { it.isNotBlank() }
-                if (words.size >= 2) {
+                if (words.size >= minWords) {
                     return ParsedAiTrigger(
                         mode = AiIntentMode.SEMANTIC_REPAIR,
                         matchedTag = "",
@@ -214,7 +234,9 @@ object ParticipativeAiEngine {
         selectedText: String? = null,
         isPassiveModeEnabled: Boolean,
         provider: String,
-        apiKey: String
+        apiKey: String,
+        minPassiveLength: Int = 12,
+        allowTrailingSentence: Boolean = false
     ): AiSuggestionResult? = withContext(Dispatchers.IO) {
         val cleanApiKey = apiKey.trim().removePrefix("Bearer ").removePrefix("bearer ").trim()
         if (cleanApiKey.isBlank()) return@withContext null
@@ -223,7 +245,9 @@ object ParticipativeAiEngine {
             textBefore = textBefore,
             textAfter = textAfter,
             selectedText = selectedText,
-            isPassiveModeEnabled = isPassiveModeEnabled
+            isPassiveModeEnabled = isPassiveModeEnabled,
+            minPassiveLength = minPassiveLength,
+            allowTrailingSentence = allowTrailingSentence
         ) ?: return@withContext null
 
         val systemPrompt = buildSystemPrompt(trigger.mode)

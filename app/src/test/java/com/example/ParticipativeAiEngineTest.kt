@@ -83,6 +83,35 @@ class ParticipativeAiEngineTest {
     }
 
     @Test
+    fun parseTrigger_wandActionCapturesShortAndTrailingSentences() {
+        val shortText = "nois vai"
+        val shortParsed = ParticipativeAiEngine.parseTrigger(
+            textBefore = shortText,
+            textAfter = "",
+            selectedText = null,
+            isPassiveModeEnabled = true,
+            minPassiveLength = 2,
+            allowTrailingSentence = true
+        )
+        assertNotNull(shortParsed)
+        assertEquals(AiIntentMode.SEMANTIC_REPAIR, shortParsed?.mode)
+        assertEquals("nois vai", shortParsed?.userContent)
+
+        val trailingText = "oi amigo. nois vai la. "
+        val trailingParsed = ParticipativeAiEngine.parseTrigger(
+            textBefore = trailingText,
+            textAfter = "",
+            selectedText = null,
+            isPassiveModeEnabled = true,
+            minPassiveLength = 2,
+            allowTrailingSentence = true
+        )
+        assertNotNull(trailingParsed)
+        assertEquals("nois vai la.", trailingParsed?.userContent)
+        assertEquals("nois vai la. ".length, trailingParsed?.deleteBeforeCount)
+    }
+
+    @Test
     fun systemPrompts_enforceExactVerseFormatAndNoQuotes() {
         val versePrompt = ParticipativeAiEngine.buildSystemPrompt(AiIntentMode.BIBLE_VERSE_LOOKUP)
         assertTrue(versePrompt.contains("[Texto do versículo corrigido]. — [Livro] [Capítulo]:[Versículo]"))
